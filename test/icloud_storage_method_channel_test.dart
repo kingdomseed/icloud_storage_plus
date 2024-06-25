@@ -100,7 +100,6 @@ void main() {
       await platform.download(
         containerId: containerId,
         relativePath: 'file',
-        destinationFilePath: '/dir/dest',
       );
       expect((mockMethodCall.arguments['containerId'] as String), containerId);
       expect(
@@ -113,7 +112,6 @@ void main() {
       await platform.download(
         containerId: containerId,
         relativePath: 'file',
-        destinationFilePath: '/dir/dest',
         onProgress: (stream) => {},
       );
       expect(
