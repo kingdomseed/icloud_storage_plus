@@ -17,6 +17,11 @@ class MockIcloudStoragePlatform
   String get uploadDestinationRelativePath => _uploadDestinationRelativePath;
 
   @override
+  Future<bool> icloudAvailable() async {
+    return true;
+  }
+
+  @override
   Future<String> getContainerPath({required String containerId}) async {
     return '';
   }

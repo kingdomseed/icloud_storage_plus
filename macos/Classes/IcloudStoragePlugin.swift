@@ -16,6 +16,8 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
 
  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
+    case "icloudAvailable":
+      icloudAvailable(result)
     case "gather":
       gather(call, result)
     case "upload":
@@ -35,6 +37,14 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Check if iCloud is available and user is logged in
+  ///
+  /// Returns true if iCloud is available and user is logged in, false otherwise
+  private func icloudAvailable(_ result: @escaping FlutterResult) {
+    let status = FileManager.default.ubiquityIdentityToken != nil
+    result(status)
+  }
+
   private func getContainerPath(_ call: FlutterMethodCall, _ result: @escaping FlutterResult){
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String

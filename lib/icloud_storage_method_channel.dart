@@ -11,6 +11,11 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   final methodChannel = const MethodChannel('icloud_storage');
 
   @override
+  Future<bool> icloudAvailable() async {
+    return await methodChannel.invokeMethod('icloudAvailable');
+  }
+
+  @override
   Future<List<ICloudFile>> gather({
     required String containerId,
     StreamHandler<List<ICloudFile>>? onUpdate,
