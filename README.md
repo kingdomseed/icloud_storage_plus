@@ -38,6 +38,21 @@ print('FILES GATHERED');
 fileList.forEach((file) => print('-- ${file.relativePath}'));
 ```
 
+### Get iCloud Container Path
+
+```dart
+final containerPath = await ICloudStorage.getContainerPath(
+  containerId: 'iCloudContainerId',
+);
+print('iCloud Container Path: $containerPath');
+
+// You can use this path to directly create or manipulate files in the iCloud container
+if (containerPath != null) {
+  final file = File('$containerPath/myfile.txt');
+  await file.writeAsString('Hello, iCloud!');
+}
+```
+
 ### Upload a file to iCloud
 
 ```dart
@@ -61,10 +76,9 @@ Note: The 'startUpload' API is to start the upload process. The returned future 
 ### Download a file from iCloud
 
 ```dart
-await ICloudStorage.download(
+final success = await ICloudStorage.download(
   containerId: 'iCloudContainerId',
   relativePath: 'relativePath',
-  destinationFilePath: '/localDir/localFile',
   onProgress: (stream) {
     downloadProgressSub = stream.listen(
       (progress) => print('Download File Progress: $progress'),
@@ -74,9 +88,23 @@ await ICloudStorage.download(
     );
   },
 );
+
+if (success) {
+  print('Download initiated successfully');
+  
+  // Access the downloaded file using the container path
+  final containerPath = await ICloudStorage.getContainerPath(
+    containerId: 'iCloudContainerId',
+  );
+  
+  if (containerPath != null) {
+    final downloadedFile = File('$containerPath/relativePath');
+    // Use the file...
+  }
+}
 ```
 
-Note: The 'startDownload' API is to start the download process. The returned future completes without waiting for the download to complete. Use 'onProgress' to track the download progress.
+Note: The download method returns a boolean value indicating whether the download was successfully initiated. The returned future completes without waiting for the download to complete. Use 'onProgress' to track the download progress. Files are downloaded directly to the iCloud container directory, which can be accessed using the 'getContainerPath' method.
 
 ### Delete a file from iCloud
 

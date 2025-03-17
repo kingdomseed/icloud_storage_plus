@@ -2,17 +2,22 @@
 
 This improved iCloud Storage plugin is based on the [icloud_storage](https://github.com/deansyd/icloud_storage) plugin by Dean Sydney (deansyd), with additional features and improvements from multiple contributors. Below are the specific contributions incorporated into this enhanced version.
 
-## Open Pull Requests
+## Implemented Improvements
 
-### Improved Error Handling
+### Improved Error Handling ✅
+
 - **Pull Request**: [PR #40](https://github.com/deansyd/icloud_storage/pull/40)
 - **Contributor**: Jorge Sardina ([@js2702](https://github.com/js2702))
 - **Features**:
   - Enhanced error handling
   - More specific exception types
   - Improved error messages
+- **Status**: ✅ Implemented
+
+## Open Pull Requests
 
 ### Improved IO Changes
+
 - **Pull Request**: [PR #45](https://github.com/deansyd/icloud_storage/pull/45)
 - **Contributor**: Vishal Rao ([@vishalrao8](https://github.com/vishalrao8))
 - **Features**:
@@ -20,21 +25,24 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - Enhanced I/O operations
   - Better performance
   - Method to access the root iCloud container directory
+- **Status**: Pending Implementation
 
 ## Feature Contributions
 
 ### iCloud Availability Check
+
 - **Repository**: [TrangLeQuynh/icloud_storage](https://github.com/TrangLeQuynh/icloud_storage)
 - **Author**: Trang Le Quynh
 - **Commit**: [5069e2c161d89cb90fe07b8ab6b6cf375fc8ac65](https://github.com/TrangLeQuynh/icloud_storage/commit/5069e2c161d89cb90fe07b8ab6b6cf375fc8ac65)
 - **Feature**: Method to check if iCloud is available before performing operations
-- **Files Modified**: 
+- **Files Modified**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
 ### Get Root Directory (Superseded by PR #45)
+
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [5aec3f761db34f2484dad100bf28737254762d76](https://github.com/rizerco/icloud_storage/commit/5aec3f761db34f2484dad100bf28737254762d76)
@@ -47,6 +55,7 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
 ### Download In Place Method
+
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [39d1be3850595b3fda8c98bca56b70a15c6acb2a](https://github.com/rizerco/icloud_storage/commit/39d1be3850595b3fda8c98bca56b70a15c6acb2a)
@@ -58,9 +67,10 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
 ### Get Absolute Path
+
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
-- **Commits**: 
+- **Commits**:
   - [368ef67634251b75cc355c780805e66f29e7ec83](https://github.com/rizerco/icloud_storage/commit/368ef67634251b75cc355c780805e66f29e7ec83) - Main implementation
   - [5900bc0fe371ac1548f44e9d5ab19a44d4eec50f](https://github.com/rizerco/icloud_storage/commit/5900bc0fe371ac1548f44e9d5ab19a44d4eec50f) - Path encoding fix
 - **Feature**: Method to get the absolute path for a file in iCloud
@@ -71,6 +81,7 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
 ### Display File Attributes
+
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [6649b1b3fd7d38f8d9b459dc82a5243eff30c80f](https://github.com/rizerco/icloud_storage/commit/6649b1b3fd7d38f8d9b459dc82a5243eff30c80f)
@@ -90,6 +101,15 @@ This improved version of the iCloud Storage plugin integrates various contributi
 3. Adding functionality from the TrangLeQuynh and Rizerco forks
 4. Ensuring compatibility between all integrated components
 5. Testing thoroughly before publication
+
+## Implementation Status
+
+- ✅ PR #40 (Error Handling) - Completed
+- ⏳ PR #45 (I/O Improvements) - Pending
+- ⏳ iCloud Availability Check - Pending
+- ⏳ Download In Place - Pending
+- ⏳ Get Absolute Path - Pending
+- ⏳ File Attributes Support - Pending
 
 ### Implementation Decisions
 

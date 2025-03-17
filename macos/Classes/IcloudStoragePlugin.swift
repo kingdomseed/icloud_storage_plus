@@ -28,9 +28,27 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
       move(call, result)
     case "createEventChannel":
       createEventChannel(call, result)
+    case "getContainerPath":
+      getContainerPath(call, result)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+  
+  private func getContainerPath(_ call: FlutterMethodCall, _ result: @escaping FlutterResult){
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    result(containerURL.path)
   }
   
   private func gather(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -201,7 +219,6 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
           let cloudFileName = args["cloudFileName"] as? String,
-          let localFilePath = args["localFilePath"] as? String,
           let eventChannelName = args["eventChannelName"] as? String
     else {
       result(argumentError)
@@ -234,24 +251,23 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
       removeStreamHandler(eventChannelName)
     }
 
-    let localFileURL = URL(fileURLWithPath: localFilePath)
-    addDownloadObservers(query: query, cloudFileURL: cloudFileURL, localFileURL: localFileURL, eventChannelName: eventChannelName)
+    addDownloadObservers(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
     
     query.start()
-    result(nil)
+    result(true)
   }
   
-  private func addDownloadObservers(query: NSMetadataQuery, cloudFileURL: URL, localFileURL: URL, eventChannelName: String) {
+  private func addDownloadObservers(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query, queue: query.operationQueue) { [self] (notification) in
-      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, localFileURL: localFileURL, eventChannelName: eventChannelName)
+      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
     }
     
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidUpdate, object: query, queue: query.operationQueue) { [self] (notification) in
-      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, localFileURL: localFileURL, eventChannelName: eventChannelName)
+      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
     }
   }
   
-  private func onDownloadQueryNotification(query: NSMetadataQuery, cloudFileURL: URL, localFileURL: URL, eventChannelName: String) {
+  private func onDownloadQueryNotification(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {
     if query.results.count == 0 {
       return
     }
@@ -271,13 +287,8 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
     }
     
     if fileURLValues.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      do {
-        try moveCloudFile(at: cloudFileURL, to: localFileURL)
-        streamHandler?.setEvent(FlutterEndOfEventStream)
-        removeStreamHandler(eventChannelName)
-      } catch {
-        streamHandler?.setEvent(nativeCodeError(error))
-      }
+      streamHandler?.setEvent(FlutterEndOfEventStream)
+      removeStreamHandler(eventChannelName)
     }
   }
   
