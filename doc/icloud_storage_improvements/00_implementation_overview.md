@@ -7,8 +7,8 @@ This document provides a high-level overview of the specific improvements to be 
 ## Key Improvement Areas
 
 1. ✅ **Enhanced Error Handling** (PR #40): Implement structured error handling with specific exception types
-2. **I/O Improvements** (PR #45): Enhance file operations and performance
-3. **iCloud Availability Check**: Add method to verify iCloud availability before operations
+2. ✅ **I/O Improvements** (PR #45): Enhance file operations and performance
+3. ✅ **iCloud Availability Check**: Add method to verify iCloud availability before operations
 4. **Root Directory Access**: Add method to get the root iCloud container directory (from PR #45)
 5. **Download Improvements**: Add in-place download functionality
 6. **Path Management**: Add method to get absolute paths and fix path encoding issues
@@ -44,7 +44,7 @@ The following files will need to be modified or created:
 
 ### Phase 3: Additional Methods from Forks
 
-1. Add iCloud availability check from TrangLeQuynh's fork
+1. ✅ Add iCloud availability check from TrangLeQuynh's fork
 2. Implement download in place functionality from Rizerco's fork
 3. Add absolute path functionality from Rizerco's fork
 4. Implement file attributes support from Rizerco's fork

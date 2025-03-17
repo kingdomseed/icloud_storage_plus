@@ -110,8 +110,8 @@ This improved version of the iCloud Storage plugin integrates various contributi
 ## Implementation Status
 
 - ✅ PR #40 (Error Handling) - Completed
-- ⏳ PR #45 (I/O Improvements) - Pending
-- ⏳ iCloud Availability Check - Pending
+- ✅ PR #45 (I/O Improvements) - Completed
+- ✅ iCloud Availability Check - Completed
 - ⏳ Download In Place - Pending
 - ⏳ Get Absolute Path - Pending
 - ⏳ File Attributes Support - Pending
