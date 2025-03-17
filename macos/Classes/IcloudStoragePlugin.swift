@@ -254,7 +254,6 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
     addDownloadObservers(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
     
     query.start()
-    result(true)
   }
   
   private func addDownloadObservers(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {

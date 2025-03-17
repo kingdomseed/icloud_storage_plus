@@ -2,30 +2,33 @@
 
 This improved iCloud Storage plugin is based on the [icloud_storage](https://github.com/deansyd/icloud_storage) plugin by Dean Sydney (deansyd), with additional features and improvements from multiple contributors. Below are the specific contributions incorporated into this enhanced version.
 
-## Implemented Improvements
+## Open Pull Requests
 
-### Improved Error Handling ✅
+### Improved Error Handling ✅ IMPLEMENTED
 
 - **Pull Request**: [PR #40](https://github.com/deansyd/icloud_storage/pull/40)
 - **Contributor**: Jorge Sardina ([@js2702](https://github.com/js2702))
 - **Features**:
-  - Enhanced error handling
-  - More specific exception types
-  - Improved error messages
-- **Status**: ✅ Implemented
+  - ✅ Enhanced error handling
+  - ✅ Improved error messages
 
-## Open Pull Requests
-
-### Improved IO Changes
+### Improved IO Changes ✅ IMPLEMENTED
 
 - **Pull Request**: [PR #45](https://github.com/deansyd/icloud_storage/pull/45)
 - **Contributor**: Vishal Rao ([@vishalrao8](https://github.com/vishalrao8))
 - **Features**:
-  - Improved file handling
-  - Enhanced I/O operations
-  - Better performance
-  - Method to access the root iCloud container directory
-- **Status**: Pending Implementation
+  - ✅ Improved file handling by removing unnecessary file copying operations
+  - ✅ Enhanced I/O operations with direct access to the iCloud container
+  - ✅ Better performance for file transfers
+  - ✅ Method to access the root iCloud container directory via `getContainerPath`
+  - ✅ Modified download method to return a boolean success indicator
+- **Implementation Date**: March 17, 2025
+- **Files Modified**:
+  - `lib/icloud_storage.dart`
+  - `lib/icloud_storage_platform_interface.dart`
+  - `lib/icloud_storage_method_channel.dart`
+  - `ios/Classes/SwiftIcloudStoragePlugin.swift`
+  - `macos/Classes/IcloudStoragePlugin.swift`
 
 ## Feature Contributions
 
@@ -41,18 +44,20 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
-### Get Root Directory (Superseded by PR #45)
+### Get Root Directory ✅ IMPLEMENTED (via PR #45)
 
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [5aec3f761db34f2484dad100bf28737254762d76](https://github.com/rizerco/icloud_storage/commit/5aec3f761db34f2484dad100bf28737254762d76)
 - **Feature**: Method to access the root iCloud container directory
-- **Note**: This implementation has been superseded by PR #45 which provides equivalent functionality
+- **Implementation Status**: ✅ Implemented via PR #45 as `getContainerPath` method
+- **Implementation Date**: March 17, 2025
 - **Files Modified**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
+  - `macos/Classes/IcloudStoragePlugin.swift`
 
 ### Download In Place Method
 
