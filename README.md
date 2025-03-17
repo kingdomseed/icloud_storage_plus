@@ -171,7 +171,7 @@ A: This is most likely to be an issue with the native code. However, if you call
 
 # Attributions
 
-This improved iCloud Storage Plus plugin is based on the [icloud_storage](https://github.com/deansyd/icloud_storage) plugin by Dean Sydney (deansyd), with additional features and improvements from multiple contributors. Below are the specific contributions incorporated into this enhanced version.
+This improved iCloud Storage plugin is based on the [icloud_storage](https://github.com/deansyd/icloud_storage) plugin by Dean Sydney (deansyd), with additional features and improvements from multiple contributors. Below are the specific contributions incorporated into this enhanced version.
 
 ## Open Pull Requests
 
@@ -190,6 +190,7 @@ This improved iCloud Storage Plus plugin is based on the [icloud_storage](https:
   - Improved file handling
   - Enhanced I/O operations
   - Better performance
+  - Method to access the root iCloud container directory
 
 ## Feature Contributions
 
@@ -204,11 +205,12 @@ This improved iCloud Storage Plus plugin is based on the [icloud_storage](https:
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
-### Get Root Directory
+### Get Root Directory (Superseded by PR #45)
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [5aec3f761db34f2484dad100bf28737254762d76](https://github.com/rizerco/icloud_storage/commit/5aec3f761db34f2484dad100bf28737254762d76)
 - **Feature**: Method to access the root iCloud container directory
+- **Note**: This implementation has been superseded by PR #45 which provides equivalent functionality
 - **Files Modified**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
@@ -250,9 +252,26 @@ This improved iCloud Storage Plus plugin is based on the [icloud_storage](https:
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
 
+## Integration Approach
+
+This improved version of the iCloud Storage plugin integrates various contributions from pull requests and forks. The integration follows these key principles:
+
+1. Starting with the base package (deansyd/icloud_storage)
+2. Applying PR changes (#40 and #45)
+3. Adding functionality from the TrangLeQuynh and Rizerco forks
+4. Ensuring compatibility between all integrated components
+5. Testing thoroughly before publication
+
+### Implementation Decisions
+
+- For overlapping functionality, I prioritize PRs over fork-specific implementations
+- PR #45 will be used for accessing the root iCloud container directory instead of the separate Rizerco implementation, as it provides equivalent functionality with additional performance improvements
+- All other non-overlapping features from the Rizerco fork will be integrated as specified
+
 ## License
 
 All contributions and improvements are provided under the original MIT License.
+
 
 
 
