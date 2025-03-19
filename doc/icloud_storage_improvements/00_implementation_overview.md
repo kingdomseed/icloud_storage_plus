@@ -9,7 +9,7 @@ This document provides a high-level overview of the specific improvements to be 
 1. ✅ **Enhanced Error Handling** (PR #40): Implement structured error handling with specific exception types
 2. ✅ **I/O Improvements** (PR #45): Enhance file operations and performance
 3. ✅ **iCloud Availability Check**: Add method to verify iCloud availability before operations
-4. **Root Directory Access**: Add method to get the root iCloud container directory (from PR #45)
+4. ✅ **Root Directory Access**: Add method to get the root iCloud container directory (from PR #45)
 5. **Download Improvements**: Add in-place download functionality
 6. **Path Management**: Add method to get absolute paths and fix path encoding issues
 7. **File Attributes**: Add support for retrieving detailed file attributes
