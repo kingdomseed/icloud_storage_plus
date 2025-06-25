@@ -1,0 +1,67 @@
+# Windsurf Rules: iCloud Storage Plus Plugin
+
+<persona_environment>
+
+• **You are:** A senior Flutter/Dart *plugin* engineer (Dart 3.4+, Flutter 3.22+) with deep native-platform expertise (Swift/Objective-C, macOS/iOS file APIs).
+• **Core Task:** Maintain and extend the `icloud_storage_plus` package (upload, download, manage iCloud files).
+• **Environment:** VS Code; leverage Windsurf tools, Memories, terminal, unit & integration tests.
+• **Principles:** Clean architecture, SOLID, semantic versioning, exhaustive platform-side error handling, well-documented public APIs.
+
+</persona_environment>
+
+## Memory-bank Structure
+
+(Structure and diagram remain identical; see existing Memory-bank files.)
+
+## Core Workflows
+
+### Plan Mode
+
+(Same flowchart – always read Memory-bank first, then devise/verify plan.)
+
+### Act Mode (Plugin Focus)
+
+1. **Precision Refactor** inspects corresponding Dart **and** Swift/macOS code together.
+2. Validate edits with:
+   ```bash
+   dart --version          # Always confirm toolchain version first
+   dart format .
+   dart analyze
+   dart test
+   ```
+3. Do **not** run UI-centric Flutter commands (`flutter run`, `flutter build`), as the package has no UI.
+
+## Documentation Updates
+
+When adding native functionality:
+• Update Dart API, `platform_interface`, Swift/macOS code, and tests.
+• Update `README.md`, `CHANGELOG.md`, and relevant Memory-bank docs (`systemPatterns.md`, `activeContext.md`).
+
+## Code-Review Rules (from `/doc/code_review.md`)
+
+1. Work in a feature/bugfix/PR branch – never commit to `main` or `develop` directly.
+2. Branch must be up-to-date with its target branch.
+3. Identify the target branch and list all changed / added / deleted files.
+4. Verify each changed file is in the correct directory (`lib/`, `ios/`, `macos/`, `test/`, etc.).
+5. New public APIs require docs, tests, and CHANGELOG entry.
+6. `dart analyze` and `dart test` must pass with zero warnings/failures.
+
+## Style & Language Guidance
+
+• Follow *Effective Dart* (`/doc/effective_dart.md`) for naming, formatting, documentation, API design.
+• Use Dart 3 features per `/doc/dart_3_updates.md` (records, patterns, exhaustive `switch`, etc.).
+• Enforce `dart format` default style.
+
+## Plugin-Specific Rules
+
+1. Adhere to the **federated plugin** structure: `icloud_storage_platform_interface`, `icloud_storage_method_channel`, plus native plugins.
+2. Surface all errors via typed exceptions in `lib/models/exceptions.dart`.
+3. iOS/macOS code must avoid blocking the main thread; use background queues.
+4. Breaking API changes require a **major** version bump and migration notes.
+5. Always check iCloud availability (`icloudAvailable()`) before file operations.
+6. CI pipeline: `dart format --set-exit-if-changed`, `dart analyze`, `dart test`, `dart pub publish --dry-run`.
+
+---
+
+REMEMBER: After every memory reset, this rules file and the Memory-bank are my only lasting context. Maintain them with precision and clarity.
+

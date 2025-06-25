@@ -157,18 +157,33 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
     let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
     let localFileURL = URL(fileURLWithPath: localFilePath)
     
-    do {
-      if FileManager.default.fileExists(atPath: cloudFileURL.path) {
-        try FileManager.default.removeItem(at: cloudFileURL)
-      } else {
-        let cloudFileDirURL = cloudFileURL.deletingLastPathComponent()
+    // Create a file coordinator for proper iCloud coordination
+    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+    var coordinationError: NSError?
+    
+    fileCoordinator.coordinate(writingItemAt: cloudFileURL, options: .forReplacing, error: &coordinationError) { writingURL in
+      do {
+        // Create parent directories if needed
+        let cloudFileDirURL = writingURL.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
           try FileManager.default.createDirectory(at: cloudFileDirURL, withIntermediateDirectories: true, attributes: nil)
         }
+        
+        // Remove existing file if it exists
+        if FileManager.default.fileExists(atPath: writingURL.path) {
+          try FileManager.default.removeItem(at: writingURL)
+        }
+        
+        // Copy the file to iCloud
+        try FileManager.default.copyItem(at: localFileURL, to: writingURL)
+      } catch {
+        result(self.nativeCodeError(error))
       }
-      try FileManager.default.copyItem(at: localFileURL, to: cloudFileURL)
-    } catch {
+    }
+    
+    if let error = coordinationError {
       result(nativeCodeError(error))
+      return
     }
     
     if !eventChannelName.isEmpty {
@@ -296,8 +311,19 @@ public class IcloudStoragePlugin: NSObject, FlutterPlugin {
     }
     
     if fileURLValues.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      streamHandler?.setEvent(FlutterEndOfEventStream)
-      removeStreamHandler(eventChannelName)
+      // Use NSFileCoordinator to read the file
+      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+      var coordinationError: NSError?
+      
+      fileCoordinator.coordinate(readingItemAt: fileURL, options: .withoutChanges, error: &coordinationError) { (readingURL) in
+        // File is now available for reading
+        streamHandler?.setEvent(FlutterEndOfEventStream)
+        removeStreamHandler(eventChannelName)
+      }
+      
+      if let error = coordinationError {
+        streamHandler?.setEvent(nativeCodeError(error))
+      }
     }
   }
   
