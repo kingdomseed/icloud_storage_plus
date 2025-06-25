@@ -51,7 +51,6 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('gather() has not been implemented.');
   }
 
-
   Future<String?> getContainerPath({
     required String containerId,
   }) async {
@@ -140,7 +139,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   }) async {
     throw UnimplementedError('move() has not been implemented.');
   }
-  
+
   /// Copy a file from one location to another in the iCloud container
   ///
   /// [containerId] is the iCloud Container Id.
@@ -161,7 +160,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   }) async {
     throw UnimplementedError('copy() has not been implemented.');
   }
-  
+
   /// Download a file from iCloud and safely read its contents
   /// This method combines download and reading to prevent permission errors
   ///
@@ -180,5 +179,68 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     StreamHandler<double>? onProgress,
   }) async {
     throw UnimplementedError('downloadAndRead() has not been implemented.');
+  }
+
+  /// Read a document from iCloud using UIDocument/NSDocument
+  /// Returns null if file doesn't exist
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// This method provides safe, coordinated file reading that prevents
+  /// NSCocoaErrorDomain Code=257 permission errors.
+  Future<Uint8List?> readDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    throw UnimplementedError('readDocument() has not been implemented.');
+  }
+
+  /// Write a document to iCloud using UIDocument/NSDocument
+  /// Creates the file if it doesn't exist, updates if it does
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// [data] is the content to write to the file
+  ///
+  /// This method provides safe, coordinated file writing with automatic
+  /// conflict resolution and version tracking.
+  Future<void> writeDocument({
+    required String containerId,
+    required String relativePath,
+    required Uint8List data,
+  }) async {
+    throw UnimplementedError('writeDocument() has not been implemented.');
+  }
+
+  /// Check if a document exists without downloading
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// Returns true if the file exists, false otherwise
+  Future<bool> documentExists({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    throw UnimplementedError('documentExists() has not been implemented.');
+  }
+
+  /// Get document metadata without downloading content
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// Returns metadata about the file, or null if it doesn't exist
+  Future<Map<String, dynamic>?> getDocumentMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    throw UnimplementedError('getDocumentMetadata() has not been implemented.');
   }
 }

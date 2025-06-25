@@ -36,6 +36,14 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       getContainerPath(call, result)
     case "downloadAndRead":
       downloadAndRead(call, result)
+    case "readDocument":
+      readDocument(call, result)
+    case "writeDocument":
+      writeDocument(call, result)
+    case "documentExists":
+      documentExists(call, result)
+    case "getDocumentMetadata":
+      getDocumentMetadata(call, result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -129,11 +137,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         "sizeInBytes": fileItem.value(forAttribute: NSMetadataItemFSSizeKey),
         "creationDate": (fileItem.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
         "contentChangeDate": (fileItem.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
-        "hasUnresolvedConflicts": fileItem.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey),
+        "hasUnresolvedConflicts": (fileItem.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
         "downloadStatus": fileItem.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey),
-        "isDownloading": fileItem.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey),
-        "isUploaded": fileItem.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey),
-        "isUploading": fileItem.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey),
+        "isDownloading": (fileItem.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
+        "isUploaded": (fileItem.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
+        "isUploading": (fileItem.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
       ]
       fileMaps.append(map)
     }
@@ -161,53 +169,89 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
     let localFileURL = URL(fileURLWithPath: localFilePath)
     
-    // Create a file coordinator for proper iCloud coordination
-    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-    var coordinationError: NSError?
+    // Check if this is a text file that should use document-based approach
+    let fileExtension = (cloudFileName as NSString).pathExtension.lowercased()
+    let textExtensions = ["json", "txt", "xml", "plist", "yaml", "yml", "md", "log", "csv", "js", "ts", "jsx", "tsx", "swift", "dart", "py", "rb", "java", "kt", "go", "rs", "c", "cpp", "h", "hpp", "m", "mm", "sh", "bash", "zsh", "fish"]
     
-    fileCoordinator.coordinate(writingItemAt: cloudFileURL, options: .forReplacing, error: &coordinationError) { writingURL in
+    if textExtensions.contains(fileExtension) {
+      // Use document-based approach for text files for better conflict resolution
       do {
+        let data = try Data(contentsOf: localFileURL)
+        
         // Create parent directories if needed
-        let cloudFileDirURL = writingURL.deletingLastPathComponent()
+        let cloudFileDirURL = cloudFileURL.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
           try FileManager.default.createDirectory(at: cloudFileDirURL, withIntermediateDirectories: true, attributes: nil)
         }
         
-        // Remove existing file if it exists
-        if FileManager.default.fileExists(atPath: writingURL.path) {
-          try FileManager.default.removeItem(at: writingURL)
+        writeDocument(at: cloudFileURL, data: data) { error in
+          if let error = error {
+            result(self.nativeCodeError(error))
+          } else {
+            // Set up progress monitoring if needed
+            if !eventChannelName.isEmpty {
+              self.setupUploadProgressMonitoring(cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
+            }
+            result(nil)
+          }
         }
-        
-        // Copy the file to iCloud
-        try FileManager.default.copyItem(at: localFileURL, to: writingURL)
       } catch {
-        result(self.nativeCodeError(error))
+        result(nativeCodeError(error))
       }
-    }
-    
-    if let error = coordinationError {
-      result(nativeCodeError(error))
-      return
-    }
-    
-    if !eventChannelName.isEmpty {
-      let query = NSMetadataQuery.init()
-      query.operationQueue = .main
-      query.searchScopes = querySearchScopes
-      query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
+    } else {
+      // Use file coordinator for binary files (images, videos, etc.)
+      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+      var coordinationError: NSError?
       
-      let uploadStreamHandler = self.streamHandlers[eventChannelName]!
-      uploadStreamHandler.onCancelHandler = { [self] in
-        removeObservers(query)
-        query.stop()
-        removeStreamHandler(eventChannelName)
+      fileCoordinator.coordinate(writingItemAt: cloudFileURL, options: .forReplacing, error: &coordinationError) { writingURL in
+        do {
+          // Create parent directories if needed
+          let cloudFileDirURL = writingURL.deletingLastPathComponent()
+          if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
+            try FileManager.default.createDirectory(at: cloudFileDirURL, withIntermediateDirectories: true, attributes: nil)
+          }
+          
+          // Remove existing file if it exists
+          if FileManager.default.fileExists(atPath: writingURL.path) {
+            try FileManager.default.removeItem(at: writingURL)
+          }
+          
+          // Copy the file to iCloud
+          try FileManager.default.copyItem(at: localFileURL, to: writingURL)
+        } catch {
+          result(self.nativeCodeError(error))
+        }
       }
-      addUploadObservers(query: query, eventChannelName: eventChannelName)
       
-      query.start()
+      if let error = coordinationError {
+        result(nativeCodeError(error))
+        return
+      }
+      
+      // Set up progress monitoring if needed
+      if !eventChannelName.isEmpty {
+        self.setupUploadProgressMonitoring(cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
+      }
+      
+      result(nil)
     }
+  }
+  
+  private func setupUploadProgressMonitoring(cloudFileURL: URL, eventChannelName: String) {
+    let query = NSMetadataQuery.init()
+    query.operationQueue = .main
+    query.searchScopes = querySearchScopes
+    query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
     
-    result(nil)
+    let uploadStreamHandler = self.streamHandlers[eventChannelName]!
+    uploadStreamHandler.onCancelHandler = { [self] in
+      removeObservers(query)
+      query.stop()
+      removeStreamHandler(eventChannelName)
+    }
+    addUploadObservers(query: query, eventChannelName: eventChannelName)
+    
+    query.start()
   }
   
   private func addUploadObservers(query: NSMetadataQuery, eventChannelName: String) {
@@ -436,6 +480,174 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           result(FlutterError(code: "E_READ", message: "Failed to read file content", details: nil))
         }
       }
+    }
+  }
+  
+  /// Read a document from iCloud using NSDocument
+  /// Returns nil if file doesn't exist
+  private func readDocument(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+    
+    // Check if file exists first
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
+          !isDirectory.boolValue else {
+      result(nil) // Return nil for non-existent files
+      return
+    }
+    
+    // Use our NSDocument wrapper for safe reading
+    readDocumentAt(url: fileURL) { (data, error) in
+      if let error = error {
+        result(self.nativeCodeError(error))
+        return
+      }
+      
+      guard let data = data else {
+        result(nil)
+        return
+      }
+      
+      // Return as FlutterStandardTypedData
+      result(FlutterStandardTypedData(bytes: data))
+    }
+  }
+  
+  /// Write a document to iCloud using NSDocument
+  /// Creates the file if it doesn't exist, updates if it does
+  private func writeDocument(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String,
+          let flutterData = args["data"] as? FlutterStandardTypedData
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+    let data = flutterData.data
+    
+    // Create parent directories if needed
+    let dirURL = fileURL.deletingLastPathComponent()
+    do {
+      if !FileManager.default.fileExists(atPath: dirURL.path) {
+        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
+      }
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+    
+    // Use our NSDocument wrapper for safe writing
+    writeDocument(at: fileURL, data: data) { (error) in
+      if let error = error {
+        result(self.nativeCodeError(error))
+        return
+      }
+      result(nil)
+    }
+  }
+  
+  /// Check if a document exists without downloading
+  private func documentExists(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+    var isDirectory: ObjCBool = false
+    let exists = FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+    result(exists)
+  }
+  
+  /// Get document metadata without downloading content
+  private func getDocumentMetadata(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+    
+    // Check if file exists
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
+          !isDirectory.boolValue else {
+      result(nil)
+      return
+    }
+    
+    do {
+      let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+      var metadata: [String: Any] = [:]
+      
+      if let size = attributes[.size] as? Int64 {
+        metadata["sizeInBytes"] = size
+      }
+      
+      if let creationDate = attributes[.creationDate] as? Date {
+        metadata["creationDate"] = creationDate.timeIntervalSince1970
+      }
+      
+      if let modificationDate = attributes[.modificationDate] as? Date {
+        metadata["modificationDate"] = modificationDate.timeIntervalSince1970
+      }
+      
+      // Check download status
+      let resourceValues = try fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemHasUnresolvedConflictsKey])
+      
+      if let downloadingStatus = resourceValues.ubiquitousItemDownloadingStatus {
+        metadata["isDownloaded"] = (downloadingStatus == .current)
+        metadata["downloadingStatus"] = downloadingStatus.rawValue
+      }
+      
+      if let hasConflicts = resourceValues.ubiquitousItemHasUnresolvedConflicts {
+        metadata["hasUnresolvedConflicts"] = hasConflicts
+      }
+      
+      result(metadata)
+    } catch {
+      result(nativeCodeError(error))
     }
   }
   

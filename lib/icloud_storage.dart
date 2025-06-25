@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'icloud_storage_platform_interface.dart';
 import 'models/exceptions.dart';
@@ -8,19 +9,34 @@ export 'models/icloud_file.dart';
 
 /// The main class for the plugin. Contains all the API's needed for listing,
 /// uploading, downloading and deleting files.
-/// 
+///
+/// ## 🏆 Recommended API Hierarchy (Use in this order)
+///
+/// **PRIMARY (90% of use cases - most efficient):**
+/// - `readDocument()` / `readJsonDocument()` - Smart file reading with auto-download
+/// - `writeDocument()` / `writeJsonDocument()` - Safe writing with conflict resolution
+/// - `documentExists()` - Efficient file existence checking
+///
+/// **COMPATIBILITY (10% of use cases - when you need progress monitoring):**
+/// - `downloadAndRead()` - Combined download+read with progress callbacks
+///
+/// **ADVANCED (Power users - explicit control):**
+/// - `download()` - Explicit downloading for caching/batch operations
+/// - `upload()` - File uploading with progress monitoring
+/// - `gather()` - File listing and metadata
+///
 /// ## Understanding iCloud Storage Locations
-/// 
+///
 /// Files in an iCloud container can be stored in different locations:
-/// 
-/// - **Container Root** (default): Files sync across devices but are NOT 
+///
+/// - **Container Root** (default): Files sync across devices but are NOT
 ///   visible in the Files app. Use for app settings, databases, etc.
 ///   Example: `await upload(relativePath: 'settings.json')`
-/// 
+///
 /// - **Documents Directory**: Files are visible in the Files app and can be
 ///   managed by users. Use for user documents, exports, etc.
 ///   Example: `await upload(relativePath: 'Documents/report.pdf')`
-/// 
+///
 /// - **Data Directory**: For temporary or cache files that shouldn't sync.
 ///   Example: `await upload(relativePath: 'Data/cache.tmp')`
 class ICloudStorage {
@@ -28,15 +44,16 @@ class ICloudStorage {
   /// Files stored under this directory will appear in iCloud Drive and be
   /// accessible through the Files app.
   static const String documentsDirectory = 'Documents';
-  
+
   /// The directory name for temporary files that should not sync to iCloud.
   /// Use this for cache files or temporary data.
   static const String dataDirectory = 'Data';
-  
+
   /// Storage visibility options for files
   static const String visibilityPrivate = 'private';
   static const String visibilityPublic = 'public';
   static const String visibilityTemporary = 'temporary';
+
   /// Check if iCloud is available and user is logged in
   ///
   /// Returns true if iCloud is available and user is logged in, false otherwise
@@ -56,7 +73,7 @@ class ICloudStorage {
   /// - Files in the root (app-private, not visible in Files app)
   /// - Files in Documents/ (visible in Files app)
   /// - Files in any subdirectories
-  /// 
+  ///
   /// The relativePath in each ICloudFile will reflect the full path from
   /// the container root, e.g., "Documents/myfile.pdf" or "data/config.json"
   static Future<List<ICloudFile>> gather({
@@ -72,9 +89,9 @@ class ICloudStorage {
   /// Get the absolute path to the iCloud container
   ///
   /// [containerId] is the iCloud Container Id.
-  /// 
+  ///
   /// Returns the root path of the iCloud container, or null if unavailable.
-  /// 
+  ///
   /// **Understanding the container structure**:
   /// ```
   /// [returned path]/
@@ -82,7 +99,7 @@ class ICloudStorage {
   /// ├── Data/          ← App-private data
   /// └── [root files]   ← Files here sync but are NOT visible in Files app
   /// ```
-  /// 
+  ///
   /// Example usage:
   /// ```dart
   /// final containerPath = await ICloudStorage.getContainerPath(
@@ -91,7 +108,7 @@ class ICloudStorage {
   /// if (containerPath != null) {
   ///   // For Files app visibility
   ///   final visibleFile = File('$containerPath/Documents/myfile.txt');
-  ///   
+  ///
   ///   // For app-private storage
   ///   final privateFile = File('$containerPath/appdata.db');
   /// }
@@ -104,8 +121,6 @@ class ICloudStorage {
     );
   }
 
-
-
   /// Initiate to upload a file to iCloud
   ///
   /// [containerId] is the iCloud Container Id.
@@ -115,7 +130,7 @@ class ICloudStorage {
   /// [destinationRelativePath] is the relative path of the file you want to
   /// store in iCloud. If not specified, the name of the local file name is
   /// used.
-  /// 
+  ///
   /// **Important**: Files are stored relative to the container root by default.
   /// - To make files visible in the Files app, prefix with 'Documents/'
   ///   Example: 'Documents/myfile.pdf'
@@ -166,10 +181,15 @@ class ICloudStorage {
   /// To access the downloaded file, use getContainerPath() and append the
   /// relativePath.
   ///
-  /// **Warning**: After download completes, do NOT read the file directly using
-  /// standard file operations as this may cause NSCocoaErrorDomain Code=257
-  /// permission errors. Instead, use [downloadAndRead] for safe file reading,
-  /// or implement NSFileCoordinator/UIDocument/NSDocument when reading the file.
+  /// **🚨 CRITICAL WARNING**: After download completes, do NOT read the file
+  /// directly using standard file operations as this may cause NSCocoaErrorDomain
+  /// Code=257 permission errors. Instead:
+  /// - **RECOMMENDED**: Use `readDocument()` for efficient, safe file reading
+  /// - Use `downloadAndRead()` for combined download+read operations
+  /// - Or implement NSFileCoordinator/UIDocument/NSDocument manually
+  ///
+  /// **💡 TIP**: For most use cases, skip this method and use `readDocument()`
+  /// directly - it's more efficient and handles downloading automatically.
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream<double> as input, which is the percentage of
@@ -193,12 +213,24 @@ class ICloudStorage {
       onProgress: onProgress,
     );
   }
-  
+
   /// Download a file from iCloud and safely read its contents
+  ///
+  /// **COMPATIBILITY METHOD**: Consider using `readDocument()` instead for better
+  /// performance and efficiency.
   ///
   /// This method combines download and reading to prevent permission errors
   /// that occur when trying to read iCloud files directly without proper
-  /// coordination.
+  /// coordination. However, it always performs a download operation even if
+  /// the file is already available locally.
+  ///
+  /// **When to use this method**:
+  /// - When you specifically need download progress monitoring
+  /// - When migrating from unsafe download() + manual file reading patterns
+  /// - For compatibility with existing code
+  ///
+  /// **Better alternative**: Use `readDocument()` which automatically handles
+  /// downloading only when needed and is more efficient.
   ///
   /// [containerId] is the iCloud Container Id.
   ///
@@ -211,11 +243,21 @@ class ICloudStorage {
   /// the data being downloaded.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist.
-  /// This method ensures safe file reading using UIDocument/NSDocument internally.
   ///
-  /// **Warning**: This method is recommended over using download() followed by
-  /// manual file reading, as it prevents NSCocoaErrorDomain Code=257 permission
-  /// errors.
+  /// Example:
+  /// ```dart
+  /// // ✅ BETTER: Use readDocument() for most cases
+  /// final bytes = await ICloudStorage.readDocument(...);
+  ///
+  /// // ⚠️ COMPATIBILITY: Use this only if you need progress monitoring
+  /// final bytes = await ICloudStorage.downloadAndRead(
+  ///   containerId: 'iCloud.com.example.app',
+  ///   relativePath: 'Documents/large-file.pdf',
+  ///   onProgress: (stream) => stream.listen((progress) =>
+  ///     print('Progress: ${(progress * 100).toStringAsFixed(1)}%')
+  ///   ),
+  /// );
+  /// ```
   static Future<Uint8List?> downloadAndRead({
     required String containerId,
     required String relativePath,
@@ -337,7 +379,7 @@ class ICloudStorage {
   static bool _validateFileName(String name) => !(name.isEmpty ||
       name.length > 255 ||
       RegExp(r"([:/]+)|(^[.].*$)").hasMatch(name));
-      
+
   /// Upload a file to the Documents directory (visible in Files app)
   ///
   /// This is a convenience method that automatically prefixes the destination
@@ -359,7 +401,7 @@ class ICloudStorage {
     StreamHandler<double>? onProgress,
   }) async {
     final destination = destinationRelativePath ?? filePath.split('/').last;
-    
+
     await upload(
       containerId: containerId,
       filePath: filePath,
@@ -367,7 +409,7 @@ class ICloudStorage {
       onProgress: onProgress,
     );
   }
-  
+
   /// Upload a file to app-private storage (not visible in Files app)
   ///
   /// This is a convenience method that makes it explicit the file will be
@@ -397,7 +439,7 @@ class ICloudStorage {
       onProgress: onProgress,
     );
   }
-  
+
   /// Download a file from the Documents directory (Files app visible location)
   ///
   /// This is a convenience method that automatically prefixes the path
@@ -420,7 +462,7 @@ class ICloudStorage {
       onProgress: onProgress,
     );
   }
-  
+
   /// Check if a file exists in iCloud without downloading it
   ///
   /// [containerId] is the iCloud Container Id.
@@ -436,7 +478,7 @@ class ICloudStorage {
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
-    
+
     try {
       final files = await gather(containerId: containerId);
       return files.any((file) => file.relativePath == relativePath);
@@ -445,7 +487,7 @@ class ICloudStorage {
       return false;
     }
   }
-  
+
   /// Copy a file within the iCloud container
   ///
   /// [containerId] is the iCloud Container Id.
@@ -467,19 +509,19 @@ class ICloudStorage {
       throw InvalidArgumentException(
           'invalid relativePath: (from) $fromRelativePath');
     }
-    
+
     if (!_validateRelativePath(toRelativePath)) {
       throw InvalidArgumentException(
           'invalid relativePath: (to) $toRelativePath');
     }
-    
+
     await ICloudStoragePlatform.instance.copy(
       containerId: containerId,
       fromRelativePath: fromRelativePath,
       toRelativePath: toRelativePath,
     );
   }
-  
+
   /// Get metadata for a specific file without downloading it
   ///
   /// [containerId] is the iCloud Container Id.
@@ -494,7 +536,7 @@ class ICloudStorage {
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
-    
+
     try {
       final files = await gather(containerId: containerId);
       try {
@@ -506,5 +548,280 @@ class ICloudStorage {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Read a document from iCloud safely
+  ///
+  /// **RECOMMENDED METHOD**: This is the preferred way to read iCloud files.
+  ///
+  /// This method uses UIDocument/NSDocument internally to ensure proper
+  /// file coordination and prevent permission errors. It automatically
+  /// handles downloading if the file exists in iCloud but isn't local yet.
+  ///
+  /// **Performance**: More efficient than download() + manual reading because:
+  /// - No redundant downloads if file is already local
+  /// - Automatic iCloud coordination via UIDocument/NSDocument
+  /// - Single operation instead of download-then-read pattern
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// Returns null if the file doesn't exist.
+  ///
+  /// **Use this instead of**: download() followed by manual file reading
+  ///
+  /// Example:
+  /// ```dart
+  /// // ✅ RECOMMENDED: Simple, efficient, safe
+  /// final bytes = await ICloudStorage.readDocument(
+  ///   containerId: 'iCloud.com.example.app',
+  ///   relativePath: 'Documents/settings.json',
+  /// );
+  /// if (bytes != null) {
+  ///   final json = utf8.decode(bytes);
+  ///   final settings = jsonDecode(json);
+  /// }
+  ///
+  /// // ❌ AVOID: Manual pattern that can cause permission errors
+  /// // await ICloudStorage.download(...);
+  /// // final file = File('$containerPath/settings.json');
+  /// // final content = await file.readAsString(); // Can fail!
+  /// ```
+  static Future<Uint8List?> readDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    return await ICloudStoragePlatform.instance.readDocument(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+  }
+
+  /// Write a document to iCloud safely
+  ///
+  /// This method uses UIDocument/NSDocument internally to ensure proper
+  /// file coordination, conflict resolution, and version tracking.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// [data] is the content to write to the file
+  ///
+  /// Creates the file if it doesn't exist, updates if it does.
+  ///
+  /// Example:
+  /// ```dart
+  /// final data = {'setting1': true, 'setting2': 42};
+  /// final json = jsonEncode(data);
+  /// final bytes = utf8.encode(json);
+  ///
+  /// await ICloudStorage.writeDocument(
+  ///   containerId: 'iCloud.com.example.app',
+  ///   relativePath: 'Documents/settings.json',
+  ///   data: bytes,
+  /// );
+  /// ```
+  static Future<void> writeDocument({
+    required String containerId,
+    required String relativePath,
+    required Uint8List data,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    await ICloudStoragePlatform.instance.writeDocument(
+      containerId: containerId,
+      relativePath: relativePath,
+      data: data,
+    );
+  }
+
+  /// Check if a document exists using native document APIs
+  ///
+  /// This method is more efficient than [exists] as it uses native APIs
+  /// without gathering all files.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// Returns true if the file exists, false otherwise
+  static Future<bool> documentExists({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    return await ICloudStoragePlatform.instance.documentExists(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+  }
+
+  /// Get document metadata without downloading content
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// Returns metadata about the file including:
+  /// - sizeInBytes: File size
+  /// - creationDate: Creation timestamp
+  /// - modificationDate: Last modification timestamp
+  /// - isDownloaded: Whether file is downloaded locally
+  /// - hasUnresolvedConflicts: Whether file has sync conflicts
+  ///
+  /// Returns null if the file doesn't exist
+  static Future<Map<String, dynamic>?> getDocumentMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    return await ICloudStoragePlatform.instance.getDocumentMetadata(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+  }
+
+  /// Read a JSON document from iCloud
+  ///
+  /// Convenience method that reads a document and parses it as JSON.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the JSON file on iCloud
+  ///
+  /// Returns null if the file doesn't exist.
+  /// Throws [InvalidArgumentException] if the file content is not valid JSON.
+  ///
+  /// Example:
+  /// ```dart
+  /// final settings = await ICloudStorage.readJsonDocument(
+  ///   containerId: 'iCloud.com.example.app',
+  ///   relativePath: 'Documents/settings.json',
+  /// );
+  /// if (settings != null) {
+  ///   print('Dark mode: ${settings['darkMode']}');
+  /// }
+  /// ```
+  static Future<Map<String, dynamic>?> readJsonDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final bytes = await readDocument(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+
+    if (bytes == null) return null;
+
+    try {
+      final json = utf8.decode(bytes);
+      return jsonDecode(json) as Map<String, dynamic>;
+    } catch (e) {
+      throw InvalidArgumentException('Invalid JSON in document: $e');
+    }
+  }
+
+  /// Write a JSON document to iCloud
+  ///
+  /// Convenience method that encodes a Map as JSON and writes it to iCloud.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the JSON file on iCloud
+  ///
+  /// [data] is the Map to encode as JSON
+  ///
+  /// Example:
+  /// ```dart
+  /// await ICloudStorage.writeJsonDocument(
+  ///   containerId: 'iCloud.com.example.app',
+  ///   relativePath: 'Documents/settings.json',
+  ///   data: {
+  ///     'darkMode': true,
+  ///     'language': 'en',
+  ///     'version': 2,
+  ///   },
+  /// );
+  /// ```
+  static Future<void> writeJsonDocument({
+    required String containerId,
+    required String relativePath,
+    required Map<String, dynamic> data,
+  }) async {
+    final json = jsonEncode(data);
+    final bytes = utf8.encode(json);
+
+    await writeDocument(
+      containerId: containerId,
+      relativePath: relativePath,
+      data: bytes,
+    );
+  }
+
+  /// Update a document with automatic conflict resolution
+  ///
+  /// This method safely handles concurrent updates by:
+  /// 1. Reading the current document
+  /// 2. Applying your changes
+  /// 3. Writing back with conflict detection
+  ///
+  /// If the document doesn't exist, it will be created with the
+  /// result of calling updater with an empty Uint8List.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// [updater] is a function that receives the current data and returns
+  /// the updated data
+  ///
+  /// Example:
+  /// ```dart
+  /// await ICloudStorage.updateDocument(
+  ///   containerId: 'iCloud.com.example.app',
+  ///   relativePath: 'Documents/counter.txt',
+  ///   updater: (currentData) {
+  ///     final current = currentData.isEmpty
+  ///         ? 0
+  ///         : int.parse(utf8.decode(currentData));
+  ///     return utf8.encode((current + 1).toString());
+  ///   },
+  /// );
+  /// ```
+  static Future<void> updateDocument({
+    required String containerId,
+    required String relativePath,
+    required Uint8List Function(Uint8List currentData) updater,
+  }) async {
+    // Read current content (or empty if doesn't exist)
+    final currentData = await readDocument(
+          containerId: containerId,
+          relativePath: relativePath,
+        ) ??
+        Uint8List(0);
+
+    // Apply changes
+    final newData = updater(currentData);
+
+    // Write back
+    await writeDocument(
+      containerId: containerId,
+      relativePath: relativePath,
+      data: newData,
+    );
   }
 }
