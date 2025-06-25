@@ -3,7 +3,7 @@
 [![Pub](https://img.shields.io/pub/v/icloud_storage.svg)](https://pub.dev/packages/icloud_storage)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/donate?hosted_button_id=BH6WBSGWN594U)
 
-A flutter plugin for upload, download and manage files in the app's iCloud container. Includes un-merged PRs and improvements from forks in the community. 
+A flutter plugin for upload, download and manage files in the app's iCloud container. Inc\ludes un-merged PRs and improvements from forks in the community. 
 
 ## Introduction
 

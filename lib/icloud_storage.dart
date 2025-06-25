@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'icloud_storage_platform_interface.dart';
 import 'models/exceptions.dart';
 import 'models/icloud_file.dart';
@@ -165,6 +166,11 @@ class ICloudStorage {
   /// To access the downloaded file, use getContainerPath() and append the
   /// relativePath.
   ///
+  /// **Warning**: After download completes, do NOT read the file directly using
+  /// standard file operations as this may cause NSCocoaErrorDomain Code=257
+  /// permission errors. Instead, use [downloadAndRead] for safe file reading,
+  /// or implement NSFileCoordinator/UIDocument/NSDocument when reading the file.
+  ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream<double> as input, which is the percentage of
   /// the data being downloaded.
@@ -182,6 +188,44 @@ class ICloudStorage {
     }
 
     return await ICloudStoragePlatform.instance.download(
+      containerId: containerId,
+      relativePath: relativePath,
+      onProgress: onProgress,
+    );
+  }
+  
+  /// Download a file from iCloud and safely read its contents
+  ///
+  /// This method combines download and reading to prevent permission errors
+  /// that occur when trying to read iCloud files directly without proper
+  /// coordination.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud, such as file1
+  /// or folder/myfile2. For files in the Documents directory visible in Files
+  /// app, include the Documents prefix: "Documents/myfile.pdf"
+  ///
+  /// [onProgress] is an optional callback to track the progress of the
+  /// download. It takes a Stream<double> as input, which is the percentage of
+  /// the data being downloaded.
+  ///
+  /// Returns the file contents as Uint8List, or null if the file doesn't exist.
+  /// This method ensures safe file reading using UIDocument/NSDocument internally.
+  ///
+  /// **Warning**: This method is recommended over using download() followed by
+  /// manual file reading, as it prevents NSCocoaErrorDomain Code=257 permission
+  /// errors.
+  static Future<Uint8List?> downloadAndRead({
+    required String containerId,
+    required String relativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    return await ICloudStoragePlatform.instance.downloadAndRead(
       containerId: containerId,
       relativePath: relativePath,
       onProgress: onProgress,

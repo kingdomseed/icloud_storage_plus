@@ -154,6 +154,38 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       'toRelativePath': toRelativePath,
     });
   }
+  
+  @override
+  Future<Uint8List?> downloadAndRead({
+    required String containerId,
+    required String relativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    var eventChannelName = '';
+
+    if (onProgress != null) {
+      eventChannelName = _generateEventChannelName('downloadAndRead', containerId);
+
+      await methodChannel.invokeMethod(
+          'createEventChannel', {'eventChannelName': eventChannelName});
+
+      final downloadEventChannel = EventChannel(eventChannelName);
+      final stream = downloadEventChannel
+          .receiveBroadcastStream()
+          .where((event) => event is double)
+          .map((event) => event as double);
+
+      onProgress(stream);
+    }
+
+    final result = await methodChannel.invokeMethod<Uint8List?>('downloadAndRead', {
+      'containerId': containerId,
+      'cloudFileName': relativePath,
+      'eventChannelName': eventChannelName
+    });
+    
+    return result;
+  }
 
   /// Private method to convert the list of maps from platform code to a list of
   /// ICloudFile object

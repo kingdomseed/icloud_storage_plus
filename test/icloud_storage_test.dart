@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icloud_storage/icloud_storage.dart';
 import 'package:icloud_storage/icloud_storage_platform_interface.dart';
@@ -77,6 +79,17 @@ class MockIcloudStoragePlatform
       required String fromRelativePath,
       required String toRelativePath}) async {
     _calls.add('copy');
+  }
+  
+  @override
+  Future<Uint8List?> downloadAndRead({
+    required String containerId,
+    required String relativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    _calls.add('downloadAndRead');
+    // Return some test data
+    return Uint8List.fromList([1, 2, 3, 4, 5]);
   }
 }
 
@@ -287,6 +300,28 @@ void main() {
 
       test('dataDirectory constant', () {
         expect(ICloudStorage.dataDirectory, 'Data');
+      });
+    });
+    
+    group('downloadAndRead tests:', () {
+      test('downloadAndRead returns data', () async {
+        final data = await ICloudStorage.downloadAndRead(
+          containerId: containerId,
+          relativePath: 'test.txt',
+        );
+        expect(data, isNotNull);
+        expect(data, equals(Uint8List.fromList([1, 2, 3, 4, 5])));
+        expect(fakePlatform.calls.last, 'downloadAndRead');
+      });
+      
+      test('downloadAndRead with invalid relativePath', () async {
+        expect(
+          () async => await ICloudStorage.downloadAndRead(
+            containerId: containerId,
+            relativePath: 'file/',
+          ),
+          throwsException,
+        );
       });
     });
   });

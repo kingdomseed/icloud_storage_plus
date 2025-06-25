@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'icloud_storage_method_channel.dart';
 import 'models/icloud_file.dart';
@@ -158,5 +160,25 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     required String toRelativePath,
   }) async {
     throw UnimplementedError('copy() has not been implemented.');
+  }
+  
+  /// Download a file from iCloud and safely read its contents
+  /// This method combines download and reading to prevent permission errors
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file on iCloud
+  ///
+  /// [onProgress] is an optional callback to track the progress of the
+  /// download. It takes a Stream<double> as input, which is the percentage of
+  /// the data being downloaded.
+  ///
+  /// Returns the file contents as Uint8List, or null if the file doesn't exist
+  Future<Uint8List?> downloadAndRead({
+    required String containerId,
+    required String relativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    throw UnimplementedError('downloadAndRead() has not been implemented.');
   }
 }

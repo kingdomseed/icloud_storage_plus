@@ -35,6 +35,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       createEventChannel(call, result)
     case "getContainerPath":
       getContainerPath(call, result)
+    case "downloadAndRead":
+      downloadAndRead(call, result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -330,6 +332,114 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       if let error = coordinationError {
         streamHandler?.setEvent(nativeCodeError(error))
         result(nativeCodeError(error))
+      }
+    }
+  }
+  
+  /// Download a file from iCloud and safely read its contents
+  /// This method combines download and reading to prevent permission errors
+  private func downloadAndRead(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let cloudFileName = args["cloudFileName"] as? String,
+          let eventChannelName = args["eventChannelName"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    DebugHelper.log("downloadAndRead - containerURL: \(containerURL.path)")
+    
+    let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
+    
+    // First, start the download
+    do {
+      try FileManager.default.startDownloadingUbiquitousItem(at: cloudFileURL)
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+    
+    // Set up a query to monitor download progress
+    let query = NSMetadataQuery.init()
+    query.operationQueue = .main
+    query.searchScopes = querySearchScopes
+    query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
+    
+    let downloadStreamHandler = self.streamHandlers[eventChannelName]
+    downloadStreamHandler?.onCancelHandler = { [self] in
+      removeObservers(query)
+      query.stop()
+      removeStreamHandler(eventChannelName)
+    }
+    
+    // Add observers for download progress with content reading
+    NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query, queue: query.operationQueue) { [weak self] (notification) in
+      self?.handleDownloadAndRead(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName, result: result)
+    }
+    
+    NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidUpdate, object: query, queue: query.operationQueue) { [weak self] (notification) in
+      self?.handleDownloadAndRead(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName, result: result)
+    }
+    
+    query.start()
+  }
+  
+  /// Handle download progress and read file content when complete
+  private func handleDownloadAndRead(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String, result: @escaping FlutterResult) {
+    if query.results.count == 0 {
+      result(FlutterError(code: "E_FNF", message: "File not found in iCloud", details: nil))
+      return
+    }
+    
+    guard let fileItem = query.results.first as? NSMetadataItem,
+          let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL,
+          let fileURLValues = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingErrorKey, .ubiquitousItemDownloadingStatusKey]) else {
+      return
+    }
+    
+    let streamHandler = self.streamHandlers[eventChannelName]
+    
+    // Handle download errors
+    if let error = fileURLValues.ubiquitousItemDownloadingError {
+      streamHandler?.setEvent(nativeCodeError(error))
+      result(nativeCodeError(error))
+      removeObservers(query)
+      query.stop()
+      removeStreamHandler(eventChannelName)
+      return
+    }
+    
+    // Report download progress
+    if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey) as? Double {
+      streamHandler?.setEvent(progress)
+    }
+    
+    // When download is complete, read the file using UIDocument
+    if fileURLValues.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+      // Use our document wrapper to safely read the file
+      readDocumentAt(url: cloudFileURL) { [weak self] (data, error) in
+        guard let self = self else { return }
+        
+        // Clean up the query and observers
+        self.removeObservers(query)
+        query.stop()
+        streamHandler?.setEvent(FlutterEndOfEventStream)
+        self.removeStreamHandler(eventChannelName)
+        
+        if let error = error {
+          result(self.nativeCodeError(error))
+        } else if let data = data {
+          // Return the file content as FlutterStandardTypedData
+          result(FlutterStandardTypedData(bytes: data))
+        } else {
+          result(FlutterError(code: "E_READ", message: "Failed to read file content", details: nil))
+        }
       }
     }
   }
