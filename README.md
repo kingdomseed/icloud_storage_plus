@@ -132,6 +132,32 @@ await ICloudStorage.upload(
 
 Note: The returned future completes without waiting for the upload to complete. Use 'onProgress' to track the upload progress. If the 'destinationRelativePath' contains a subdirectory that doesn't exist, it will be created.
 
+### Upload to Files app (visible location)
+
+For files that should be visible in the Files app, use the convenience method:
+
+```dart
+// Upload directly to Documents folder (Files app visible)
+await ICloudStorage.uploadToDocuments(
+  containerId: 'iCloudContainerId',
+  filePath: '/local/path/to/document.pdf',
+  destinationRelativePath: 'MyApp/reports/document.pdf',  // Automatically prefixed with Documents/
+  onProgress: (stream) {
+    uploadProgressSub = stream.listen(
+      (progress) => print('Upload Progress: $progress'),
+      onDone: () => print('Upload Done'),
+    );
+  },
+);
+
+// Upload to app-private storage (not visible in Files app)
+await ICloudStorage.uploadPrivate(
+  containerId: 'iCloudContainerId',
+  filePath: '/local/path/to/settings.json',
+  destinationRelativePath: 'config/settings.json',  // Stored in container root
+);
+```
+
 ### Download a file from iCloud
 
 ```dart
@@ -194,6 +220,64 @@ await ICloudStorage.rename(
 );
 ```
 
+### Copy a file
+
+```dart
+await ICloudStorage.copy(
+  containerId: 'iCloudContainerId',
+  fromRelativePath: 'source/file.pdf',
+  toRelativePath: 'backup/file.pdf',
+);
+```
+
+### Check if a file exists
+
+```dart
+final exists = await ICloudStorage.exists(
+  containerId: 'iCloudContainerId',
+  relativePath: 'Documents/myfile.pdf',
+);
+
+if (exists) {
+  print('File exists in iCloud');
+} else {
+  print('File not found');
+}
+```
+
+### Get file metadata without downloading
+
+```dart
+final metadata = await ICloudStorage.getMetadata(
+  containerId: 'iCloudContainerId',
+  relativePath: 'Documents/report.pdf',
+);
+
+if (metadata != null) {
+  print('File size: ${metadata.sizeInBytes} bytes');
+  print('Last modified: ${metadata.contentChangeDate}');
+  print('Download status: ${metadata.downloadStatus}');
+} else {
+  print('File not found');
+}
+```
+
+### Download from Files app location
+
+```dart
+// Download a file from the Documents directory (Files app visible location)
+final success = await ICloudStorage.downloadFromDocuments(
+  containerId: 'iCloudContainerId',
+  relativePath: 'MyApp/document.pdf',  // Automatically prefixed with Documents/
+  onProgress: (stream) {
+    downloadProgressSub = stream.listen(
+      (progress) => print('Download Progress: $progress'),
+      onDone: () => print('Download Done'),
+    );
+  },
+);
+```
+
 ### Error handling
 
 ```dart
@@ -224,6 +308,69 @@ When uploading and downloading files, make sure the File Access is enabled for t
 - `gatherFiles` has been renamed to `gather`.
 - `startUpload` has been renamed to `upload`.
 - `startDownload` has been renamed to `download`.
+
+## Using the New Convenience Methods
+
+### Migration to Files App Visible Storage
+
+If you want your files to appear in the Files app, migrate from manual path construction to convenience methods:
+
+```dart
+// ❌ Old way - easy to forget Documents/ prefix
+await ICloudStorage.upload(
+  containerId: 'com.example.app',
+  filePath: '/local/document.pdf',
+  destinationRelativePath: 'Documents/document.pdf',  // Manual prefix
+);
+
+// ✅ New way - automatic Files app visibility
+await ICloudStorage.uploadToDocuments(
+  containerId: 'com.example.app',
+  filePath: '/local/document.pdf',
+  destinationRelativePath: 'document.pdf',  // Automatic Documents/ prefix
+);
+```
+
+### Using Helper Constants
+
+Make your code more maintainable with the new constants:
+
+```dart
+// ❌ Before - hardcoded strings
+await ICloudStorage.upload(
+  destinationRelativePath: 'Documents/reports/2023/report.pdf',
+);
+
+// ✅ After - using constants
+await ICloudStorage.upload(
+  destinationRelativePath: '${ICloudStorage.documentsDirectory}/reports/2023/report.pdf',
+);
+
+// ✅ Even better - use convenience method
+await ICloudStorage.uploadToDocuments(
+  destinationRelativePath: 'reports/2023/report.pdf',
+);
+```
+
+### Replace Download Checks with Exists
+
+```dart
+// ❌ Before - inefficient existence check
+try {
+  await ICloudStorage.download(containerId: id, relativePath: path);
+  print('File exists');
+} catch (e) {
+  print('File does not exist');
+}
+
+// ✅ After - efficient existence check
+final exists = await ICloudStorage.exists(containerId: id, relativePath: path);
+if (exists) {
+  print('File exists');
+  // Only download if needed
+  await ICloudStorage.download(containerId: id, relativePath: path);
+}
+```
 
 ## FAQ
 

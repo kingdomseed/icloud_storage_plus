@@ -138,4 +138,25 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   }) async {
     throw UnimplementedError('move() has not been implemented.');
   }
+  
+  /// Copy a file from one location to another in the iCloud container
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [fromRelativePath] is the relative path of the source file
+  ///
+  /// [toRelativePath] is the relative path of the destination file
+  ///
+  /// The destination file will be overwritten if it exists.
+  /// Parent directories will be created if needed.
+  ///
+  /// PlatformException with code PlatformExceptionCode.fileNotFound will be
+  /// thrown if the source file does not exist
+  Future<void> copy({
+    required String containerId,
+    required String fromRelativePath,
+    required String toRelativePath,
+  }) async {
+    throw UnimplementedError('copy() has not been implemented.');
+  }
 }

@@ -1,7 +1,7 @@
 import Flutter
 import UIKit
 
-public class SwiftIcloudStoragePlugin: NSObject, FlutterPlugin {
+public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
@@ -10,7 +10,7 @@ public class SwiftIcloudStoragePlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let messenger = registrar.messenger()
     let channel = FlutterMethodChannel(name: "icloud_storage", binaryMessenger: messenger)
-    let instance = SwiftIcloudStoragePlugin()
+    let instance = ICloudStoragePlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.messenger = messenger
   }
@@ -29,6 +29,8 @@ public class SwiftIcloudStoragePlugin: NSObject, FlutterPlugin {
       delete(call, result)
     case "move":
       move(call, result)
+    case "copy":
+      copy(call, result)
     case "createEventChannel":
       createEventChannel(call, result)
     case "getContainerPath":
@@ -409,6 +411,58 @@ public class SwiftIcloudStoragePlugin: NSObject, FlutterPlugin {
         result(nil)
       } catch {
         DebugHelper.log("error: \(error.localizedDescription)")
+        result(nativeCodeError(error))
+      }
+    }
+  }
+  
+  private func copy(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let fromRelativePath = args["fromRelativePath"] as? String,
+          let toRelativePath = args["toRelativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+    
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+    DebugHelper.log("containerURL: \(containerURL.path)")
+    
+    let fromURL = containerURL.appendingPathComponent(fromRelativePath)
+    let toURL = containerURL.appendingPathComponent(toRelativePath)
+    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+    
+    // Use reading coordination for source and writing coordination for destination
+    fileCoordinator.coordinate(readingItemAt: fromURL, options: .withoutChanges, writingItemAt: toURL, options: .forReplacing, error: nil) {
+      fromReadingURL, toWritingURL in
+      do {
+        // Check if source file exists
+        if !FileManager.default.fileExists(atPath: fromReadingURL.path) {
+          result(fileNotFoundError)
+          return
+        }
+        
+        // Create destination directory if needed
+        let toDirURL = toWritingURL.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: toDirURL.path) {
+          try FileManager.default.createDirectory(at: toDirURL, withIntermediateDirectories: true, attributes: nil)
+        }
+        
+        // Remove destination file if it exists
+        if FileManager.default.fileExists(atPath: toWritingURL.path) {
+          try FileManager.default.removeItem(at: toWritingURL)
+        }
+        
+        // Copy the file
+        try FileManager.default.copyItem(at: fromReadingURL, to: toWritingURL)
+        result(nil)
+      } catch {
+        DebugHelper.log("copy error: \(error.localizedDescription)")
         result(nativeCodeError(error))
       }
     }

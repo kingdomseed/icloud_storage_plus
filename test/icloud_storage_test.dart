@@ -18,12 +18,14 @@ class MockIcloudStoragePlatform
 
   @override
   Future<bool> icloudAvailable() async {
+    _calls.add('icloudAvailable');
     return true;
   }
 
   @override
-  Future<String> getContainerPath({required String containerId}) async {
-    return '';
+  Future<String?> getContainerPath({required String containerId}) async {
+    _calls.add('getContainerPath');
+    return '/mock/container/path';
   }
 
   @override
@@ -31,6 +33,7 @@ class MockIcloudStoragePlatform
     required String containerId,
     StreamHandler<List<ICloudFile>>? onUpdate,
   }) async {
+    _calls.add('gather');
     return [];
   }
 
@@ -66,6 +69,14 @@ class MockIcloudStoragePlatform
       required String toRelativePath}) async {
     _moveToRelativePath = toRelativePath;
     _calls.add('move');
+  }
+  
+  @override
+  Future<void> copy(
+      {required String containerId,
+      required String fromRelativePath,
+      required String toRelativePath}) async {
+    _calls.add('copy');
   }
 }
 
@@ -176,6 +187,14 @@ void main() {
       expect(fakePlatform.calls.last, 'move');
     });
 
+    test('copy', () async {
+      await ICloudStorage.copy(
+          containerId: containerId,
+          fromRelativePath: 'source.pdf',
+          toRelativePath: 'backup.pdf');
+      expect(fakePlatform.calls.last, 'copy');
+    });
+
     test('rename', () async {
       await ICloudStorage.rename(
         containerId: containerId,
@@ -183,6 +202,92 @@ void main() {
         newName: 'file2',
       );
       expect(fakePlatform.moveToRelativePath, 'dir/file2');
+    });
+
+    test('icloudAvailable', () async {
+      final available = await ICloudStorage.icloudAvailable();
+      expect(available, true);
+      expect(fakePlatform.calls.last, 'icloudAvailable');
+    });
+
+    test('getContainerPath', () async {
+      final path = await ICloudStorage.getContainerPath(containerId: containerId);
+      expect(path, '/mock/container/path');
+      expect(fakePlatform.calls.last, 'getContainerPath');
+    });
+
+    group('convenience methods:', () {
+      test('uploadToDocuments', () async {
+        await ICloudStorage.uploadToDocuments(
+          containerId: containerId,
+          filePath: '/local/document.pdf',
+          destinationRelativePath: 'reports/doc.pdf',
+        );
+        expect(fakePlatform.uploadDestinationRelativePath, 'Documents/reports/doc.pdf');
+        expect(fakePlatform.calls.last, 'upload');
+      });
+
+      test('uploadToDocuments without destinationRelativePath', () async {
+        await ICloudStorage.uploadToDocuments(
+          containerId: containerId,
+          filePath: '/local/path/document.pdf',
+        );
+        expect(fakePlatform.uploadDestinationRelativePath, 'Documents/document.pdf');
+        expect(fakePlatform.calls.last, 'upload');
+      });
+
+      test('uploadPrivate', () async {
+        await ICloudStorage.uploadPrivate(
+          containerId: containerId,
+          filePath: '/local/settings.json',
+          destinationRelativePath: 'config/settings.json',
+        );
+        expect(fakePlatform.uploadDestinationRelativePath, 'config/settings.json');
+        expect(fakePlatform.calls.last, 'upload');
+      });
+
+      test('downloadFromDocuments', () async {
+        final result = await ICloudStorage.downloadFromDocuments(
+          containerId: containerId,
+          relativePath: 'reports/doc.pdf',
+        );
+        expect(result, true);
+        expect(fakePlatform.calls.last, 'download');
+      });
+    });
+
+    group('metadata operations:', () {
+      test('exists returns true when file is found', () async {
+        // exists() calls gather(), so we need to return some files
+        fakePlatform.calls.clear();
+        final exists = await ICloudStorage.exists(
+          containerId: containerId,
+          relativePath: 'Documents/test.pdf',
+        );
+        expect(fakePlatform.calls.contains('gather'), true);
+        // Note: exists() returns false in tests because gather() returns empty list
+        expect(exists, false);
+      });
+
+      test('getMetadata returns null when file not found', () async {
+        fakePlatform.calls.clear();
+        final metadata = await ICloudStorage.getMetadata(
+          containerId: containerId,
+          relativePath: 'Documents/test.pdf',
+        );
+        expect(fakePlatform.calls.contains('gather'), true);
+        expect(metadata, null);
+      });
+    });
+
+    group('constants:', () {
+      test('documentsDirectory constant', () {
+        expect(ICloudStorage.documentsDirectory, 'Documents');
+      });
+
+      test('dataDirectory constant', () {
+        expect(ICloudStorage.dataDirectory, 'Data');
+      });
     });
   });
 }

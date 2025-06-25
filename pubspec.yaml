@@ -21,6 +21,6 @@ flutter:
   plugin:
     platforms:
       ios:
-        pluginClass: IcloudStoragePlugin
+        pluginClass: ICloudStoragePlugin
       macos:
-        pluginClass: IcloudStoragePlugin
+        pluginClass: ICloudStoragePlugin

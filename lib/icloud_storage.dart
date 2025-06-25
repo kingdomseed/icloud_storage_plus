@@ -23,6 +23,19 @@ export 'models/icloud_file.dart';
 /// - **Data Directory**: For temporary or cache files that shouldn't sync.
 ///   Example: `await upload(relativePath: 'Data/cache.tmp')`
 class ICloudStorage {
+  /// The directory name for files that should be visible in the Files app.
+  /// Files stored under this directory will appear in iCloud Drive and be
+  /// accessible through the Files app.
+  static const String documentsDirectory = 'Documents';
+  
+  /// The directory name for temporary files that should not sync to iCloud.
+  /// Use this for cache files or temporary data.
+  static const String dataDirectory = 'Data';
+  
+  /// Storage visibility options for files
+  static const String visibilityPrivate = 'private';
+  static const String visibilityPublic = 'public';
+  static const String visibilityTemporary = 'temporary';
   /// Check if iCloud is available and user is logged in
   ///
   /// Returns true if iCloud is available and user is logged in, false otherwise
@@ -280,4 +293,174 @@ class ICloudStorage {
   static bool _validateFileName(String name) => !(name.isEmpty ||
       name.length > 255 ||
       RegExp(r"([:/]+)|(^[.].*$)").hasMatch(name));
+      
+  /// Upload a file to the Documents directory (visible in Files app)
+  ///
+  /// This is a convenience method that automatically prefixes the destination
+  /// path with 'Documents/' to ensure the file is visible in the Files app.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [filePath] is the full path of the local file
+  ///
+  /// [destinationRelativePath] is the relative path within the Documents
+  /// directory. If not specified, the local file name is used.
+  /// Example: 'reports/2023/report.pdf' becomes 'Documents/reports/2023/report.pdf'
+  ///
+  /// [onProgress] is an optional callback to track upload progress
+  static Future<void> uploadToDocuments({
+    required String containerId,
+    required String filePath,
+    String? destinationRelativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    final destination = destinationRelativePath ?? filePath.split('/').last;
+    
+    await upload(
+      containerId: containerId,
+      filePath: filePath,
+      destinationRelativePath: '$documentsDirectory/$destination',
+      onProgress: onProgress,
+    );
+  }
+  
+  /// Upload a file to app-private storage (not visible in Files app)
+  ///
+  /// This is a convenience method that makes it explicit the file will be
+  /// stored in the app's private iCloud container, not visible to users
+  /// in the Files app.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [filePath] is the full path of the local file
+  ///
+  /// [destinationRelativePath] is the relative path within the container root.
+  /// If not specified, the local file name is used.
+  ///
+  /// [onProgress] is an optional callback to track upload progress
+  static Future<void> uploadPrivate({
+    required String containerId,
+    required String filePath,
+    String? destinationRelativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    // This is effectively the same as upload(), but the method name
+    // makes the intent clear
+    await upload(
+      containerId: containerId,
+      filePath: filePath,
+      destinationRelativePath: destinationRelativePath,
+      onProgress: onProgress,
+    );
+  }
+  
+  /// Download a file from the Documents directory (Files app visible location)
+  ///
+  /// This is a convenience method that automatically prefixes the path
+  /// with 'Documents/' to download files from the Files app visible location.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path within the Documents directory
+  /// Example: 'report.pdf' becomes 'Documents/report.pdf'
+  ///
+  /// [onProgress] is an optional callback to track download progress
+  static Future<bool> downloadFromDocuments({
+    required String containerId,
+    required String relativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    return await download(
+      containerId: containerId,
+      relativePath: '$documentsDirectory/$relativePath',
+      onProgress: onProgress,
+    );
+  }
+  
+  /// Check if a file exists in iCloud without downloading it
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file to check, such as file1
+  /// or folder/file2 or Documents/myfile.pdf
+  ///
+  /// Returns true if the file exists, false otherwise
+  static Future<bool> exists({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+    
+    try {
+      final files = await gather(containerId: containerId);
+      return files.any((file) => file.relativePath == relativePath);
+    } catch (e) {
+      // If we can't gather files, assume file doesn't exist
+      return false;
+    }
+  }
+  
+  /// Copy a file within the iCloud container
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [fromRelativePath] is the relative path of the source file
+  ///
+  /// [toRelativePath] is the relative path of the destination file
+  ///
+  /// The destination file will be overwritten if it exists.
+  /// Parent directories will be created if needed.
+  ///
+  /// Throws PlatformException if the source file doesn't exist
+  static Future<void> copy({
+    required String containerId,
+    required String fromRelativePath,
+    required String toRelativePath,
+  }) async {
+    if (!_validateRelativePath(fromRelativePath)) {
+      throw InvalidArgumentException(
+          'invalid relativePath: (from) $fromRelativePath');
+    }
+    
+    if (!_validateRelativePath(toRelativePath)) {
+      throw InvalidArgumentException(
+          'invalid relativePath: (to) $toRelativePath');
+    }
+    
+    await ICloudStoragePlatform.instance.copy(
+      containerId: containerId,
+      fromRelativePath: fromRelativePath,
+      toRelativePath: toRelativePath,
+    );
+  }
+  
+  /// Get metadata for a specific file without downloading it
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is the relative path of the file to get metadata for
+  ///
+  /// Returns the ICloudFile metadata if the file exists, null otherwise
+  static Future<ICloudFile?> getMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+    
+    try {
+      final files = await gather(containerId: containerId);
+      try {
+        return files.firstWhere((file) => file.relativePath == relativePath);
+      } on StateError {
+        // firstWhere throws StateError when no element is found
+        return null;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
 }
