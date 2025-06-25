@@ -9,6 +9,54 @@ A flutter plugin for upload, download and manage files in the app's iCloud conta
 
 Documents and other data that is user-generated and stored in the <Application_Home>/Documents directory can be automatically backed up by iCloud on iOS devices, if the iCloud Backup setting is turned on. The data can be recovered when user sets up a new device or resets an existing device. If you need to do backup and download outside the forementioned scenarios, this plugin could help.
 
+## Understanding iCloud Container Structure
+
+When you use this plugin, it's important to understand how iCloud containers are organized:
+
+```
+iCloud Container (your-container-id)
+├── Documents/     ← Files stored here are visible in Files app
+├── Data/          ← App-private data (not visible in Files app)
+└── [root files]   ← Files stored here sync but are NOT visible in Files app
+```
+
+**By default, this plugin stores files in the container root**, which means:
+- ✅ Files sync across all devices signed into the same iCloud account
+- ✅ Files are backed up to iCloud
+- ❌ Files are NOT visible in the Files app
+- ✅ Files are private to your app
+
+### Making Files Visible in the Files App
+
+If you want users to see and manage files in the Files app, you must store them in the `Documents` subdirectory:
+
+```dart
+// Example: Upload a file to make it visible in Files app
+await ICloudStorage.upload(
+  containerId: 'your.container.id',
+  filePath: '/local/path/to/file.pdf',
+  destinationRelativePath: 'Documents/file.pdf',  // Note: "Documents/" prefix
+);
+
+// Example: Create a file directly in the Documents directory
+final containerPath = await ICloudStorage.getContainerPath(
+  containerId: 'your.container.id',
+);
+if (containerPath != null) {
+  final file = File('$containerPath/Documents/myfile.txt');
+  await file.parent.create(recursive: true);  // Ensure Documents directory exists
+  await file.writeAsString('This file will be visible in Files app!');
+}
+```
+
+### When to Use Each Location
+
+- **Container Root** (default): Use for app settings, databases, or files that users shouldn't directly manage
+- **Documents/**: Use for user documents, exports, or any files users should access outside your app
+- **Data/**: Use for temporary caches or app-private data that shouldn't sync
+
+**Note**: If you consistently store user-visible files in the Documents directory from the start, you won't need any migration code. Files are automatically synced by iCloud regardless of their location within the container.
+
 ## Prerequisite
 
 The following setups are needed in order to use this plugin:
@@ -56,10 +104,11 @@ if (containerPath != null) {
 ### Upload a file to iCloud
 
 ```dart
+// Upload to app-private storage (not visible in Files app)
 await ICloudStorage.upload(
   containerId: 'iCloudContainerId',
   filePath: '/localDir/localFile',
-  destinationRelativePath: 'destDir/destFile',
+  destinationRelativePath: 'appData/settings.json',  // Stored in container root
   onProgress: (stream) {
     uploadProgressSub = stream.listen(
       (progress) => print('Upload File Progress: $progress'),
@@ -69,9 +118,19 @@ await ICloudStorage.upload(
     );
   },
 );
+
+// Upload to Files app visible location
+await ICloudStorage.upload(
+  containerId: 'iCloudContainerId',
+  filePath: '/localDir/document.pdf',
+  destinationRelativePath: 'Documents/MyApp/document.pdf',  // Note: Documents/ prefix
+  onProgress: (stream) {
+    // ... progress handling
+  },
+);
 ```
 
-Note: The 'startUpload' API is to start the upload process. The returned future completes without waiting for the upload to complete. Use 'onProgress' to track the upload progress. If the 'destinationRelativePath' contains a subdirectory that doesn't exist, it will be created.
+Note: The returned future completes without waiting for the upload to complete. Use 'onProgress' to track the upload progress. If the 'destinationRelativePath' contains a subdirectory that doesn't exist, it will be created.
 
 ### Download a file from iCloud
 
@@ -167,6 +226,10 @@ When uploading and downloading files, make sure the File Access is enabled for t
 - `startDownload` has been renamed to `download`.
 
 ## FAQ
+
+Q: Why can't I see my uploaded files in the Files app?
+
+A: By default, this plugin stores files in the iCloud container root, which is private to your app. To make files visible in the Files app, you must store them in the `Documents` subdirectory. Use `destinationRelativePath: 'Documents/yourfile.ext'` when uploading.
 
 Q: I uploaded a file from a device. I signed in to a simulator using the same iCloud account. But the file is not showing up in the gatherFiles result.
 

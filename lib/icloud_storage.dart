@@ -7,6 +7,21 @@ export 'models/icloud_file.dart';
 
 /// The main class for the plugin. Contains all the API's needed for listing,
 /// uploading, downloading and deleting files.
+/// 
+/// ## Understanding iCloud Storage Locations
+/// 
+/// Files in an iCloud container can be stored in different locations:
+/// 
+/// - **Container Root** (default): Files sync across devices but are NOT 
+///   visible in the Files app. Use for app settings, databases, etc.
+///   Example: `await upload(relativePath: 'settings.json')`
+/// 
+/// - **Documents Directory**: Files are visible in the Files app and can be
+///   managed by users. Use for user documents, exports, etc.
+///   Example: `await upload(relativePath: 'Documents/report.pdf')`
+/// 
+/// - **Data Directory**: For temporary or cache files that shouldn't sync.
+///   Example: `await upload(relativePath: 'Data/cache.tmp')`
 class ICloudStorage {
   /// Check if iCloud is available and user is logged in
   ///
@@ -23,7 +38,13 @@ class ICloudStorage {
   /// list of files are updated. It won't be triggered when the function
   /// initially returns the list of files
   ///
-  /// The function returns a future of list of ICloudFile
+  /// Returns a list of ALL files in the container, including:
+  /// - Files in the root (app-private, not visible in Files app)
+  /// - Files in Documents/ (visible in Files app)
+  /// - Files in any subdirectories
+  /// 
+  /// The relativePath in each ICloudFile will reflect the full path from
+  /// the container root, e.g., "Documents/myfile.pdf" or "data/config.json"
   static Future<List<ICloudFile>> gather({
     required String containerId,
     StreamHandler<List<ICloudFile>>? onUpdate,
@@ -34,6 +55,33 @@ class ICloudStorage {
     );
   }
 
+  /// Get the absolute path to the iCloud container
+  ///
+  /// [containerId] is the iCloud Container Id.
+  /// 
+  /// Returns the root path of the iCloud container, or null if unavailable.
+  /// 
+  /// **Understanding the container structure**:
+  /// ```
+  /// [returned path]/
+  /// ├── Documents/     ← Files here are visible in Files app
+  /// ├── Data/          ← App-private data
+  /// └── [root files]   ← Files here sync but are NOT visible in Files app
+  /// ```
+  /// 
+  /// Example usage:
+  /// ```dart
+  /// final containerPath = await ICloudStorage.getContainerPath(
+  ///   containerId: 'your.container.id',
+  /// );
+  /// if (containerPath != null) {
+  ///   // For Files app visibility
+  ///   final visibleFile = File('$containerPath/Documents/myfile.txt');
+  ///   
+  ///   // For app-private storage
+  ///   final privateFile = File('$containerPath/appdata.db');
+  /// }
+  /// ```
   static Future<String?> getContainerPath({
     required String containerId,
   }) async {
@@ -53,6 +101,12 @@ class ICloudStorage {
   /// [destinationRelativePath] is the relative path of the file you want to
   /// store in iCloud. If not specified, the name of the local file name is
   /// used.
+  /// 
+  /// **Important**: Files are stored relative to the container root by default.
+  /// - To make files visible in the Files app, prefix with 'Documents/'
+  ///   Example: 'Documents/myfile.pdf'
+  /// - For app-private files, use any other path or the root
+  ///   Example: 'settings/config.json' or just 'data.db'
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// upload. It takes a Stream<double> as input, which is the percentage of
@@ -90,15 +144,19 @@ class ICloudStorage {
   /// [containerId] is the iCloud Container Id.
   ///
   /// [relativePath] is the relative path of the file on iCloud, such as file1
-  /// or folder/myfile2
+  /// or folder/myfile2. For files in the Documents directory visible in Files
+  /// app, include the Documents prefix: "Documents/myfile.pdf"
   ///
-  /// [destinationFilePath] is the full path of the local file you want the
-  /// iCloud file to be saved as
+  /// **Note**: This method downloads files in-place within the iCloud container.
+  /// The file remains at its original location and is made available locally.
+  /// To access the downloaded file, use getContainerPath() and append the
+  /// relativePath.
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream<double> as input, which is the percentage of
   /// the data being downloaded.
   ///
+  /// Returns true if the download was initiated successfully, false otherwise.
   /// The returned future completes without waiting for the file to be
   /// downloaded
   static Future<bool> download({
