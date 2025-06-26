@@ -121,7 +121,7 @@ class ICloudDocument: UIDocument {
 
 // MARK: - Extension for Document Operations
 
-extension ICloudStoragePlugin {
+extension ICloudStoragePluginSwift {
     /// Read a document from iCloud using UIDocument
     /// - Parameters:
     ///   - url: The URL of the document to read
