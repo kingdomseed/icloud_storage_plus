@@ -79,12 +79,13 @@ class ICloudDocument: UIDocument {
     
     /// Automatically resolve conflicts by choosing the most recent version
     private func resolveConflicts() {
-        guard let fileURL = fileURL else { return }
+        // In UIDocument, fileURL is non-optional
+        let fileURL = self.fileURL
         
         DebugHelper.log("Resolving conflicts for: \(fileURL.lastPathComponent)")
         
         // Get all conflicting versions
-        if let conflictVersions = NSFileVersion.unresolvedConflictVersions(of: fileURL),
+        if let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL),
            !conflictVersions.isEmpty {
             
             // Find the most recent version based on modification date
@@ -205,7 +206,7 @@ extension ICloudStoragePlugin {
                 }
                 
                 // Check for conflict versions
-                if let conflictVersions = NSFileVersion.unresolvedConflictVersions(of: url) {
+                if let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url) {
                     stateInfo["conflictCount"] = conflictVersions.count
                 }
                 
