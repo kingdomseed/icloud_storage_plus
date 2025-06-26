@@ -37,23 +37,42 @@ class ICloudDocument: UIDocument {
         self.data = data
     }
     
+    // MARK: - Initialization and Deinitialization
+    
+    override init(fileURL url: URL) {
+        super.init(fileURL: url)
+        setupStateChangeObserver()
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
     // MARK: - Conflict Resolution
     
+    /// Sets up observer for document state changes
+    private func setupStateChangeObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(documentStateChanged),
+            name: UIDocument.stateChangedNotification,
+            object: self
+        )
+    }
+    
     /// Called when the document state changes (including conflict detection)
-    override func stateChanged(from oldState: UIDocument.State, to newState: UIDocument.State) {
-        super.stateChanged(from: oldState, to: newState)
-        
+    @objc private func documentStateChanged() {
         // Handle conflict state
-        if newState.contains(.inConflict) {
+        if documentState.contains(.inConflict) {
             resolveConflicts()
         }
         
         // Log other state changes for debugging
-        if newState.contains(.savingError) {
+        if documentState.contains(.savingError) {
             DebugHelper.log("Document saving error: \(fileURL.lastPathComponent)")
         }
         
-        if newState.contains(.editingDisabled) {
+        if documentState.contains(.editingDisabled) {
             DebugHelper.log("Document editing disabled: \(fileURL.lastPathComponent)")
         }
     }
