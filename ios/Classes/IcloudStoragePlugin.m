@@ -8,7 +8,7 @@
 #import "icloud_storage-Swift.h"
 #endif
 
-@implementation IcloudStoragePlugin
+@implementation ICloudStoragePlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   [ICloudStoragePlugin registerWithRegistrar:registrar];
 }
