@@ -10,7 +10,7 @@ public class ICloudStoragePluginSwift: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let messenger = registrar.messenger()
     let channel = FlutterMethodChannel(name: "icloud_storage", binaryMessenger: messenger)
-    let instance = ICloudStoragePlugin()
+    let instance = ICloudStoragePluginSwift()
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.messenger = messenger
   }
