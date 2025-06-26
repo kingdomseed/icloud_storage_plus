@@ -8,7 +8,7 @@ import 'models/icloud_file.dart';
 typedef StreamHandler<T> = void Function(Stream<T>);
 
 abstract class ICloudStoragePlatform extends PlatformInterface {
-  /// Constructs a IcloudStoragePlatform.
+  /// Constructs a ICloudStoragePlatform.
   ICloudStoragePlatform() : super(token: _token);
 
   static final Object _token = Object();

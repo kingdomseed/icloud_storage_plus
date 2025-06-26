@@ -6,7 +6,7 @@ import 'package:icloud_storage/icloud_storage_platform_interface.dart';
 import 'package:icloud_storage/icloud_storage_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-class MockIcloudStoragePlatform
+class MockICloudStoragePlatform
     with MockPlatformInterfaceMixin
     implements ICloudStoragePlatform {
   final List<String> _calls = [];
@@ -145,7 +145,7 @@ void main() {
 
   group('ICloudStorage static functions:', () {
     const containerId = 'containerId';
-    MockIcloudStoragePlatform fakePlatform = MockIcloudStoragePlatform();
+    MockICloudStoragePlatform fakePlatform = MockICloudStoragePlatform();
     ICloudStoragePlatform.instance = fakePlatform;
 
     test('gather', () async {
@@ -416,7 +416,7 @@ void main() {
 
       test('readJsonDocument parses JSON correctly', () async {
         // Override readDocument to return JSON data
-        fakePlatform = MockIcloudStoragePlatform();
+        fakePlatform = MockICloudStoragePlatform();
         ICloudStoragePlatform.instance = fakePlatform;
 
         // Can't easily override the return value, so this test would need
