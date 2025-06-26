@@ -10,6 +10,6 @@
 
 @implementation ICloudStoragePlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
-  [ICloudStoragePlugin registerWithRegistrar:registrar];
+  [ICloudStoragePluginSwift registerWithRegistrar:registrar];
 }
 @end
