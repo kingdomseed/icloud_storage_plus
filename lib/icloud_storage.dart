@@ -192,7 +192,7 @@ class ICloudStorage {
   /// directly - it's more efficient and handles downloading automatically.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream<double> as input, which is the percentage of
+  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
   /// the data being downloaded.
   ///
   /// Returns true if the download was initiated successfully, false otherwise.
@@ -239,7 +239,7 @@ class ICloudStorage {
   /// app, include the Documents prefix: "Documents/myfile.pdf"
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream<double> as input, which is the percentage of
+  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
   /// the data being downloaded.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist.

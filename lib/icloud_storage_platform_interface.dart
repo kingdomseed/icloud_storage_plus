@@ -67,7 +67,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// iCloud.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream<double> as input, which is the percentage of
+  /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage of
   /// the data being uploaded.
   ///
   /// The returned future completes without waiting for the file to be uploaded
@@ -91,7 +91,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [destinationFilePath] is the full path of the local file to be saved as.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream<double> as input, which is the percentage of
+  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
   /// the data being downloaded.
   ///
   /// The returned future completes without waiting for the file to be
@@ -169,7 +169,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [relativePath] is the relative path of the file on iCloud
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream<double> as input, which is the percentage of
+  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
   /// the data being downloaded.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist
