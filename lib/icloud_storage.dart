@@ -138,7 +138,7 @@ class ICloudStorage {
   ///   Example: 'settings/config.json' or just 'data.db'
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream<double> as input, which is the percentage of
+  /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage of
   /// the data being uploaded.
   ///
   /// The returned future completes without waiting for the file to be uploaded
