@@ -1,4 +1,4 @@
 #import <Flutter/Flutter.h>
 
-@interface iCloudStoragePlugin : NSObject<FlutterPlugin>
+@interface ICloudStoragePlugin : NSObject<FlutterPlugin>
 @end
