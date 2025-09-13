@@ -42,8 +42,6 @@ class ICloudStorage {
     );
   }
 
-
-
   /// Initiate to upload a file to iCloud
   ///
   /// [containerId] is the iCloud Container Id.
@@ -55,8 +53,7 @@ class ICloudStorage {
   /// used.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream<double> as input, which is the percentage of
-  /// the data being uploaded.
+  /// upload. It takes a stream of double values (percentage of data uploaded).
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud
@@ -96,8 +93,8 @@ class ICloudStorage {
   /// iCloud file to be saved as
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream<double> as input, which is the percentage of
-  /// the data being downloaded.
+  /// download. It takes a stream of double values (percentage of data
+  /// downloaded).
   ///
   /// The returned future completes without waiting for the file to be
   /// downloaded
