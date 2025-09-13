@@ -8,5 +8,5 @@ import Foundation
 import icloud_storage
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
-  IcloudStoragePlugin.register(with: registry.registrar(forPlugin: "IcloudStoragePlugin"))
+  ICloudStoragePlugin.register(with: registry.registrar(forPlugin: "ICloudStoragePlugin"))
 }

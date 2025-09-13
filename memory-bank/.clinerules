@@ -1,0 +1,101 @@
+# iCloud Storage Plus Project Rules
+
+## Project Patterns
+
+1. **File Naming Conventions**
+   - Swift files: PascalCase (e.g., `IcloudStoragePlugin.swift`)
+   - Dart files: snake_case (e.g., `icloud_storage.dart`)
+   - Class names: PascalCase (e.g., `ICloudStorage`)
+   - Method names: camelCase (e.g., `uploadFile()`)
+
+2. **Code Organization**
+   - Dart side follows Flutter plugin architecture with platform interface pattern
+   - Native side separates iOS and macOS implementations
+   - Method implementations follow consistent parameter validation pattern
+
+3. **Error Handling**
+   - Native errors are wrapped in FlutterError objects
+   - Standard error codes are used across the plugin
+   - Error messages include details for debugging
+
+## Implementation Paths
+
+1. **File Upload Path**
+   - Dart API (`upload()`) → Platform interface → Method channel → Native implementation
+   - Native side validates parameters, performs file operation, sets up progress monitoring
+   - Progress updates flow through event channels back to Dart
+
+2. **File Download Path**
+   - Dart API (`download()`) → Platform interface → Method channel → Native implementation
+   - Native side initiates download, monitors progress, notifies when complete
+   - Progress updates flow through event channels back to Dart
+
+3. **File Listing Path**
+   - Dart API (`gather()`) → Platform interface → Method channel → Native implementation
+   - Native side uses NSMetadataQuery to list files in iCloud container
+   - File metadata is mapped to Dart objects and returned
+
+## Known Challenges
+
+1. **File Coordination**
+   - NSFileCoordinator is needed for all file operations to prevent conflicts
+   - Currently implemented in delete and move operations
+   - Upload method needs to be updated (Phase 1)
+   - Download method needs to be enhanced (future phase)
+
+2. **Background Processing**
+   - iOS may suspend apps during long-running operations
+   - File operations need to handle app suspension gracefully
+   - UIDocument/NSDocument can help with this (future phases)
+
+3. **Progress Monitoring**
+   - NSMetadataQuery is used to monitor file upload/download progress
+   - Observers need to be properly set up and cleaned up
+   - Event channels need to be closed when operations complete
+
+## User Preferences
+
+1. **API Design**
+   - Prefer simple, intuitive API methods
+   - Use optional parameters for advanced features
+   - Provide progress monitoring for long-running operations
+   - Maintain backward compatibility when adding new features
+
+2. **Error Handling**
+   - Provide clear, actionable error messages
+   - Use standard error codes for consistent handling
+   - Include details for debugging when possible
+
+## Evolution of Project Decisions
+
+1. **Initial Implementation**
+   - Basic file operations without proper file coordination
+   - Simple error handling
+   - Platform-specific implementations for iOS and macOS
+
+2. **Current Focus**
+   - Improving file coordination with NSFileCoordinator
+   - Planning for document-based approach with UIDocument/NSDocument
+   - Enhancing error handling and progress monitoring
+
+3. **Future Direction**
+   - Complete implementation of document-based approach
+   - Add advanced features like conflict resolution
+   - Improve background processing and error recovery
+
+## Tool Usage Patterns
+
+1. **Development Environment**
+   - Flutter SDK for Dart side development
+   - Xcode for iOS/macOS native development
+   - VSCode for editing and project management
+
+2. **Testing Approach**
+   - Unit tests for Dart API and platform interface
+   - Manual testing for native implementations
+   - Example app for integration testing
+
+3. **Documentation**
+   - API documentation in Dart code
+   - Implementation details in separate documentation
+   - Example app demonstrating usage patterns

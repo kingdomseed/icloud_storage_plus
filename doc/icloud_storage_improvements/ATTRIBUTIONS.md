@@ -2,7 +2,7 @@
 
 This improved iCloud Storage plugin is based on the [icloud_storage](https://github.com/deansyd/icloud_storage) plugin by Dean Sydney (deansyd), with additional features and improvements from multiple contributors. Below are the specific contributions incorporated into this enhanced version.
 
-## Open Pull Requests
+## Implemented Features
 
 ### Improved Error Handling ✅ IMPLEMENTED
 
@@ -11,6 +11,12 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
 - **Features**:
   - ✅ Enhanced error handling
   - ✅ Improved error messages
+- **Implementation Date**: March 15, 2025
+- **Files Modified**:
+  - `lib/icloud_storage.dart`
+  - `lib/icloud_storage_platform_interface.dart`
+  - `lib/icloud_storage_method_channel.dart`
+  - `lib/models/exceptions.dart`
 
 ### Improved IO Changes ✅ IMPLEMENTED
 
@@ -30,14 +36,13 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
   - `macos/Classes/IcloudStoragePlugin.swift`
 
-## Feature Contributions
-
-### iCloud Availability Check
+### iCloud Availability Check ✅ IMPLEMENTED
 
 - **Repository**: [TrangLeQuynh/icloud_storage](https://github.com/TrangLeQuynh/icloud_storage)
 - **Author**: Trang Le Quynh
 - **Commit**: [5069e2c161d89cb90fe07b8ab6b6cf375fc8ac65](https://github.com/TrangLeQuynh/icloud_storage/commit/5069e2c161d89cb90fe07b8ab6b6cf375fc8ac65)
 - **Feature**: Method to check if iCloud is available before performing operations
+- **Implementation Date**: March 18, 2025
 - **Files Modified**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
@@ -59,19 +64,22 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
   - `macos/Classes/IcloudStoragePlugin.swift`
 
-### Download In Place Method
+## Features Pending Implementation
+
+### Download In Place Method ⏳ PENDING
 
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [39d1be3850595b3fda8c98bca56b70a15c6acb2a](https://github.com/rizerco/icloud_storage/commit/39d1be3850595b3fda8c98bca56b70a15c6acb2a)
 - **Feature**: Method to download a file without specifying a destination
-- **Files Modified**:
+- **Files to Modify**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
+  - `macos/Classes/IcloudStoragePlugin.swift`
 
-### Get Absolute Path
+### Get Absolute Path ⏳ PENDING
 
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
@@ -79,23 +87,25 @@ This improved iCloud Storage plugin is based on the [icloud_storage](https://git
   - [368ef67634251b75cc355c780805e66f29e7ec83](https://github.com/rizerco/icloud_storage/commit/368ef67634251b75cc355c780805e66f29e7ec83) - Main implementation
   - [5900bc0fe371ac1548f44e9d5ab19a44d4eec50f](https://github.com/rizerco/icloud_storage/commit/5900bc0fe371ac1548f44e9d5ab19a44d4eec50f) - Path encoding fix
 - **Feature**: Method to get the absolute path for a file in iCloud
-- **Files Modified**:
+- **Files to Modify**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
+  - `macos/Classes/IcloudStoragePlugin.swift`
 
-### Display File Attributes
+### Display File Attributes ⏳ PENDING
 
 - **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
 - **Author**: Rizerco
 - **Commit**: [6649b1b3fd7d38f8d9b459dc82a5243eff30c80f](https://github.com/rizerco/icloud_storage/commit/6649b1b3fd7d38f8d9b459dc82a5243eff30c80f)
 - **Feature**: Method to retrieve detailed file attributes
-- **Files Modified**:
+- **Files to Modify**:
   - `lib/icloud_storage.dart`
   - `lib/icloud_storage_platform_interface.dart`
   - `lib/icloud_storage_method_channel.dart`
   - `ios/Classes/SwiftIcloudStoragePlugin.swift`
+  - `macos/Classes/IcloudStoragePlugin.swift`
 
 ## Integration Approach
 
@@ -107,19 +117,10 @@ This improved version of the iCloud Storage plugin integrates various contributi
 4. Ensuring compatibility between all integrated components
 5. Testing thoroughly before publication
 
-## Implementation Status
+## Implementation Decisions
 
-- ✅ PR #40 (Error Handling) - Completed
-- ✅ PR #45 (I/O Improvements) - Completed
-- ✅ iCloud Availability Check - Completed
-- ⏳ Download In Place - Pending
-- ⏳ Get Absolute Path - Pending
-- ⏳ File Attributes Support - Pending
-
-### Implementation Decisions
-
-- For overlapping functionality, I prioritize PRs over fork-specific implementations
-- PR #45 will be used for accessing the root iCloud container directory instead of the separate Rizerco implementation, as it provides equivalent functionality with additional performance improvements
+- For overlapping functionality, PRs are prioritized over fork-specific implementations
+- PR #45 is used for accessing the root iCloud container directory instead of the separate Rizerco implementation, as it provides equivalent functionality with additional performance improvements
 - All other non-overlapping features from the Rizerco fork will be integrated as specified
 
 ## License

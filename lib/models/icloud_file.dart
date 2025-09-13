@@ -34,11 +34,12 @@ class ICloudFile {
             ((map['creationDate'] as double) * 1000).round()),
         contentChangeDate = DateTime.fromMillisecondsSinceEpoch(
             ((map['contentChangeDate'] as double) * 1000).round()),
-        isDownloading = map['isDownloading'],
+        isDownloading = (map['isDownloading'] as bool?) ?? false,
         downloadStatus = _mapToDownloadStatusFromNSKeys(map['downloadStatus']),
-        isUploading = map['isUploading'],
-        isUploaded = map['isUploaded'],
-        hasUnresolvedConflicts = map['hasUnresolvedConflicts'];
+        isUploading = (map['isUploading'] as bool?) ?? false,
+        isUploaded = (map['isUploaded'] as bool?) ?? false,
+        hasUnresolvedConflicts =
+            (map['hasUnresolvedConflicts'] as bool?) ?? false;
 
   /// Map native download status keys to DownloadStatus enum
   static DownloadStatus _mapToDownloadStatusFromNSKeys(String key) {

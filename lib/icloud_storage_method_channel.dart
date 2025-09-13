@@ -142,6 +142,108 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     });
   }
 
+  @override
+  Future<void> copy({
+    required String containerId,
+    required String fromRelativePath,
+    required String toRelativePath,
+  }) async {
+    await methodChannel.invokeMethod('copy', {
+      'containerId': containerId,
+      'fromRelativePath': fromRelativePath,
+      'toRelativePath': toRelativePath,
+    });
+  }
+
+  @override
+  Future<Uint8List?> downloadAndRead({
+    required String containerId,
+    required String relativePath,
+    StreamHandler<double>? onProgress,
+  }) async {
+    var eventChannelName = '';
+
+    if (onProgress != null) {
+      eventChannelName =
+          _generateEventChannelName('downloadAndRead', containerId);
+
+      await methodChannel.invokeMethod(
+          'createEventChannel', {'eventChannelName': eventChannelName});
+
+      final downloadEventChannel = EventChannel(eventChannelName);
+      final stream = downloadEventChannel
+          .receiveBroadcastStream()
+          .where((event) => event is double)
+          .map((event) => event as double);
+
+      onProgress(stream);
+    }
+
+    final result =
+        await methodChannel.invokeMethod<Uint8List?>('downloadAndRead', {
+      'containerId': containerId,
+      'cloudFileName': relativePath,
+      'eventChannelName': eventChannelName
+    });
+
+    return result;
+  }
+
+  @override
+  Future<Uint8List?> readDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final result =
+        await methodChannel.invokeMethod<Uint8List?>('readDocument', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+    });
+    return result;
+  }
+
+  @override
+  Future<void> writeDocument({
+    required String containerId,
+    required String relativePath,
+    required Uint8List data,
+  }) async {
+    await methodChannel.invokeMethod('writeDocument', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+      'data': data,
+    });
+  }
+
+  @override
+  Future<bool> documentExists({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final result = await methodChannel.invokeMethod<bool>('documentExists', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+    });
+    return result ?? false;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getDocumentMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final result = await methodChannel
+        .invokeMethod<Map<dynamic, dynamic>?>('getDocumentMetadata', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+    });
+
+    if (result == null) return null;
+
+    // Convert dynamic map to properly typed map
+    return result.map((key, value) => MapEntry(key.toString(), value));
+  }
+
   /// Private method to convert the list of maps from platform code to a list of
   /// ICloudFile object
   List<ICloudFile> _mapFilesFromDynamicList(

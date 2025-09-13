@@ -1,305 +1,390 @@
-# icloud_storage
+# iCloud Storage Plus
 
-[![Pub](https://img.shields.io/pub/v/icloud_storage.svg)](https://pub.dev/packages/icloud_storage)
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/donate?hosted_button_id=BH6WBSGWN594U)
+A Flutter plugin for safe iCloud file operations. Upload, download, and manage files in your app's iCloud container with automatic conflict resolution and permission error prevention.  Based on [icloud_storage](https://pub.dev/packages/icloud_storage).
 
-A flutter plugin for upload, download and manage files in the app's iCloud container. Includes un-merged PRs and improvements from forks in the community. 
+## Quick Start - Safe File Operations
 
-## Introduction
+This plugin provides safe ways to work with iCloud files that prevent common permission errors.
 
-Documents and other data that is user-generated and stored in the <Application_Home>/Documents directory can be automatically backed up by iCloud on iOS devices, if the iCloud Backup setting is turned on. The data can be recovered when user sets up a new device or resets an existing device. If you need to do backup and download outside the forementioned scenarios, this plugin could help.
-
-## Prerequisite
-
-The following setups are needed in order to use this plugin:
-
-1. An apple developer account
-2. Created an App ID and iCloud Container ID
-3. Enabled iCloud capability and assigned iCloud Container ID for the App ID
-4. Enabled iCloud capability in Xcode
-
-Refer to the [How to set up iCloud Container and enable the capability](#how-to-set-up-icloud-container-and-enable-the-capability) section for more detailed instructions.
-
-## API Usage
-
-### Gather files from iCloud
+### Read a file safely
 
 ```dart
-final fileList = await ICloudStorage.gather(
-  containerId: 'iCloudContainerId',
+// Read any file - handles download automatically
+final bytes = await ICloudStorage.readDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/settings.json',
+);
+
+// For JSON files, get parsed data directly
+final data = await ICloudStorage.readJsonDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/settings.json',
+);
+```
+
+### Write a file safely
+
+```dart
+// Write any file with automatic conflict resolution
+await ICloudStorage.writeDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/settings.json',
+  data: utf8.encode(jsonEncode(myData)),
+);
+
+// For JSON files, pass data directly
+await ICloudStorage.writeJsonDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/settings.json',
+  data: {'setting1': true, 'setting2': 42},
+);
+```
+
+### Check if a file exists
+
+```dart
+final exists = await ICloudStorage.documentExists(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/myfile.pdf',
+);
+```
+
+## Important: Avoid Permission Errors
+
+**Warning:** Accessing files manually after downloading can cause permission errors:
+
+```dart
+// DON'T do this - causes permission errors
+await ICloudStorage.download(containerId: id, relativePath: path);
+final file = File('$containerPath/$path');
+final content = await file.readAsString(); // ERROR: Permission denied
+```
+
+**Instead, use the safe methods shown above.** They handle all the technical details automatically.
+
+## Understanding iCloud Containers
+
+When you use this plugin, files are stored in your app's iCloud container:
+
+```
+iCloud Container (your-container-id)
+├── Documents/     ← Files here are visible in Files app
+├── Data/          ← App-private data
+└── [root files]   ← Files here sync but are private to your app
+```
+
+### Making Files Visible in Files App
+
+To make files appear in the iOS/macOS Files app, store them in the `Documents` folder:
+
+```dart
+// Visible in Files app
+await ICloudStorage.writeDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/report.pdf',  // Note: Documents/ prefix
+  data: pdfBytes,
+);
+
+// Private to your app
+await ICloudStorage.writeDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'settings.json',  // No Documents/ prefix
+  data: settingsBytes,
+);
+```
+
+## Setup Requirements
+
+To use this plugin, you need:
+
+1. An Apple Developer account
+2. An App ID and iCloud Container ID 
+3. iCloud capability enabled for your App ID
+4. iCloud capability enabled in Xcode
+
+See the [Setup Instructions](#setup-instructions) section below for detailed steps.
+
+## API Reference
+
+### File Operations (Recommended)
+
+These methods are safe and handle all iCloud coordination automatically:
+
+#### Read files
+
+```dart
+// Read any file type
+final bytes = await ICloudStorage.readDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/data.json',
+);
+
+// Read JSON files (returns parsed data)
+final jsonData = await ICloudStorage.readJsonDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/config.json',
+);
+```
+
+#### Write files
+
+```dart
+// Write any file type
+await ICloudStorage.writeDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/report.pdf',
+  data: pdfBytes,
+);
+
+// Write JSON files (pass Map/List directly)
+await ICloudStorage.writeJsonDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/settings.json',
+  data: {'theme': 'dark', 'notifications': true},
+);
+```
+
+#### Update files safely
+
+```dart
+// Read, modify, and write back safely
+await ICloudStorage.updateDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/counter.txt',
+  updater: (currentData) {
+    final count = currentData.isEmpty ? 0 : int.parse(utf8.decode(currentData));
+    return utf8.encode((count + 1).toString());
+  },
+);
+```
+
+#### Check files
+
+```dart
+// Check if file exists
+final exists = await ICloudStorage.documentExists(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/myfile.pdf',
+);
+
+// Get file info without downloading
+final metadata = await ICloudStorage.getDocumentMetadata(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/report.pdf',
+);
+```
+
+### File Management
+
+#### List all files
+
+```dart
+final files = await ICloudStorage.gather(
+  containerId: 'iCloud.com.yourapp.container',
   onUpdate: (stream) {
-    filesUpdateSub = stream.listen((updatedFileList) {
-      print('FILES UPDATED');
-      updatedFileList.forEach((file) => print('-- ${file.relativePath}'));
+    stream.listen((updatedFiles) {
+      print('Files updated: ${updatedFiles.length} files');
     });
   },
 );
-print('FILES GATHERED');
-fileList.forEach((file) => print('-- ${file.relativePath}'));
 ```
 
-### Get iCloud Container Path
-
-```dart
-final containerPath = await ICloudStorage.getContainerPath(
-  containerId: 'iCloudContainerId',
-);
-print('iCloud Container Path: $containerPath');
-
-// You can use this path to directly create or manipulate files in the iCloud container
-if (containerPath != null) {
-  final file = File('$containerPath/myfile.txt');
-  await file.writeAsString('Hello, iCloud!');
-}
-```
-
-### Upload a file to iCloud
-
-```dart
-await ICloudStorage.upload(
-  containerId: 'iCloudContainerId',
-  filePath: '/localDir/localFile',
-  destinationRelativePath: 'destDir/destFile',
-  onProgress: (stream) {
-    uploadProgressSub = stream.listen(
-      (progress) => print('Upload File Progress: $progress'),
-      onDone: () => print('Upload File Done'),
-      onError: (err) => print('Upload File Error: $err'),
-      cancelOnError: true,
-    );
-  },
-);
-```
-
-Note: The 'startUpload' API is to start the upload process. The returned future completes without waiting for the upload to complete. Use 'onProgress' to track the upload progress. If the 'destinationRelativePath' contains a subdirectory that doesn't exist, it will be created.
-
-### Download a file from iCloud
-
-```dart
-final success = await ICloudStorage.download(
-  containerId: 'iCloudContainerId',
-  relativePath: 'relativePath',
-  onProgress: (stream) {
-    downloadProgressSub = stream.listen(
-      (progress) => print('Download File Progress: $progress'),
-      onDone: () => print('Download File Done'),
-      onError: (err) => print('Download File Error: $err'),
-      cancelOnError: true,
-    );
-  },
-);
-
-if (success) {
-  print('Download initiated successfully');
-  
-  // Access the downloaded file using the container path
-  final containerPath = await ICloudStorage.getContainerPath(
-    containerId: 'iCloudContainerId',
-  );
-  
-  if (containerPath != null) {
-    final downloadedFile = File('$containerPath/relativePath');
-    // Use the file...
-  }
-}
-```
-
-Note: The download method returns a boolean value indicating whether the download was successfully initiated. The returned future completes without waiting for the download to complete. Use 'onProgress' to track the download progress. Files are downloaded directly to the iCloud container directory, which can be accessed using the 'getContainerPath' method.
-
-### Delete a file from iCloud
+#### Delete files
 
 ```dart
 await ICloudStorage.delete(
-  containerId: 'iCloudContainerId',
-  relativePath: 'relativePath'
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/oldfile.pdf',
 );
 ```
 
-### Move a file from one location to another
+#### Move and rename files
 
 ```dart
+// Move to different folder
 await ICloudStorage.move(
-  containerId: 'iCloudContainerId',
-  fromRelativePath: 'dir/file',
-  toRelativePath: 'dir/subdir/file',
+  containerId: 'iCloud.com.yourapp.container',
+  fromRelativePath: 'Documents/report.pdf',
+  toRelativePath: 'Documents/Archive/report.pdf',
 );
-```
 
-### Rename a file
-
-```dart
+// Rename file
 await ICloudStorage.rename(
-  containerId: 'iCloudContainerId',
-  relativePath: 'relativePath',
-  newName: 'newName',
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/draft.pdf',
+  newName: 'final.pdf',
 );
 ```
 
-### Error handling
+#### Copy files
 
 ```dart
-catch (err) {
-  if (err is PlatformException) {
-    if (err.code == PlatformExceptionCode.iCloudConnectionOrPermission) {
-      print(
-          'Platform Exception: iCloud container ID is not valid, or user is not signed in for iCloud, or user denied iCloud permission for this app');
-    } else if (err.code == PlatformExceptionCode.fileNotFound) {
-      print('File not found');
-    } else {
-      print('Platform Exception: ${err.message}; Details: ${err.details}');
+await ICloudStorage.copy(
+  containerId: 'iCloud.com.yourapp.container',
+  fromRelativePath: 'Documents/template.docx',
+  toRelativePath: 'Documents/new-document.docx',
+);
+```
+
+### Advanced Operations
+
+These methods are for special cases where you need more control:
+
+#### Upload files with progress
+
+```dart
+await ICloudStorage.upload(
+  containerId: 'iCloud.com.yourapp.container',
+  filePath: '/path/to/local/file.pdf',
+  destinationRelativePath: 'Documents/file.pdf',
+  onProgress: (stream) {
+    stream.listen((progress) {
+      print('Upload: ${(progress * 100).round()}%');
+    });
+  },
+);
+```
+
+#### Download for caching
+
+```dart
+// Only use this for pre-downloading large files
+final success = await ICloudStorage.download(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/large-video.mp4',
+  onProgress: (stream) {
+    stream.listen((progress) {
+      print('Download: ${(progress * 100).round()}%');
+    });
+  },
+);
+
+// Then read safely later
+final bytes = await ICloudStorage.readDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/large-video.mp4',
+);
+```
+
+## Common Issues and Solutions
+
+### Permission Errors
+
+**Problem**: Getting "permission denied" errors when reading files.
+
+**Cause**: Reading files manually after download without proper coordination.
+
+**Solution**: Use `readDocument()` instead of manual file reading:
+
+```dart
+// Wrong - causes permission errors
+await ICloudStorage.download(containerId: id, relativePath: path);
+final file = File('$containerPath/$path');
+final content = await file.readAsString(); // ERROR
+
+// Right - works safely
+final bytes = await ICloudStorage.readDocument(containerId: id, relativePath: path);
+final content = utf8.decode(bytes);
+```
+
+### Files Not Appearing in Files App
+
+**Problem**: Uploaded files don't show up in the iOS/macOS Files app.
+
+**Solution**: Store files in the `Documents` folder:
+
+```dart
+// Files app visible
+await ICloudStorage.writeDocument(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/myfile.pdf',  // Must start with Documents/
+  data: fileData,
+);
+```
+
+### Files Not Syncing Between Devices
+
+**Problem**: Files uploaded on one device don't appear on another device.
+
+**Solution**: This is normal. iCloud syncing happens automatically but may take time. In the iOS Simulator, you can force sync from Features > Trigger iCloud Sync.
+
+### Error Handling
+
+```dart
+try {
+  final data = await ICloudStorage.readJsonDocument(
+    containerId: 'iCloud.com.yourapp.container',
+    relativePath: 'Documents/settings.json',
+  );
+} catch (e) {
+  if (e is PlatformException) {
+    if (e.code == 'E_NAT') {
+      print('iCloud error: ${e.message}');
+    } else if (e.code == 'fileNotFound') {
+      print('File does not exist');
     }
-  } else {
-    print(err.toString());
   }
 }
+```
+
+## Setup Instructions
+
+### 1. Create iCloud Container
+
+1. Go to [Apple Developer Console](https://developer.apple.com)
+2. Select "Certificates, IDs & Profiles"
+3. Select "Identifiers" 
+4. Create an App ID (if you don't have one)
+5. Create an iCloud Container ID
+
+### 2. Enable iCloud for Your App
+
+1. Click on your App ID
+2. In Capabilities, select "iCloud"
+3. Assign your iCloud Container to this App ID
+
+### 3. Configure Xcode
+
+1. Open your project in Xcode
+2. Set your Bundle Identifier to match your App ID
+3. Click "+ Capability" and select "iCloud"
+4. Check "iCloud Documents" 
+5. Select your iCloud Container
+
+### 4. Check iCloud Availability
+
+```dart
+final available = await ICloudStorage.icloudAvailable();
+if (!available) {
+  print('iCloud is not available. User may not be signed in.');
+}
+```
+
+## Migrating from Version 2.x.x
+
+If you're using the old download + manual file reading pattern, update to the safe methods:
+
+```dart
+// Old way (causes permission errors)
+await ICloudStorage.download(containerId: id, relativePath: path);
+final containerPath = await ICloudStorage.getContainerPath(containerId: id);
+final file = File('$containerPath/$path');
+final content = await file.readAsString();
+
+// New way (safe and simple)
+final data = await ICloudStorage.readJsonDocument(containerId: id, relativePath: path);
 ```
 
 ## Support for macOS
 
-When uploading and downloading files, make sure the File Access is enabled for the local files if App Sandbox is enabled. Access are enabled for the files in the app's container (/Users/{username}/Library/Containers/{bundle_identifier}). Files in other locations can be enabled from XCode.
-
-## Migrating from version 1.x.x to 2.0.0
-
-- Version 2 supports operations on multiple containers. Therefore, `ICloudStorage.getInstance('iCloudContainerId')` is no longer needed. Instead, you'll need to specifiy the iCloudContainerId in each method.
-- All methods in version 2 have been changed to static methods.
-- `gatherFiles` has been renamed to `gather`.
-- `startUpload` has been renamed to `upload`.
-- `startDownload` has been renamed to `download`.
-
-## FAQ
-
-Q: I uploaded a file from a device. I signed in to a simulator using the same iCloud account. But the file is not showing up in the gatherFiles result.
-
-A: From the menu 'Features' click 'Tigger iCloud Sync'.
-
-Q: I uploaded a file from device A. I signed in to device B using the same iCloud account. But the file is not showing up in the gatherFiles result.
-
-A: The API only queries files that's been synced to the iCloud container, which lives in the local device. You'll need to wait for iOS to sync the files from iCloud to the local container. There's no way to programmatically trigger iOS to Sync with iCloud.
-
-Q: I removed a file using 'delete' method then called 'gatherFiles'. The deleted file still shows up in the list.
-
-A: This is most likely to be an issue with the native code. However, if you call 'gatherFiles' first and listen the update, then do the deletion, the list is refreshed immediately in the onUpdate stream.
-
-## How to set up iCloud Container and enable the capability
-
-1. Log in to your apple developer account and select 'Certificates, IDs & Profiles' from the left navigation.
-2. Select 'Identifiers' from the 'Certificates, IDs & Profiles' page, create an App ID if you haven't done so, and create an iCloud Containers ID.
-   ![icloud container id](./doc/images/icloud_container_id.png)
-3. Click on your App ID. In the Capabilities section, select 'iCloud' and assign the iCloud Container created in step 2 to this App ID.
-   ![assign icloud capability](./doc/images/assign_icloud_capability.png)
-4. Open your project in Xcode. Set your App ID as 'Bundle Identifier' if you haven't done so. Click on '+ Capability' button, select iCloud, then tick 'iCloud Documents' in the Services section and select your iCloud container.
-   ![xcode capability](./doc/images/xcode_capability.png)
+When using this plugin on macOS, make sure File Access is enabled in your app's entitlements if App Sandbox is enabled. Files in the app container are automatically accessible.
 
 ## References
-[Apple Documentation - iCloud Storage Overview](https://wwdcnotes.com/documentation/wwdcnotes/wwdc12-209-icloud-storage-overview/#overview)
 
-[Apple Documentation - iOS Data Storage Guidelines](https://developer.apple.com/icloud/documentation/data-storage/)
-
-[Apple Documentation - Designing for Documents in iCloud](https://developer.apple.com/library/archive/documentation/General/Conceptual/iCloudDesignGuide/Chapters/DesigningForDocumentsIniCloud.html)
-
-# Attributions
-
-This improved iCloud Storage plugin is based on the [icloud_storage](https://github.com/deansyd/icloud_storage) plugin by Dean Sydney (deansyd), with additional features and improvements from multiple contributors. Below are the specific contributions incorporated into this enhanced version.
-
-## Open Pull Requests
-
-### Improved Error Handling
-- **Pull Request**: [PR #40](https://github.com/deansyd/icloud_storage/pull/40)
-- **Contributor**: Jorge Sardina ([@js2702](https://github.com/js2702))
-- **Features**:
-  - Enhanced error handling
-  - More specific exception types
-  - Improved error messages
-
-### Improved IO Changes
-- **Pull Request**: [PR #45](https://github.com/deansyd/icloud_storage/pull/45)
-- **Contributor**: Vishal Rao ([@vishalrao8](https://github.com/vishalrao8))
-- **Features**:
-  - Improved file handling
-  - Enhanced I/O operations
-  - Better performance
-  - Method to access the root iCloud container directory
-
-## Feature Contributions
-
-### iCloud Availability Check
-- **Repository**: [TrangLeQuynh/icloud_storage](https://github.com/TrangLeQuynh/icloud_storage)
-- **Author**: Trang Le Quynh
-- **Commit**: [5069e2c161d89cb90fe07b8ab6b6cf375fc8ac65](https://github.com/TrangLeQuynh/icloud_storage/commit/5069e2c161d89cb90fe07b8ab6b6cf375fc8ac65)
-- **Feature**: Method to check if iCloud is available before performing operations
-- **Files Modified**: 
-  - `lib/icloud_storage.dart`
-  - `lib/icloud_storage_platform_interface.dart`
-  - `lib/icloud_storage_method_channel.dart`
-  - `ios/Classes/SwiftIcloudStoragePlugin.swift`
-
-### Get Root Directory (Superseded by PR #45)
-- **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
-- **Author**: Rizerco
-- **Commit**: [5aec3f761db34f2484dad100bf28737254762d76](https://github.com/rizerco/icloud_storage/commit/5aec3f761db34f2484dad100bf28737254762d76)
-- **Feature**: Method to access the root iCloud container directory
-- **Note**: This implementation has been superseded by PR #45 which provides equivalent functionality
-- **Files Modified**:
-  - `lib/icloud_storage.dart`
-  - `lib/icloud_storage_platform_interface.dart`
-  - `lib/icloud_storage_method_channel.dart`
-  - `ios/Classes/SwiftIcloudStoragePlugin.swift`
-
-### Download In Place Method
-- **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
-- **Author**: Rizerco
-- **Commit**: [39d1be3850595b3fda8c98bca56b70a15c6acb2a](https://github.com/rizerco/icloud_storage/commit/39d1be3850595b3fda8c98bca56b70a15c6acb2a)
-- **Feature**: Method to download a file without specifying a destination
-- **Files Modified**:
-  - `lib/icloud_storage.dart`
-  - `lib/icloud_storage_platform_interface.dart`
-  - `lib/icloud_storage_method_channel.dart`
-  - `ios/Classes/SwiftIcloudStoragePlugin.swift`
-
-### Get Absolute Path
-- **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
-- **Author**: Rizerco
-- **Commits**: 
-  - [368ef67634251b75cc355c780805e66f29e7ec83](https://github.com/rizerco/icloud_storage/commit/368ef67634251b75cc355c780805e66f29e7ec83) - Main implementation
-  - [5900bc0fe371ac1548f44e9d5ab19a44d4eec50f](https://github.com/rizerco/icloud_storage/commit/5900bc0fe371ac1548f44e9d5ab19a44d4eec50f) - Path encoding fix
-- **Feature**: Method to get the absolute path for a file in iCloud
-- **Files Modified**:
-  - `lib/icloud_storage.dart`
-  - `lib/icloud_storage_platform_interface.dart`
-  - `lib/icloud_storage_method_channel.dart`
-  - `ios/Classes/SwiftIcloudStoragePlugin.swift`
-
-### Display File Attributes
-- **Repository**: [rizerco/icloud_storage](https://github.com/rizerco/icloud_storage)
-- **Author**: Rizerco
-- **Commit**: [6649b1b3fd7d38f8d9b459dc82a5243eff30c80f](https://github.com/rizerco/icloud_storage/commit/6649b1b3fd7d38f8d9b459dc82a5243eff30c80f)
-- **Feature**: Method to retrieve detailed file attributes
-- **Files Modified**:
-  - `lib/icloud_storage.dart`
-  - `lib/icloud_storage_platform_interface.dart`
-  - `lib/icloud_storage_method_channel.dart`
-  - `ios/Classes/SwiftIcloudStoragePlugin.swift`
-
-## Integration Approach
-
-This improved version of the iCloud Storage plugin integrates various contributions from pull requests and forks. The integration follows these key principles:
-
-1. Starting with the base package (deansyd/icloud_storage)
-2. Applying PR changes (#40 and #45)
-3. Adding functionality from the TrangLeQuynh and Rizerco forks
-4. Ensuring compatibility between all integrated components
-5. Testing thoroughly before publication
-
-### Implementation Decisions
-
-- For overlapping functionality, I prioritize PRs over fork-specific implementations
-- PR #45 will be used for accessing the root iCloud container directory instead of the separate Rizerco implementation, as it provides equivalent functionality with additional performance improvements
-- All other non-overlapping features from the Rizerco fork will be integrated as specified
+- [Apple Documentation - Configuring iCloud Services](https://developer.apple.com/documentation/Xcode/configuring-icloud-services)
+- [Apple Documentation - iOS Data Storage Guidelines](https://developer.apple.com/icloud/documentation/data-storage/)
+- [Apple Documentation - FileManager URL(forUbiquityContainerIdentifier:)](https://developer.apple.com/documentation/Foundation/FileManager/url(forUbiquityContainerIdentifier:))
 
 ## License
 
-All contributions and improvements are provided under the original MIT License.
-
-
-
-
+MIT License - see LICENSE file for details.
