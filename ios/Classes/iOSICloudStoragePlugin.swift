@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 
+@objc(ICloudStoragePlugin)
 public class ICloudStoragePluginSwift: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
