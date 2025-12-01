@@ -1,8 +1,7 @@
 import Flutter
 import UIKit
 
-@objc(ICloudStoragePlugin)
-public class ICloudStoragePluginSwift: NSObject, FlutterPlugin {
+public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
@@ -11,7 +10,7 @@ public class ICloudStoragePluginSwift: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let messenger = registrar.messenger()
     let channel = FlutterMethodChannel(name: "icloud_storage", binaryMessenger: messenger)
-    let instance = ICloudStoragePluginSwift()
+    let instance = SwiftICloudStoragePlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.messenger = messenger
   }

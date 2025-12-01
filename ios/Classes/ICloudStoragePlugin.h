@@ -2,3 +2,4 @@
 
 @interface ICloudStoragePlugin : NSObject<FlutterPlugin>
 @end
+
