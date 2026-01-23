@@ -63,7 +63,7 @@ if (metadata != null && !metadata.isDirectory) {
 ```
 
 #### Import Path Requirements
-All imports must use package-qualified paths. Relative imports cause compilation errors.
+Plugin internal imports and the example/test app now use package-qualified paths. Application code should already use package-qualified imports.
 
 **Before:**
 ```dart
@@ -145,7 +145,7 @@ try {
 
 #### Native Implementation
 - iOS and macOS code uses UIDocument/NSDocument for file coordination
-- Metadata extraction uses NSMetadataQuery with complete attribute mapping
+- Metadata extraction uses NSMetadataQuery with targeted predicates and best-effort attribute mapping (some fields may be null if iCloud does not provide them)
 - Directory handling detects and reports type correctly
 - Import paths updated across main plugin, example app, and test files
 
@@ -161,7 +161,7 @@ try {
 - Stream mapping: Corrected event handling for all event types
 - Import paths: Updated to package-qualified paths consistently
 - File coordination: UIDocument/NSDocument prevents permission errors (NSCocoaErrorDomain Code=257)
-- Metadata extraction: Complete metadata maps from native code
+- Metadata extraction: Canonical download status constants from Apple are passed through; unknown values map to null
 - Type safety: Fixed type casting in method channel communication
 
 ### Migration Guide
