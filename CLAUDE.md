@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 iCloud Storage Plus is a Flutter plugin that provides comprehensive iCloud integration for iOS and macOS. This is an enhanced fork incorporating community improvements, focusing on better file coordination using NSFileCoordinator and UIDocument/NSDocument.
 
+## AI Rules (Flutter/Dart)
+
+Use the Flutter AI rules template as the baseline for agent instructions, and keep this file aligned with it. The canonical template and tool-specific limits are documented at https://docs.flutter.dev/ai/ai-rules. When adding rules for other editors, adapt the template to their supported rules file format, and keep `AGENTS.md` in sync with this file.
+
 ## Development Commands
 
 ### Testing
@@ -63,6 +67,13 @@ flutter run -d macos  # or -d ios
 4. All public APIs require documentation and tests
 5. Surface all native errors as typed exceptions
 6. iOS/macOS code must use background queues (avoid blocking main thread)
+
+### Updated Flutter/Dart Plugin Rules
+1. Prefer federated plugin architecture: app-facing API + platform interface + platform implementations; keep the public API in `lib/` and platform code under `ios/`, `macos/`, etc.
+2. Platform implementations must `extend` the platform interface (do not `implement`) and verify tokens via `PlatformInterface.verifyToken`. Use `MockPlatformInterfaceMixin` in tests that mock the interface.
+3. Keep `flutter.plugin.platforms` in `pubspec.yaml` accurate (per-platform `pluginClass`, Android `package`, web `fileName`). For federated packages, use `implements` and endorse with `default_package` where applicable.
+4. For native bindings, prefer `flutter create --template=package_ffi` (recommended since Flutter 3.38). Treat `plugin_ffi` as legacy.
+5. If iOS + macOS implementations are shared, consider `sharedDarwinSource: true` and move sources to `darwin/`, updating podspec dependencies/targets accordingly.
 
 ### From Code Review Rules
 1. Verify branch is up-to-date with target branch before PRs
