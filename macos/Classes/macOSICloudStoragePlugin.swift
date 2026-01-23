@@ -7,6 +7,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var streamHandlers: [String: StreamHandler] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
 
+  /// Registers the plugin with the Flutter registrar.
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "icloud_storage", binaryMessenger: registrar.messenger)
     let instance = ICloudStoragePlugin()
@@ -14,7 +15,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     instance.messenger = registrar.messenger
   }
 
- public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+  /// Routes Flutter method calls to native handlers.
+  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "icloudAvailable":
       icloudAvailable(result)
@@ -52,11 +54,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Check if iCloud is available and user is logged in
   ///
   /// Returns true if iCloud is available and user is logged in, false otherwise
+  /// Returns whether iCloud is available for the current user.
   private func icloudAvailable(_ result: @escaping FlutterResult) {
     let status = FileManager.default.ubiquityIdentityToken != nil
     result(status)
   }
 
+  /// Returns the filesystem path for the iCloud container.
   private func getContainerPath(_ call: FlutterMethodCall, _ result: @escaping FlutterResult){
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String
@@ -73,6 +77,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     result(containerURL.path)
   }
   
+  /// Lists all items in the container using NSMetadataQuery.
   private func gather(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -106,6 +111,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.start()
   }
   
+  /// Adds observers for metadata gather and update notifications.
   private func addGatherFilesObservers(query: NSMetadataQuery, containerURL: URL, eventChannelName: String, result: @escaping FlutterResult) {
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query, queue: query.operationQueue) {
       [self] (notification) in
@@ -125,6 +131,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Maps query results into metadata dictionaries.
   private func mapFileAttributesFromQuery(query: NSMetadataQuery, containerURL: URL) -> [[String: Any?]] {
     var fileMaps: [[String: Any?]] = []
     for item in query.results {
@@ -158,6 +165,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     ]
   }
 
+  /// Computes the container-relative path for a URL.
   private func relativePath(for fileURL: URL, containerURL: URL) -> String {
     let containerPath = containerURL.standardizedFileURL.path
     let filePath = fileURL.standardizedFileURL.path
@@ -171,6 +179,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     return relative
   }
   
+  /// Uploads a local file into the iCloud container.
   private func upload(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -260,6 +269,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Starts a metadata query to report upload progress.
   private func setupUploadProgressMonitoring(cloudFileURL: URL, eventChannelName: String) {
     let query = NSMetadataQuery.init()
     query.operationQueue = .main
@@ -277,6 +287,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.start()
   }
   
+  /// Adds observers for upload progress updates.
   private func addUploadObservers(query: NSMetadataQuery, eventChannelName: String) {
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query, queue: query.operationQueue) { [self] (notification) in
       onUploadQueryNotification(query: query, eventChannelName: eventChannelName)
@@ -287,6 +298,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Emits upload progress updates to the event channel.
   private func onUploadQueryNotification(query: NSMetadataQuery, eventChannelName: String) {
     if query.results.count == 0 {
       return
@@ -311,6 +323,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Downloads a remote item, optionally reporting progress.
   private func download(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -352,6 +365,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.start()
   }
   
+  /// Adds observers for download progress updates.
   private func addDownloadObservers(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query, queue: query.operationQueue) { [self] (notification) in
       onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
@@ -362,6 +376,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Emits download progress and completion updates.
   private func onDownloadQueryNotification(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {
     if query.results.count == 0 {
       return
@@ -400,6 +415,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   
   /// Download a file from iCloud and safely read its contents
   /// This method combines download and reading to prevent permission errors
+  /// Downloads a file and returns its data once available.
   private func downloadAndRead(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -453,6 +469,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
   
   /// Handle download progress and read file content when complete
+  /// Handles download-and-read query events and returns file data.
   private func handleDownloadAndRead(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String, result: @escaping FlutterResult) {
     if query.results.count == 0 {
       result(FlutterError(code: "E_FNF", message: "File not found in iCloud", details: nil))
@@ -508,6 +525,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   
   /// Read a document from iCloud using NSDocument
   /// Returns nil if file doesn't exist
+  /// Reads a document using NSDocument coordination.
   private func readDocument(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -552,6 +570,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   
   /// Write a document to iCloud using NSDocument
   /// Creates the file if it doesn't exist, updates if it does
+  /// Writes a document using NSDocument coordination.
   private func writeDocument(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -592,7 +611,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
-  /// Check if a document exists without downloading
+  /// Check if an item exists without downloading.
   private func documentExists(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -639,6 +658,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
 
+  /// Runs a metadata query for a single item path.
   private func queryMetadataItem(
     containerURL: URL,
     relativePath: String,
@@ -673,6 +693,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.start()
   }
   
+  /// Moves a file by copying and removing the original.
   private func moveCloudFile(at: URL, to: URL) throws {
     do {
       if FileManager.default.fileExists(atPath: to.path) {
@@ -684,6 +705,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Deletes an item from the container with coordination.
   private func delete(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -719,6 +741,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Moves an item within the container.
   private func move(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -755,6 +778,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Copies an item within the container.
   private func copy(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -807,11 +831,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Removes all observers for a metadata query.
   private func removeObservers(_ query: NSMetadataQuery) {
     NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query)
     NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSMetadataQueryDidUpdate, object: query)
   }
   
+  /// Creates and registers a stream handler for an event channel.
   private func createEventChannel(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let eventChannelName = args["eventChannelName"] as? String
@@ -828,6 +854,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     result(nil)
   }
   
+  /// Removes a stream handler for the given event channel.
   private func removeStreamHandler(_ eventChannelName: String) {
     self.streamHandlers[eventChannelName] = nil
   }
@@ -836,6 +863,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   let containerError = FlutterError(code: "E_CTR", message: "Invalid containerId, or user is not signed in, or user disabled iCloud permission", details: nil)
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
   
+  /// Wraps a native Error into a FlutterError.
   private func nativeCodeError(_ error: Error) -> FlutterError {
     return FlutterError(code: "E_NAT", message: "Native Code Error", details: "\(error)")
   }
@@ -844,26 +872,30 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 class StreamHandler: NSObject, FlutterStreamHandler {
   private var _eventSink: FlutterEventSink?
   var onCancelHandler: (() -> Void)?
-  
+
+  /// Starts listening for events from the native side.
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
     _eventSink = events
     DebugHelper.log("on listen")
     return nil
   }
-  
+
+  /// Stops listening for events from the native side.
   func onCancel(withArguments arguments: Any?) -> FlutterError? {
     onCancelHandler?()
     _eventSink = nil
     DebugHelper.log("on cancel")
     return nil
   }
-  
+
+  /// Emits an event to the Flutter stream.
   func setEvent(_ data: Any) {
     _eventSink?(data)
   }
 }
 
 class DebugHelper {
+  /// Logs debug output in DEBUG builds.
   public static func log(_ message: String) {
     #if DEBUG
     print(message)

@@ -39,11 +39,13 @@ class ICloudDocument: UIDocument {
     
     // MARK: - Initialization and Deinitialization
     
+    /// Creates a document for the given file URL.
     override init(fileURL url: URL) {
         super.init(fileURL: url)
         setupStateChangeObserver()
     }
     
+    /// Cleans up document state observers.
     deinit {
         NotificationCenter.default.removeObserver(self)
     }

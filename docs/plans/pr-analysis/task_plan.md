@@ -155,3 +155,19 @@ identify missing edge cases.
 **Completion Criteria:**
 - Plan validated against Apple archive documentation
 - Missing edge cases and doc gaps recorded in findings.md
+
+---
+
+### Phase 7: Static Analysis + Swift Docstrings [complete]
+**Goal:** Clear Very Good Analysis findings and document all Swift methods.
+
+**Actions:**
+- [x] Fix package imports for renamed plugin (icloud_storage_plus)
+- [x] Resolve analysis issues in method channel + tests + example app
+- [x] Update Dart API docs to satisfy public_member_api_docs
+- [x] Add Swift docstrings for all methods (iOS + macOS)
+- [x] Run dart analyze and ensure 0 errors/warnings/infos
+
+**Completion Criteria:**
+- Static analysis clean (0 errors/warnings/infos)
+- Swift files fully documented with docstrings
