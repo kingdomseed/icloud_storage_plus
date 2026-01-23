@@ -10,6 +10,8 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   @visibleForTesting
   final methodChannel = const MethodChannel('icloud_storage');
 
+  static final _random = Random();
+
   @override
   Future<bool> icloudAvailable() async {
     return await methodChannel.invokeMethod('icloudAvailable');
@@ -273,6 +275,6 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
         eventType,
         containerId,
         ...(additionalIdentifier == null ? [] : [additionalIdentifier]),
-        '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(999)}'
+        '${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(999)}'
       ].join('/');
 }
