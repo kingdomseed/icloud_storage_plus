@@ -126,11 +126,18 @@ class MockICloudStoragePlatform
     required String relativePath,
   }) async {
     _calls.add('getDocumentMetadata');
+    if (relativePath.contains('non_existent')) {
+      return null;
+    }
     return {
+      'relativePath': relativePath,
       'sizeInBytes': 1024,
       'creationDate': 1638288000.0,
+      'contentChangeDate': 1638374400.0,
       'modificationDate': 1638374400.0,
+      'isDownloading': true,
       'isDownloaded': true,
+      'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusDownloaded',
       'hasUnresolvedConflicts': false,
     };
   }
@@ -333,9 +340,9 @@ void main() {
         fakePlatform.calls.clear();
         final metadata = await ICloudStorage.getMetadata(
           containerId: containerId,
-          relativePath: 'Documents/test.pdf',
+          relativePath: 'Documents/non_existent.pdf',
         );
-        expect(fakePlatform.calls.contains('gather'), true);
+        expect(fakePlatform.calls.contains('getDocumentMetadata'), true);
         expect(metadata, null);
       });
     });

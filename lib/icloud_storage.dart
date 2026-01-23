@@ -538,13 +538,12 @@ class ICloudStorage {
     }
 
     try {
-      final files = await gather(containerId: containerId);
-      try {
-        return files.firstWhere((file) => file.relativePath == relativePath);
-      } on StateError {
-        // firstWhere throws StateError when no element is found
-        return null;
-      }
+      final map = await getDocumentMetadata(
+        containerId: containerId,
+        relativePath: relativePath,
+      );
+      if (map == null) return null;
+      return ICloudFile.fromMap(map);
     } catch (e) {
       return null;
     }
