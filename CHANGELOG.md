@@ -25,6 +25,10 @@ The native method channel name has been renamed from `icloud_storage` to `icloud
 
 **Impact:** This is transparent to users - no code changes required in your application. The public Dart API (`import 'package:icloud_storage_plus/icloud_storage.dart'`) remains unchanged. The plugin will automatically use the new channel names after running `flutter clean` and reinstalling pods.
 
+### Changed
+
+- Updated iOS/macOS podspec metadata (name, version, summary, description, homepage, author) to match the published package.
+
 ## [3.0.0] - 2026-01-23
 
 ### BREAKING CHANGES
