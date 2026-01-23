@@ -5,7 +5,7 @@ import 'package:icloud_storage_plus/models/icloud_file.dart';
 
 void main() {
   final platform = MethodChannelICloudStorage();
-  const channel = MethodChannel('icloud_storage');
+  const channel = MethodChannel('icloud_storage_plus');
   late MethodCall mockMethodCall;
   const containerId = 'containerId';
   Map<String, Object?> mockArguments() =>

@@ -8,7 +8,7 @@ import 'package:icloud_storage_plus/models/icloud_file.dart';
 class MethodChannelICloudStorage extends ICloudStoragePlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('icloud_storage');
+  final methodChannel = const MethodChannel('icloud_storage_plus');
 
   @override
   Future<bool> icloudAvailable() async {
@@ -277,7 +277,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     String? additionalIdentifier,
   ]) =>
       [
-        'icloud_storage',
+        'icloud_storage_plus',
         'event',
         eventType,
         containerId,

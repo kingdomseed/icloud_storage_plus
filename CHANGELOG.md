@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### BREAKING CHANGES
+
+#### Platform Requirements Updated
+Minimum deployment targets have been updated to match Flutter 3.38+ requirements:
+
+- **iOS**: Minimum version increased from iOS 9.0 to iOS 13.0
+- **macOS**: Minimum version increased from macOS 10.11 to macOS 10.15
+
+**Migration:** Users must:
+1. Run `flutter clean && flutter pub get`
+2. Run `pod install` in iOS and macOS directories
+3. May need `pod cache clean --all` if experiencing pod resolution issues
+
+#### Internal Channel Name Change
+The native method channel name has been renamed from `icloud_storage` to `icloud_storage_plus` to match the package name. Pod module names have also been updated accordingly.
+
+**Impact:** This is transparent to users - no code changes required in your application. The public Dart API (`import 'package:icloud_storage_plus/icloud_storage.dart'`) remains unchanged. The plugin will automatically use the new channel names after running `flutter clean` and reinstalling pods.
+
 ## [3.0.0] - 2026-01-23
 
 ### BREAKING CHANGES

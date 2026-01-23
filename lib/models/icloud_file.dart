@@ -54,13 +54,10 @@ class ICloudFile {
     if (key == null) return null;
     switch (key) {
       case 'NSMetadataUbiquitousItemDownloadingStatusNotDownloaded':
-      case 'notDownloaded':
         return DownloadStatus.notDownloaded;
       case 'NSMetadataUbiquitousItemDownloadingStatusDownloaded':
-      case 'downloaded':
         return DownloadStatus.downloaded;
       case 'NSMetadataUbiquitousItemDownloadingStatusCurrent':
-      case 'current':
         return DownloadStatus.current;
       default:
         return null;

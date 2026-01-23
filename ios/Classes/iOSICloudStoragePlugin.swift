@@ -10,7 +10,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Registers the plugin with the Flutter registrar.
   public static func register(with registrar: FlutterPluginRegistrar) {
     let messenger = registrar.messenger()
-    let channel = FlutterMethodChannel(name: "icloud_storage", binaryMessenger: messenger)
+    let channel = FlutterMethodChannel(name: "icloud_storage_plus", binaryMessenger: messenger)
     let instance = SwiftICloudStoragePlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.messenger = messenger
@@ -158,7 +158,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       "creationDate": (item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
       "contentChangeDate": (item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
       "hasUnresolvedConflicts": (item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
-      "downloadStatus": item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey),
+      "downloadStatus": item.value(
+        forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey
+      ) as? String,
       "isDownloading": (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
       "isUploaded": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
       "isUploading": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
