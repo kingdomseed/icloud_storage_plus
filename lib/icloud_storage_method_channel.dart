@@ -5,9 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
+import 'package:logging/logging.dart';
 
 /// An implementation of [ICloudStoragePlatform] that uses method channels.
 class MethodChannelICloudStorage extends ICloudStoragePlatform {
+  static final Logger _logger = Logger('ICloudStorage');
+
   /// The method channel used to interact with the native platform.
   @visibleForTesting
   final methodChannel = const MethodChannel('icloud_storage_plus');
@@ -38,15 +41,13 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
           .receiveBroadcastStream()
           .where((event) => event is List)
           .map<List<ICloudFile>>((event) {
-        final mapList = (event as List).cast<Map<dynamic, dynamic>>();
-        return _mapFilesFromDynamicList(mapList);
+        return _mapFilesFromDynamicList(event as List);
       });
 
       onUpdate(stream);
     }
 
-    final mapList =
-        await methodChannel.invokeListMethod<Map<dynamic, dynamic>>('gather', {
+    final mapList = await methodChannel.invokeListMethod<dynamic>('gather', {
       'containerId': containerId,
       'eventChannelName': eventChannelName,
     });
@@ -300,12 +301,27 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   /// Private method to convert the list of maps from platform code to a list of
   /// ICloudFile object
   List<ICloudFile> _mapFilesFromDynamicList(
-    List<Map<dynamic, dynamic>>? mapList,
+    List<dynamic>? mapList,
   ) {
     final files = <ICloudFile>[];
     if (mapList != null) {
-      for (final map in mapList) {
-        files.add(ICloudFile.fromMap(map));
+      for (final entry in mapList) {
+        if (entry is! Map<dynamic, dynamic>) {
+          _logger.warning(
+            'Skipping malformed metadata entry: expected Map, got '
+            '${entry.runtimeType}',
+          );
+          continue;
+        }
+        try {
+          files.add(ICloudFile.fromMap(entry));
+        } on Exception catch (error, stackTrace) {
+          _logger.warning(
+            'Skipping malformed metadata entry: $error',
+            error,
+            stackTrace,
+          );
+        }
       }
     }
     return files;

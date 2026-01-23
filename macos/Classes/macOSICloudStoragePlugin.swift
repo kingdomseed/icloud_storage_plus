@@ -104,7 +104,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
     
     if !eventChannelName.isEmpty {
-      let streamHandler = self.streamHandlers[eventChannelName]!
+      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+        result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
+        return
+      }
       streamHandler.onCancelHandler = { [self] in
         removeObservers(query)
         query.stop()
@@ -132,7 +135,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         name: NSNotification.Name.NSMetadataQueryDidUpdate
       ) { [self] _ in
         let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
-        let streamHandler = self.streamHandlers[eventChannelName]!
+        guard let streamHandler = self.streamHandlers[eventChannelName] else {
+          DebugHelper.log("Warning: streamHandler not found for \(eventChannelName) in gather update")
+          return
+        }
         streamHandler.setEvent(files)
       }
     }
@@ -284,15 +290,18 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.operationQueue = .main
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
-    
-    let uploadStreamHandler = self.streamHandlers[eventChannelName]!
+
+    guard let uploadStreamHandler = self.streamHandlers[eventChannelName] else {
+      DebugHelper.log("Warning: streamHandler not found for \(eventChannelName) in upload monitoring")
+      return
+    }
     uploadStreamHandler.onCancelHandler = { [self] in
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
     }
     addUploadObservers(query: query, eventChannelName: eventChannelName)
-    
+
     query.start()
   }
   
@@ -999,7 +1008,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
     
-    queryMetadataItem(containerURL: containerURL, relativePath: fromRelativePath) { item in
+    queryMetadataItem(containerURL: containerURL, relativePath: fromRelativePath) { item, didTimeout in
+      // Check for timeout
+      if didTimeout {
+        result(self.queryTimeoutError)
+        return
+      }
+
       guard let item = item,
             let fromURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
         result(fileNotFoundError)

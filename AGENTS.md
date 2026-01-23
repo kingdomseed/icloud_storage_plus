@@ -77,6 +77,7 @@ This repository is a Flutter plugin, not a Flutter app. UI/widget, theming, rout
 * **Records:** Use records to return multiple types in situations where defining an entire class is cumbersome.
 * **Switch Statements:** Prefer using exhaustive `switch` statements or expressions, which don't require `break` statements.
 * **Exception Handling:** Use `try-catch` blocks for handling exceptions, and use exceptions appropriate for the type of exception. Use custom exceptions for situations specific to your code.
+  * Prefer `on Exception catch (...)` with specific types; avoid catching `Error` types. Use `on` clauses to make catches explicit.
 * **Arrow Functions:** Use arrow syntax for simple one-line functions.
 
 ## Lint Rules
