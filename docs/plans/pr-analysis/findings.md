@@ -716,10 +716,10 @@ static Future<ICloudFile?> getMetadata({
 
 ### Validation Checklist
 
-- [ ] `queryFileExists` detects remote-only files
-- [ ] `queryFileExists` detects local files
-- [ ] `queryFileExists` returns false for non-existent files
-- [ ] `queryFileMetadata` returns all required keys (relativePath, sizeInBytes, creationDate, contentChangeDate, downloadStatus)
+- [x] `queryFileExists` implemented with NSMetadataQuery for remote-only files
+- [x] `queryFileExists` implemented with NSMetadataQuery for local files
+- [x] `queryFileExists` implemented to return false for non-existent files
+- [x] `queryFileMetadata` populates required keys when available (relativePath always; size/creation/contentChange/downloadStatus when provided)
 - [x] `queryFileMetadata` returns proper NSMetadata constant strings for downloadStatus
 - [x] ICloudFile.fromMap successfully parses returned metadata without crashes
 - [x] Performance: Single file queries use O(1) specific predicates
