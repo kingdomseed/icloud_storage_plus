@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:icloud_storage/icloud_storage_method_channel.dart';
-import 'package:icloud_storage/models/icloud_file.dart';
+import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
+import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 /// A function-type alias takes a stream as argument and returns void

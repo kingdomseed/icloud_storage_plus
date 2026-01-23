@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icloud_storage/icloud_storage.dart';
-import 'package:icloud_storage/icloud_storage_method_channel.dart';
-import 'package:icloud_storage/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
+import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
+import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 class MockICloudStoragePlatform

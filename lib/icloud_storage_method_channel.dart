@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:icloud_storage/icloud_storage_platform_interface.dart';
-import 'package:icloud_storage/models/icloud_file.dart';
+import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/models/icloud_file.dart';
 
 /// An implementation of [ICloudStoragePlatform] that uses method channels.
 class MethodChannelICloudStorage extends ICloudStoragePlatform {

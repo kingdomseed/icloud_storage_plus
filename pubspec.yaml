@@ -1,7 +1,7 @@
-name: icloud_storage
-description: A flutter plugin for upload, download and manage files in the app's iCloud container.
+name: icloud_storage_plus
+description: Flutter plugin for iCloud document storage that syncs across devices with safe file operations and Files app integration.
 version: 3.0.0
-homepage: https://github.com/deansyd/icloud_storage
+homepage: https://github.com/kingdomseed/icloud_storage_plus
 
 environment:
   sdk: ">=2.18.2 <3.0.0"

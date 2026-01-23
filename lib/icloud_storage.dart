@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:icloud_storage/icloud_storage_platform_interface.dart';
-import 'package:icloud_storage/models/exceptions.dart';
-import 'package:icloud_storage/models/icloud_file.dart';
+import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/models/exceptions.dart';
+import 'package:icloud_storage_plus/models/icloud_file.dart';
 export 'models/exceptions.dart';
 export 'models/icloud_file.dart';
 
