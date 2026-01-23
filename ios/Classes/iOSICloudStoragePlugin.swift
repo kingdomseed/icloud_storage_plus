@@ -128,13 +128,14 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   
   private func mapFileAttributesFromQuery(query: NSMetadataQuery, containerURL: URL) -> [[String: Any?]] {
     var fileMaps: [[String: Any?]] = []
+    let containerURLStringCount = containerURL.absoluteString.count
     for item in query.results {
       guard let fileItem = item as? NSMetadataItem else { continue }
       guard let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
       if fileURL.absoluteString.last == "/" { continue }
 
       let map: [String: Any?] = [
-        "relativePath": String(fileURL.absoluteString.dropFirst(containerURL.absoluteString.count)),
+        "relativePath": String(fileURL.absoluteString.dropFirst(containerURLStringCount)),
         "sizeInBytes": fileItem.value(forAttribute: NSMetadataItemFSSizeKey),
         "creationDate": (fileItem.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
         "contentChangeDate": (fileItem.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
