@@ -348,6 +348,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       try FileManager.default.startDownloadingUbiquitousItem(at: cloudFileURL)
     } catch {
       result(nativeCodeError(error))
+      return
     }
     
     let query = NSMetadataQuery.init()
@@ -362,25 +363,36 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       removeStreamHandler(eventChannelName)
     }
 
-    addDownloadObservers(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
+    addDownloadObservers(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName, result)
     
     query.start()
   }
   
   /// Adds observers for download progress updates.
-  private func addDownloadObservers(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {
+  private func addDownloadObservers(
+    query: NSMetadataQuery,
+    cloudFileURL: URL,
+    eventChannelName: String,
+    _ result: @escaping FlutterResult
+  ) {
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query, queue: query.operationQueue) { [self] (notification) in
-      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
+      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName, result)
     }
     
     NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidUpdate, object: query, queue: query.operationQueue) { [self] (notification) in
-      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
+      onDownloadQueryNotification(query: query, cloudFileURL: cloudFileURL, eventChannelName: eventChannelName, result)
     }
   }
   
   /// Emits download progress and completion updates.
-  private func onDownloadQueryNotification(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String) {
+  private func onDownloadQueryNotification(
+    query: NSMetadataQuery,
+    cloudFileURL: URL,
+    eventChannelName: String,
+    _ result: @escaping FlutterResult
+  ) {
     if query.results.count == 0 {
+      result(false)
       return
     }
     
@@ -391,6 +403,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     
     if let error = fileURLValues.ubiquitousItemDownloadingError {
       streamHandler?.setEvent(nativeCodeError(error))
+      result(nativeCodeError(error))
       return
     }
     
@@ -407,10 +420,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         // File is now available for reading
         streamHandler?.setEvent(FlutterEndOfEventStream)
         removeStreamHandler(eventChannelName)
+        result(true)
       }
       
       if let error = coordinationError {
         streamHandler?.setEvent(nativeCodeError(error))
+        result(nativeCodeError(error))
       }
     }
   }
@@ -543,30 +558,29 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    let fileURL = containerURL.appendingPathComponent(relativePath)
-    
-    // Check if file exists first
-    var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
-          !isDirectory.boolValue else {
-      result(nil) // Return nil for non-existent files
-      return
-    }
-    
-    // Use our NSDocument wrapper for safe reading
-    readDocumentAt(url: fileURL) { (data, error) in
-      if let error = error {
-        result(self.nativeCodeError(error))
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+      guard let item = item,
+            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL,
+            !itemURL.hasDirectoryPath else {
+        result(nil) // Return nil for non-existent files or directories
         return
       }
       
-      guard let data = data else {
-        result(nil)
-        return
+      // Use our NSDocument wrapper for safe reading
+      readDocumentAt(url: itemURL) { (data, error) in
+        if let error = error {
+          result(self.nativeCodeError(error))
+          return
+        }
+        
+        guard let data = data else {
+          result(nil)
+          return
+        }
+        
+        // Return as FlutterStandardTypedData
+        result(FlutterStandardTypedData(bytes: data))
       }
-      
-      // Return as FlutterStandardTypedData
-      result(FlutterStandardTypedData(bytes: data))
     }
   }
   

@@ -143,7 +143,7 @@ class ICloudStorage {
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// upload. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage ofthe data being uploaded.
+  /// percentage of the data being uploaded.
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud
@@ -247,7 +247,7 @@ class ICloudStorage {
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage ofthe data being downloaded.
+  /// percentage of the data being downloaded.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist.
   ///

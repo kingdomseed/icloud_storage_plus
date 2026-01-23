@@ -348,6 +348,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       try FileManager.default.startDownloadingUbiquitousItem(at: cloudFileURL)
     } catch {
       result(nativeCodeError(error))
+      return
     }
     
     let query = NSMetadataQuery.init()
@@ -547,30 +548,29 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    let fileURL = containerURL.appendingPathComponent(relativePath)
-    
-    // Check if file exists first
-    var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
-          !isDirectory.boolValue else {
-      result(nil) // Return nil for non-existent files
-      return
-    }
-    
-    // Use our UIDocument wrapper for safe reading
-    readDocumentAt(url: fileURL) { (data, error) in
-      if let error = error {
-        result(self.nativeCodeError(error))
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+      guard let item = item,
+            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL,
+            !itemURL.hasDirectoryPath else {
+        result(nil) // Return nil for non-existent files or directories
         return
       }
       
-      guard let data = data else {
-        result(nil)
-        return
+      // Use our UIDocument wrapper for safe reading
+      readDocumentAt(url: itemURL) { (data, error) in
+        if let error = error {
+          result(self.nativeCodeError(error))
+          return
+        }
+        
+        guard let data = data else {
+          result(nil)
+          return
+        }
+        
+        // Return as FlutterStandardTypedData
+        result(FlutterStandardTypedData(bytes: data))
       }
-      
-      // Return as FlutterStandardTypedData
-      result(FlutterStandardTypedData(bytes: data))
     }
   }
   
