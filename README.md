@@ -1,3 +1,5 @@
+[![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
+
 # iCloud Storage Plus
 
 A Flutter plugin for safe iCloud file operations. Upload, download, and manage files in your app's iCloud container with automatic conflict resolution and permission error prevention.  Based on [icloud_storage](https://pub.dev/packages/icloud_storage).
