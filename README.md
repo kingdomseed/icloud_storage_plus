@@ -21,6 +21,11 @@ Flutter plugin for iCloud document storage with automatic conflict resolution an
 flutter pub add icloud_storage_plus
 ```
 
+## Requirements
+
+- Dart SDK: `>=3.0.0 <4.0.0`
+- Flutter: `>=3.10.0`
+
 ## Usage
 
 ### Basic Example
@@ -437,7 +442,7 @@ Downloads a file with progress callbacks. Returns true if download succeeded.
 Future<void> upload({
   required String containerId,
   required String filePath,
-  required String destinationRelativePath,
+  String? destinationRelativePath,
   StreamHandler<double>? onProgress,
 })
 ```
@@ -471,6 +476,9 @@ class ICloudFile {
   final DownloadStatus? downloadStatus; // null for local-only files
 }
 ```
+
+`ICloudFile` uses value equality (via `equatable`) to make testing and
+comparisons predictable.
 
 ### Error Handling
 

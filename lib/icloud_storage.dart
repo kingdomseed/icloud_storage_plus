@@ -49,15 +49,6 @@ class ICloudStorage {
   /// Use this for cache files or temporary data.
   static const String dataDirectory = 'Data';
 
-  /// Visibility option for app-private files (not visible in Files app).
-  static const String visibilityPrivate = 'private';
-
-  /// Visibility option for user-visible files (Documents/).
-  static const String visibilityPublic = 'public';
-
-  /// Visibility option for temporary files (non-synced data).
-  static const String visibilityTemporary = 'temporary';
-
   /// Check if iCloud is available and user is logged in
   ///
   /// Returns true if iCloud is available and user is logged in, false otherwise
@@ -772,7 +763,7 @@ class ICloudStorage {
     required Map<String, dynamic> data,
   }) async {
     final json = jsonEncode(data);
-    final bytes = utf8.encode(json);
+    final bytes = Uint8List.fromList(utf8.encode(json));
 
     await writeDocument(
       containerId: containerId,

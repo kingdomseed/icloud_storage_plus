@@ -407,7 +407,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     if !query.isStarted {
       return
     }
+    let streamHandler = self.streamHandlers[eventChannelName]
     if query.results.count == 0 {
+      streamHandler?.setEvent(FlutterEndOfEventStream)
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
@@ -418,10 +420,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     guard let fileItem = query.results.first as? NSMetadataItem else { return }
     guard let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else { return }
     guard let fileURLValues = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingErrorKey, .ubiquitousItemDownloadingStatusKey]) else { return }
-    let streamHandler = self.streamHandlers[eventChannelName]
-    
     if let error = fileURLValues.ubiquitousItemDownloadingError {
       streamHandler?.setEvent(nativeCodeError(error))
+      streamHandler?.setEvent(FlutterEndOfEventStream)
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
@@ -534,7 +535,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     if !query.isStarted {
       return
     }
+    let streamHandler = self.streamHandlers[eventChannelName]
     if query.results.count == 0 {
+      streamHandler?.setEvent(FlutterEndOfEventStream)
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
@@ -548,11 +551,10 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    let streamHandler = self.streamHandlers[eventChannelName]
-    
     // Handle download errors
     if let error = fileURLValues.ubiquitousItemDownloadingError {
       streamHandler?.setEvent(nativeCodeError(error))
+      streamHandler?.setEvent(FlutterEndOfEventStream)
       result(nativeCodeError(error))
       removeObservers(query)
       query.stop()
@@ -786,22 +788,27 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
-    
-    let fileURL = containerURL.appendingPathComponent(cloudFileName)
-    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-    fileCoordinator.coordinate(writingItemAt: fileURL, options: NSFileCoordinator.WritingOptions.forDeleting, error: nil) {
-      writingURL in
-      do {
-        var isDir: ObjCBool = false
-        if !FileManager.default.fileExists(atPath: writingURL.path, isDirectory: &isDir) {
-          result(fileNotFoundError)
-          return
+
+    queryMetadataItem(containerURL: containerURL, relativePath: cloudFileName) { item in
+      guard let item = item,
+            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
+        result(fileNotFoundError)
+        return
+      }
+
+      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+      fileCoordinator.coordinate(
+        writingItemAt: itemURL,
+        options: NSFileCoordinator.WritingOptions.forDeleting,
+        error: nil
+      ) { writingURL in
+        do {
+          try FileManager.default.removeItem(at: writingURL)
+          result(nil)
+        } catch {
+          DebugHelper.log("error: \(error.localizedDescription)")
+          result(nativeCodeError(error))
         }
-        try FileManager.default.removeItem(at: writingURL)
-        result(nil)
-      } catch {
-        DebugHelper.log("error: \(error.localizedDescription)")
-        result(nativeCodeError(error))
       }
     }
   }
@@ -823,22 +830,38 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
-    
-    let atURL = containerURL.appendingPathComponent(atRelativePath)
-    let toURL = containerURL.appendingPathComponent(toRelativePath)
-    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-    fileCoordinator.coordinate(writingItemAt: atURL, options: NSFileCoordinator.WritingOptions.forMoving, writingItemAt: toURL, options: NSFileCoordinator.WritingOptions.forReplacing, error: nil) {
-      atWritingURL, toWritingURL in
-      do {
-        let toDirURL = toWritingURL.deletingLastPathComponent()
-        if !FileManager.default.fileExists(atPath: toDirURL.path) {
-          try FileManager.default.createDirectory(at: toDirURL, withIntermediateDirectories: true, attributes: nil)
+
+    queryMetadataItem(containerURL: containerURL, relativePath: atRelativePath) { item in
+      guard let item = item,
+            let atURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
+        result(fileNotFoundError)
+        return
+      }
+
+      let toURL = containerURL.appendingPathComponent(toRelativePath)
+      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+      fileCoordinator.coordinate(
+        writingItemAt: atURL,
+        options: NSFileCoordinator.WritingOptions.forMoving,
+        writingItemAt: toURL,
+        options: NSFileCoordinator.WritingOptions.forReplacing,
+        error: nil
+      ) { atWritingURL, toWritingURL in
+        do {
+          let toDirURL = toWritingURL.deletingLastPathComponent()
+          if !FileManager.default.fileExists(atPath: toDirURL.path) {
+            try FileManager.default.createDirectory(
+              at: toDirURL,
+              withIntermediateDirectories: true,
+              attributes: nil
+            )
+          }
+          try FileManager.default.moveItem(at: atWritingURL, to: toWritingURL)
+          result(nil)
+        } catch {
+          DebugHelper.log("error: \(error.localizedDescription)")
+          result(nativeCodeError(error))
         }
-        try FileManager.default.moveItem(at: atWritingURL, to: toWritingURL)
-        result(nil)
-      } catch {
-        DebugHelper.log("error: \(error.localizedDescription)")
-        result(nativeCodeError(error))
       }
     }
   }

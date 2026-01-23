@@ -59,6 +59,7 @@ Comment checklist:
 | Use gh CLI to pull all PR comments (issue + review) | Ensures full coverage |
 | Align min Flutter to first stable with Dart 2.18.2 (3.3.3) | Matches SDK constraint |
 | Update readDocument on both iOS and macOS to allow remote-only files | Keep platforms consistent with intended behavior |
+| Move to Dart 3 baseline (>=3.0.0) | Dart 2 support uncertain, modern baseline |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

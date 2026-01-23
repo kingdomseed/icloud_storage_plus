@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -156,7 +157,7 @@ void main() {
 
   group('ICloudStorage static functions:', () {
     const containerId = 'containerId';
-    var fakePlatform = MockICloudStoragePlatform();
+    final fakePlatform = MockICloudStoragePlatform();
     ICloudStoragePlatform.instance = fakePlatform;
 
     setUp(() {
@@ -481,15 +482,6 @@ void main() {
         expect(fakePlatform.calls.last, 'getDocumentMetadata');
       });
 
-      test('readJsonDocument parses JSON correctly', () async {
-        // Override readDocument to return JSON data
-        fakePlatform = MockICloudStoragePlatform();
-        ICloudStoragePlatform.instance = fakePlatform;
-
-        // Can't easily override the return value, so this test would need
-        // a more sophisticated mock setup
-      });
-
       test('writeJsonDocument encodes JSON correctly', () async {
         await ICloudStorage.writeJsonDocument(
           containerId: containerId,
@@ -519,5 +511,283 @@ void main() {
         );
       });
     });
+
+    group('readJsonDocument tests:', () {
+      test('readJsonDocument returns parsed JSON when valid', () async {
+        // Create a mock that returns valid JSON data
+        final jsonMock = _ValidJsonMock();
+        ICloudStoragePlatform.instance = jsonMock;
+
+        final result = await ICloudStorage.readJsonDocument(
+          containerId: containerId,
+          relativePath: 'Documents/config.json',
+        );
+
+        // Verify the method was called
+        expect(jsonMock.calls.last, 'readDocument');
+        // Verify JSON was parsed correctly
+        expect(result, isNotNull);
+        expect(result!['name'], equals('test'));
+        expect(result['value'], equals(42));
+      });
+
+      test('readJsonDocument returns null when readDocument returns null',
+          () async {
+        // Create a mock that returns null for readDocument
+        final nullMock = _NullReadDocumentMock();
+        ICloudStoragePlatform.instance = nullMock;
+
+        final result = await ICloudStorage.readJsonDocument(
+          containerId: containerId,
+          relativePath: 'Documents/missing.json',
+        );
+
+        expect(result, null);
+      });
+
+      test('readJsonDocument throws InvalidArgumentException for invalid JSON',
+          () async {
+        // Create a mock that returns invalid JSON
+        final invalidMock = _InvalidJsonMock();
+        ICloudStoragePlatform.instance = invalidMock;
+
+        expect(
+          () async => ICloudStorage.readJsonDocument(
+            containerId: containerId,
+            relativePath: 'Documents/invalid.json',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+    });
+
+    group('error handling tests:', () {
+      group('rename validation:', () {
+        test('throws InvalidArgumentException for invalid relativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.rename(
+              containerId: containerId,
+              relativePath: '',
+              newName: 'newfile.txt',
+            ),
+            throwsA(
+              isA<InvalidArgumentException>().having(
+                (e) => e.toString(),
+                'message',
+                contains('invalid relativePath'),
+              ),
+            ),
+          );
+        });
+
+        test('throws InvalidArgumentException for invalid newName', () async {
+          expect(
+            () async => ICloudStorage.rename(
+              containerId: containerId,
+              relativePath: 'dir/oldfile.txt',
+              newName: '',
+            ),
+            throwsA(
+              isA<InvalidArgumentException>().having(
+                (e) => e.toString(),
+                'message',
+                contains('invalid newName'),
+              ),
+            ),
+          );
+        });
+
+        test('throws InvalidArgumentException for newName with slash',
+            () async {
+          expect(
+            () async => ICloudStorage.rename(
+              containerId: containerId,
+              relativePath: 'dir/oldfile.txt',
+              newName: 'new/file.txt',
+            ),
+            throwsA(isA<InvalidArgumentException>()),
+          );
+        });
+
+        test('throws InvalidArgumentException for newName with colon',
+            () async {
+          expect(
+            () async => ICloudStorage.rename(
+              containerId: containerId,
+              relativePath: 'dir/oldfile.txt',
+              newName: 'file:name.txt',
+            ),
+            throwsA(isA<InvalidArgumentException>()),
+          );
+        });
+      });
+
+      group('copy validation:', () {
+        test('throws InvalidArgumentException for empty fromRelativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.copy(
+              containerId: containerId,
+              fromRelativePath: '',
+              toRelativePath: 'Documents/destination.pdf',
+            ),
+            throwsA(
+              isA<InvalidArgumentException>().having(
+                (e) => e.toString(),
+                'message',
+                contains('invalid relativePath: (from)'),
+              ),
+            ),
+          );
+        });
+
+        test('throws InvalidArgumentException for empty toRelativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.copy(
+              containerId: containerId,
+              fromRelativePath: 'Documents/source.pdf',
+              toRelativePath: '',
+            ),
+            throwsA(
+              isA<InvalidArgumentException>().having(
+                (e) => e.toString(),
+                'message',
+                contains('invalid relativePath: (to)'),
+              ),
+            ),
+          );
+        });
+
+        test('throws InvalidArgumentException for invalid fromRelativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.copy(
+              containerId: containerId,
+              fromRelativePath: 'dir//file.pdf',
+              toRelativePath: 'Documents/destination.pdf',
+            ),
+            throwsA(isA<InvalidArgumentException>()),
+          );
+        });
+
+        test('throws InvalidArgumentException for invalid toRelativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.copy(
+              containerId: containerId,
+              fromRelativePath: 'Documents/source.pdf',
+              toRelativePath: 'dir:file.pdf',
+            ),
+            throwsA(isA<InvalidArgumentException>()),
+          );
+        });
+      });
+
+      group('writeJsonDocument validation:', () {
+        test('throws InvalidArgumentException for invalid relativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.writeJsonDocument(
+              containerId: containerId,
+              relativePath: 'file/',
+              data: {'key': 'value'},
+            ),
+            throwsA(
+              isA<InvalidArgumentException>().having(
+                (e) => e.toString(),
+                'message',
+                contains('invalid relativePath'),
+              ),
+            ),
+          );
+        });
+
+        test('throws InvalidArgumentException for empty relativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.writeJsonDocument(
+              containerId: containerId,
+              relativePath: '',
+              data: {'key': 'value'},
+            ),
+            throwsA(isA<InvalidArgumentException>()),
+          );
+        });
+      });
+
+      group('updateDocument validation:', () {
+        test('throws InvalidArgumentException for invalid relativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.updateDocument(
+              containerId: containerId,
+              relativePath: 'file/',
+              updater: (current) => Uint8List.fromList([1, 2, 3]),
+            ),
+            throwsA(
+              isA<InvalidArgumentException>().having(
+                (e) => e.toString(),
+                'message',
+                contains('invalid relativePath'),
+              ),
+            ),
+          );
+        });
+
+        test('throws InvalidArgumentException for empty relativePath',
+            () async {
+          expect(
+            () async => ICloudStorage.updateDocument(
+              containerId: containerId,
+              relativePath: '',
+              updater: (current) => Uint8List.fromList([1, 2, 3]),
+            ),
+            throwsA(isA<InvalidArgumentException>()),
+          );
+        });
+      });
+    });
   });
+}
+
+// Helper mock that returns valid JSON
+class _ValidJsonMock extends MockICloudStoragePlatform {
+  @override
+  Future<Uint8List?> readDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    calls.add('readDocument');
+    // Return valid JSON bytes
+    return Uint8List.fromList(
+      utf8.encode('{"name": "test", "value": 42}'),
+    );
+  }
+}
+
+// Helper mock that returns null for readDocument
+class _NullReadDocumentMock extends MockICloudStoragePlatform {
+  @override
+  Future<Uint8List?> readDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    calls.add('readDocument');
+    return null;
+  }
+}
+
+// Helper mock that returns invalid JSON
+class _InvalidJsonMock extends MockICloudStoragePlatform {
+  @override
+  Future<Uint8List?> readDocument({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    calls.add('readDocument');
+    // Return invalid JSON (malformed JSON syntax)
+    return Uint8List.fromList(utf8.encode('{invalid json'));
+  }
 }

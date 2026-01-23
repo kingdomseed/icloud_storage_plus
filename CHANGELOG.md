@@ -259,8 +259,8 @@ if (metadata != null) {
 ### Dependencies
 
 - `very_good_analysis: ^10.0.0` (previously `flutter_lints: ^6.0.0`)
-- Minimum Dart SDK: `>=2.18.2 <4.0.0`
-- Minimum Flutter: `>=3.3.3`
+- Minimum Dart SDK: `>=3.0.0 <4.0.0`
+- Minimum Flutter: `>=3.10.0`
 
 ### Upgrade Steps
 

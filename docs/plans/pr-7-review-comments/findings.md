@@ -156,3 +156,20 @@
    - `upload` example lists `destinationRelativePath` as required, but API
      allows it to be optional. Update example.
    - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722905923
+
+## Resolutions (New Comment Batch)
+- Implemented token-based observer tracking and cleanup for NSMetadataQuery
+  observers (iOS + macOS).
+- Made download and downloadAndRead single-shot by stopping queries and
+  removing observers after returning a result.
+- Cleaned up upload progress queries after completion or error.
+- Removed unused visibility constants from public API.
+- Made writeJsonDocument encode into Uint8List explicitly.
+- Updated README upload signature to show optional destinationRelativePath.
+
+## Decisions (Dart 3 + Equatable)
+- Added `equatable` dependency and implemented value equality for `ICloudFile`.
+- Updated delete/move native implementations to use metadata queries for
+  remote-only items before coordinating operations (iOS + macOS).
+- Flutter min updated to >=3.10.0 to match Dart 3.0 baseline (earliest stable
+  Flutter with Dart 3.0.0 per releases metadata).

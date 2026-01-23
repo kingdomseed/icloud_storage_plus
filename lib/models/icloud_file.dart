@@ -1,5 +1,7 @@
+import 'package:equatable/equatable.dart';
+
 /// Metadata for an iCloud file or directory.
-class ICloudFile {
+class ICloudFile extends Equatable {
   /// Constructor to create the object from the map passed from platform code
   ICloudFile.fromMap(Map<dynamic, dynamic> map)
       : relativePath = map['relativePath'] as String,
@@ -48,6 +50,20 @@ class ICloudFile {
 
   /// Corresponding to NSMetadataUbiquitousItemHasUnresolvedConflictsKey
   final bool hasUnresolvedConflicts;
+
+  @override
+  List<Object?> get props => [
+        relativePath,
+        isDirectory,
+        sizeInBytes,
+        creationDate,
+        contentChangeDate,
+        isDownloading,
+        downloadStatus,
+        isUploading,
+        isUploaded,
+        hasUnresolvedConflicts,
+      ];
 
   /// Map native download status keys to DownloadStatus enum
   static DownloadStatus? _mapToDownloadStatusFromNSKeys(String? key) {
