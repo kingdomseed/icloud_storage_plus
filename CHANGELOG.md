@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### BREAKING CHANGES
 
 #### Platform Requirements Updated
-Minimum deployment targets have been updated to match Flutter 3.38+ requirements:
+Minimum deployment targets have been updated to match Flutter 3.10+ requirements:
 
 - **iOS**: Minimum version increased from iOS 9.0 to iOS 13.0
 - **macOS**: Minimum version increased from macOS 10.11 to macOS 10.15

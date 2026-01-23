@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
+import 'package:icloud_storage_plus/models/transfer_progress.dart';
 
 void main() {
   final platform = MethodChannelICloudStorage();
@@ -524,10 +525,12 @@ void main() {
         });
 
         // Capture the stream passed to onProgress callback
-        Stream<double>? capturedStream;
-        final progressCallback = expectAsync1((Stream<double> stream) {
-          capturedStream = stream;
-        });
+        Stream<ICloudTransferProgress>? capturedStream;
+        final progressCallback = expectAsync1(
+          (Stream<ICloudTransferProgress> stream) {
+            capturedStream = stream;
+          },
+        );
 
         // Call downloadAndRead with onProgress
         final resultFuture = platform.downloadAndRead(
@@ -561,7 +564,26 @@ void main() {
         // Verify stream emissions
         await expectLater(
           capturedStream,
-          emitsInOrder([0.0, 0.25, 0.50, 0.75, 1.0, emitsDone]),
+          emitsInOrder([
+            isA<ICloudTransferProgress>()
+                .having((e) => e.isProgress, 'isProgress', true)
+                .having((e) => e.percent, 'percent', 0.0),
+            isA<ICloudTransferProgress>()
+                .having((e) => e.isProgress, 'isProgress', true)
+                .having((e) => e.percent, 'percent', 0.25),
+            isA<ICloudTransferProgress>()
+                .having((e) => e.isProgress, 'isProgress', true)
+                .having((e) => e.percent, 'percent', 0.50),
+            isA<ICloudTransferProgress>()
+                .having((e) => e.isProgress, 'isProgress', true)
+                .having((e) => e.percent, 'percent', 0.75),
+            isA<ICloudTransferProgress>()
+                .having((e) => e.isProgress, 'isProgress', true)
+                .having((e) => e.percent, 'percent', 1.0),
+            isA<ICloudTransferProgress>()
+                .having((e) => e.isDone, 'isDone', true),
+            emitsDone,
+          ]),
         );
 
         // Verify the method returns file content
@@ -600,11 +622,13 @@ void main() {
           });
 
           // Capture the stream and track progress
-          Stream<double>? capturedStream;
+          Stream<ICloudTransferProgress>? capturedStream;
           final progressValues = <double>[];
-          final progressCallback = expectAsync1((Stream<double> stream) {
-            capturedStream = stream;
-          });
+          final progressCallback = expectAsync1(
+            (Stream<ICloudTransferProgress> stream) {
+              capturedStream = stream;
+            },
+          );
 
           // Call downloadAndRead
           final resultFuture = platform.downloadAndRead(
@@ -635,7 +659,11 @@ void main() {
           );
 
           // Listen to stream and collect values
-          capturedStream!.listen(progressValues.add);
+          capturedStream!.listen((event) {
+            if (event.isProgress) {
+              progressValues.add(event.percent!);
+            }
+          });
 
           // Wait for result
           final result = await resultFuture;
@@ -653,6 +681,168 @@ void main() {
           expect(progressValues.last, 1.0);
         },
       );
+
+      test(
+        'downloadAndRead with progress: surfaces platform errors as events',
+        () async {
+          // Arrange: set up method channel to create an event channel and
+          // respond to downloadAndRead.
+          var eventChannelName = '';
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            mockMethodCall = methodCall;
+            switch (methodCall.method) {
+              case 'createEventChannel':
+                eventChannelName =
+                    (methodCall.arguments as Map)['eventChannelName'] as String;
+                return null;
+              case 'downloadAndRead':
+                return Uint8List.fromList([1, 2, 3]);
+              default:
+                return null;
+            }
+          });
+
+          Stream<ICloudTransferProgress>? capturedStream;
+          final progressCallback = expectAsync1(
+            (Stream<ICloudTransferProgress> stream) {
+              capturedStream = stream;
+            },
+          );
+
+          // Act: call downloadAndRead and then emit an error from the event
+          // channel.
+          await platform.downloadAndRead(
+            containerId: containerId,
+            relativePath: 'test.txt',
+            onProgress: progressCallback,
+          );
+
+          await Future<void>.delayed(Duration.zero);
+
+          final eventChannel = EventChannel(eventChannelName);
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockStreamHandler(
+            eventChannel,
+            MockStreamHandler.inline(
+              onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+                events.error(
+                  code: 'E_NAT',
+                  message: 'Native Code Error',
+                  details: 'boom',
+                );
+              },
+            ),
+          );
+
+          // Assert: the progress stream delivers an error event and then ends.
+          await expectLater(
+            capturedStream,
+            emitsInOrder([
+              isA<ICloudTransferProgress>()
+                  .having((e) => e.isError, 'isError', true)
+                  .having((e) => e.exception?.code, 'code', 'E_NAT'),
+              emitsDone,
+            ]),
+          );
+        },
+      );
     },
   );
+
+  group('Timeout error handling', () {
+    test('readDocument handles E_TIMEOUT error code', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        throw PlatformException(
+          code: 'E_TIMEOUT',
+          message: 'Metadata query operation timed out after 30 seconds',
+        );
+      });
+
+      await expectLater(
+        platform.readDocument(
+          containerId: containerId,
+          relativePath: 'test.txt',
+        ),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'E_TIMEOUT',
+          ),
+        ),
+      );
+    });
+
+    test('delete handles E_TIMEOUT error code', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        throw PlatformException(
+          code: 'E_TIMEOUT',
+          message: 'Metadata query operation timed out after 30 seconds',
+        );
+      });
+
+      await expectLater(
+        platform.delete(containerId: containerId, relativePath: 'test.txt'),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'E_TIMEOUT',
+          ),
+        ),
+      );
+    });
+
+    test('move handles E_TIMEOUT error code', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        throw PlatformException(
+          code: 'E_TIMEOUT',
+          message: 'Metadata query operation timed out after 30 seconds',
+        );
+      });
+
+      await expectLater(
+        platform.move(
+          containerId: containerId,
+          fromRelativePath: 'test.txt',
+          toRelativePath: 'moved.txt',
+        ),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'E_TIMEOUT',
+          ),
+        ),
+      );
+    });
+
+    test('getDocumentMetadata handles E_TIMEOUT error code', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        throw PlatformException(
+          code: 'E_TIMEOUT',
+          message: 'Metadata query operation timed out after 30 seconds',
+        );
+      });
+
+      await expectLater(
+        platform.getDocumentMetadata(
+          containerId: containerId,
+          relativePath: 'test.txt',
+        ),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'E_TIMEOUT',
+          ),
+        ),
+      );
+    });
+  });
 }

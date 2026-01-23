@@ -56,7 +56,7 @@ class MockICloudStoragePlatform
     required String containerId,
     required String filePath,
     required String destinationRelativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     _uploadDestinationRelativePath = destinationRelativePath;
     _calls.add('upload');
@@ -66,7 +66,7 @@ class MockICloudStoragePlatform
   Future<bool> download({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     _calls.add('download');
     return true;
@@ -103,7 +103,7 @@ class MockICloudStoragePlatform
   Future<Uint8List?> downloadAndRead({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     _calls.add('downloadAndRead');
     // Return some test data

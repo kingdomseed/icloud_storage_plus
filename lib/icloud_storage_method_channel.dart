@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
+import 'package:icloud_storage_plus/models/transfer_progress.dart';
 
 /// An implementation of [ICloudStoragePlatform] that uses method channels.
 class MethodChannelICloudStorage extends ICloudStoragePlatform {
@@ -66,7 +68,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String containerId,
     required String filePath,
     required String destinationRelativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     var eventChannelName = '';
 
@@ -79,10 +81,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       );
 
       final uploadEventChannel = EventChannel(eventChannelName);
-      final stream = uploadEventChannel
-          .receiveBroadcastStream()
-          .where((event) => event is double)
-          .map((event) => event as double);
+      final stream = _receiveTransferProgressStream(uploadEventChannel);
 
       onProgress(stream);
     }
@@ -99,7 +98,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   Future<bool> download({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     var eventChannelName = '';
 
@@ -112,10 +111,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       );
 
       final downloadEventChannel = EventChannel(eventChannelName);
-      final stream = downloadEventChannel
-          .receiveBroadcastStream()
-          .where((event) => event is double)
-          .map((event) => event as double);
+      final stream = _receiveTransferProgressStream(downloadEventChannel);
 
       onProgress(stream);
     }
@@ -169,7 +165,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   Future<Uint8List?> downloadAndRead({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     var eventChannelName = '';
 
@@ -183,10 +179,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       );
 
       final downloadEventChannel = EventChannel(eventChannelName);
-      final stream = downloadEventChannel
-          .receiveBroadcastStream()
-          .where((event) => event is double)
-          .map((event) => event as double);
+      final stream = _receiveTransferProgressStream(downloadEventChannel);
 
       onProgress(stream);
     }
@@ -254,6 +247,54 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
 
     // Convert dynamic map to properly typed map
     return result.map((key, value) => MapEntry(key.toString(), value));
+  }
+
+  Stream<ICloudTransferProgress> _receiveTransferProgressStream(
+    EventChannel eventChannel,
+  ) {
+    late final StreamController<ICloudTransferProgress> controller;
+    StreamSubscription<dynamic>? subscription;
+
+    controller = StreamController<ICloudTransferProgress>.broadcast(
+      onListen: () {
+        subscription = eventChannel.receiveBroadcastStream().listen(
+          (event) {
+            if (controller.isClosed) return;
+            if (event is num) {
+              controller.add(
+                ICloudTransferProgress.progress(event.toDouble()),
+              );
+            }
+          },
+          onError: (Object error) {
+            if (controller.isClosed) return;
+            final exception = error is PlatformException
+                ? error
+                : PlatformException(
+                    code: 'E_STREAM',
+                    message: 'Unexpected progress stream error',
+                    details: error.toString(),
+                  );
+            controller.add(ICloudTransferProgress.error(exception));
+            unawaited(subscription?.cancel());
+            unawaited(controller.close());
+          },
+          onDone: () {
+            if (controller.isClosed) return;
+            controller.add(const ICloudTransferProgress.done());
+            unawaited(controller.close());
+          },
+        );
+      },
+      onCancel: () async {
+        await subscription?.cancel();
+        if (!controller.isClosed) {
+          await controller.close();
+        }
+      },
+    );
+
+    return controller.stream;
   }
 
   /// Private method to convert the list of maps from platform code to a list of

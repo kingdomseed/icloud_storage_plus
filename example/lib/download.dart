@@ -15,7 +15,7 @@ class Download extends StatefulWidget {
 class _DownloadState extends State<Download> {
   final _containerIdController = TextEditingController();
   final _filePathController = TextEditingController();
-  StreamSubscription<double>? _progressListner;
+  StreamSubscription<ICloudTransferProgress>? _progressListner;
   String? _error;
   String? _progress;
 
@@ -30,19 +30,28 @@ class _DownloadState extends State<Download> {
         containerId: _containerIdController.text,
         relativePath: _filePathController.text,
         onProgress: (stream) {
-          _progressListner = stream.listen(
-            (progress) => setState(() {
-              _progress = 'Download Progress: $progress';
-            }),
-            onDone: () => setState(() {
-              _progress = 'Download Completed';
-            }),
-            onError: (err) => setState(() {
-              _error = getErrorMessage(err);
-              _progress = '';
-            }),
-            cancelOnError: true,
-          );
+          _progressListner = stream.listen((event) {
+            if (event.isProgress) {
+              setState(() {
+                _progress = 'Download Progress: ${event.percent}';
+              });
+              return;
+            }
+
+            if (event.isDone) {
+              setState(() {
+                _progress = 'Download Completed';
+              });
+              return;
+            }
+
+            if (event.isError) {
+              setState(() {
+                _error = getErrorMessage(event.exception);
+                _progress = '';
+              });
+            }
+          });
         },
       );
     } catch (ex) {

@@ -173,3 +173,7 @@
   remote-only items before coordinating operations (iOS + macOS).
 - Flutter min updated to >=3.10.0 to match Dart 3.0 baseline (earliest stable
   Flutter with Dart 3.0.0 per releases metadata).
+
+## Resolutions (Copy Remote-Only)
+- Updated iOS/macOS copy() to resolve source via metadata query before
+  coordinated copy, avoiding local-only fileExists checks for remote items.

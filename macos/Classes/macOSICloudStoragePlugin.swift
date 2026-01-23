@@ -7,6 +7,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var streamHandlers: [String: StreamHandler] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
+  private let queryMetadataItemTimeoutSeconds = 30
+  private let queryMetadataItemWarningSeconds = 10
 
   /// Registers the plugin with the Flutter registrar.
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -299,21 +301,46 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     addObserver(
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
-    ) { [self] _ in
-      onUploadQueryNotification(query: query, eventChannelName: eventChannelName)
+    ) { [self] notification in
+      onUploadQueryNotification(
+        notification: notification,
+        query: query,
+        eventChannelName: eventChannelName
+      )
     }
     
     addObserver(
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidUpdate
-    ) { [self] _ in
-      onUploadQueryNotification(query: query, eventChannelName: eventChannelName)
+    ) { [self] notification in
+      onUploadQueryNotification(
+        notification: notification,
+        query: query,
+        eventChannelName: eventChannelName
+      )
     }
   }
   
   /// Emits upload progress updates to the event channel.
-  private func onUploadQueryNotification(query: NSMetadataQuery, eventChannelName: String) {
+  private func onUploadQueryNotification(
+    notification: Notification,
+    query: NSMetadataQuery,
+    eventChannelName: String
+  ) {
+    if !query.isStarted {
+      return
+    }
+
     if query.results.count == 0 {
+      // `NSMetadataQuery` can send update notifications with no results while the
+      // query is still gathering. Only treat it as terminal when the initial
+      // gathering finished and we still have no match.
+      if notification.name == NSNotification.Name.NSMetadataQueryDidFinishGathering {
+        self.streamHandlers[eventChannelName]?.setEvent(FlutterEndOfEventStream)
+        removeObservers(query)
+        query.stop()
+        removeStreamHandler(eventChannelName)
+      }
       return
     }
     
@@ -619,7 +646,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
+      // Check for timeout
+      if didTimeout {
+        result(self.queryTimeoutError)
+        return
+      }
+
       guard let item = item,
             let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL,
             !itemURL.hasDirectoryPath else {
@@ -704,11 +737,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
+      // For documentExists, timeout is treated the same as "not found" (both return false)
       result(item != nil)
     }
   }
-  
+
   /// Get file or directory metadata without downloading content.
   /// Returns a map that includes `isDirectory` when the item exists.
   private func getDocumentMetadata(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -726,7 +760,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
+      // Check for timeout
+      if didTimeout {
+        result(self.queryTimeoutError)
+        return
+      }
+
       guard let item = item else {
         result(nil)
         return
@@ -735,11 +775,15 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
 
-  /// Runs a metadata query for a single item path.
+  /// Runs a metadata query for a single item path with timeout protection.
+  /// - Parameters:
+  ///   - containerURL: The iCloud container URL
+  ///   - relativePath: The relative path of the item to query
+  ///   - completion: Called with (item, didTimeout) where item is the metadata item or nil, and didTimeout indicates if the query timed out
   private func queryMetadataItem(
     containerURL: URL,
     relativePath: String,
-    completion: @escaping (NSMetadataItem?) -> Void
+    completion: @escaping (NSMetadataItem?, Bool) -> Void
   ) {
     let query = NSMetadataQuery()
     query.operationQueue = .main
@@ -748,25 +792,74 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let fileURL = containerURL.appendingPathComponent(relativePath)
     query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, fileURL.path)
 
+    // State tracking for race condition prevention
+    var hasCompleted = false
     var observer: NSObjectProtocol?
+    var warningTimer: DispatchSourceTimer?
+    var timeoutTimer: DispatchSourceTimer?
+
+    // Resource cleanup helper (called from success, timeout, and warning paths)
+    let cleanup = {
+      guard !hasCompleted else { return }
+      hasCompleted = true
+
+      query.disableUpdates()
+      query.stop()
+
+      if let observer = observer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+
+      if let timer = warningTimer {
+        timer.cancel()
+      }
+
+      if let timer = timeoutTimer {
+        timer.cancel()
+      }
+    }
+
+    // Set up notification observer
     observer = NotificationCenter.default.addObserver(
       forName: NSNotification.Name.NSMetadataQueryDidFinishGathering,
       object: query,
       queue: query.operationQueue
     ) { _ in
-      query.disableUpdates()
-      query.stop()
-      if let observer = observer {
-        NotificationCenter.default.removeObserver(observer)
-      }
+      guard !hasCompleted else { return }
+      cleanup()
+
       if query.resultCount > 0,
          let item = query.result(at: 0) as? NSMetadataItem {
-        completion(item)
+        completion(item, false)  // Found item, not a timeout
       } else {
-        completion(nil)
+        completion(nil, false)  // No item found, but query completed (not a timeout)
       }
     }
 
+    // Set up warning timer (fires at 10 seconds)
+    let warning = DispatchSource.makeTimerSource(queue: .main)
+    warning.schedule(deadline: .now() + .seconds(queryMetadataItemWarningSeconds))
+    warning.setEventHandler {
+      guard !hasCompleted else { return }
+      DebugHelper.log("queryMetadataItem taking longer than expected (\(self.queryMetadataItemWarningSeconds)s): \(relativePath)")
+      // Note: This can be surfaced to the UI layer via logging or custom notifications
+    }
+    warningTimer = warning
+    warning.resume()
+
+    // Set up timeout timer (fires at 30 seconds)
+    let timeout = DispatchSource.makeTimerSource(queue: .main)
+    timeout.schedule(deadline: .now() + .seconds(queryMetadataItemTimeoutSeconds))
+    timeout.setEventHandler { [weak query] in
+      guard !hasCompleted else { return }
+      cleanup()
+
+      DebugHelper.log("queryMetadataItem timed out after \(self.queryMetadataItemTimeoutSeconds)s: \(relativePath)")
+      completion(nil, true)  // Return nil with timeout flag
+    }
+
+    timeoutTimer = timeout
+    timeout.resume()
     query.start()
   }
   
@@ -799,7 +892,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
 
-    queryMetadataItem(containerURL: containerURL, relativePath: cloudFileName) { item in
+    queryMetadataItem(containerURL: containerURL, relativePath: cloudFileName) { item, didTimeout in
+      // Check for timeout
+      if didTimeout {
+        result(self.queryTimeoutError)
+        return
+      }
+
       guard let item = item,
             let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
         result(fileNotFoundError)
@@ -841,7 +940,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
 
-    queryMetadataItem(containerURL: containerURL, relativePath: atRelativePath) { item in
+    queryMetadataItem(containerURL: containerURL, relativePath: atRelativePath) { item, didTimeout in
+      // Check for timeout
+      if didTimeout {
+        result(self.queryTimeoutError)
+        return
+      }
+
       guard let item = item,
             let atURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
         result(fileNotFoundError)
@@ -894,42 +999,52 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
     
-    let fromURL = containerURL.appendingPathComponent(fromRelativePath)
-    let toURL = containerURL.appendingPathComponent(toRelativePath)
-    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-    
-    // Use reading coordination for source and writing coordination for destination
-    fileCoordinator.coordinate(readingItemAt: fromURL, options: .withoutChanges, writingItemAt: toURL, options: .forReplacing, error: nil) {
-      fromReadingURL, toWritingURL in
-      do {
-        // Check if source file exists
-        if !FileManager.default.fileExists(atPath: fromReadingURL.path) {
-          result(fileNotFoundError)
-          return
+    queryMetadataItem(containerURL: containerURL, relativePath: fromRelativePath) { item in
+      guard let item = item,
+            let fromURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
+        result(fileNotFoundError)
+        return
+      }
+
+      let toURL = containerURL.appendingPathComponent(toRelativePath)
+      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+      
+      // Use reading coordination for source and writing coordination for destination
+      fileCoordinator.coordinate(
+        readingItemAt: fromURL,
+        options: .withoutChanges,
+        writingItemAt: toURL,
+        options: .forReplacing,
+        error: nil
+      ) { fromReadingURL, toWritingURL in
+        do {
+          // Create destination directory if needed
+          let toDirURL = toWritingURL.deletingLastPathComponent()
+          if !FileManager.default.fileExists(atPath: toDirURL.path) {
+            try FileManager.default.createDirectory(
+              at: toDirURL,
+              withIntermediateDirectories: true,
+              attributes: nil
+            )
+          }
+          
+          // Remove destination file if it exists
+          if FileManager.default.fileExists(atPath: toWritingURL.path) {
+            try FileManager.default.removeItem(at: toWritingURL)
+          }
+          
+          // Copy the file
+          try FileManager.default.copyItem(at: fromReadingURL, to: toWritingURL)
+          result(nil)
+        } catch {
+          DebugHelper.log("copy error: \(error.localizedDescription)")
+          result(nativeCodeError(error))
         }
-        
-        // Create destination directory if needed
-        let toDirURL = toWritingURL.deletingLastPathComponent()
-        if !FileManager.default.fileExists(atPath: toDirURL.path) {
-          try FileManager.default.createDirectory(at: toDirURL, withIntermediateDirectories: true, attributes: nil)
-        }
-        
-        // Remove destination file if it exists
-        if FileManager.default.fileExists(atPath: toWritingURL.path) {
-          try FileManager.default.removeItem(at: toWritingURL)
-        }
-        
-        // Copy the file
-        try FileManager.default.copyItem(at: fromReadingURL, to: toWritingURL)
-        result(nil)
-      } catch {
-        DebugHelper.log("copy error: \(error.localizedDescription)")
-        result(nativeCodeError(error))
       }
     }
   }
   
-  /// Removes all observers for a metadata query.
+  /// Adds an observers for a metadata query.
   private func addObserver(
     for query: NSMetadataQuery,
     name: Notification.Name,
@@ -982,7 +1097,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   let argumentError = FlutterError(code: "E_ARG", message: "Invalid Arguments", details: nil)
   let containerError = FlutterError(code: "E_CTR", message: "Invalid containerId, or user is not signed in, or user disabled iCloud permission", details: nil)
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
-  
+  let queryTimeoutError = FlutterError(code: "E_TIMEOUT", message: "Metadata query operation timed out after 30 seconds", details: nil)
+
   /// Wraps a native Error into a FlutterError.
   private func nativeCodeError(_ error: Error) -> FlutterError {
     return FlutterError(code: "E_NAT", message: "Native Code Error", details: "\(error)")

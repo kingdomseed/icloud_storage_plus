@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
+import 'package:icloud_storage_plus/models/transfer_progress.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 /// A function-type alias that receives a stream of values.
@@ -80,7 +81,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     required String containerId,
     required String filePath,
     required String destinationRelativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     throw UnimplementedError('upload() has not been implemented.');
   }
@@ -101,7 +102,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   Future<bool> download({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     throw UnimplementedError('download() has not been implemented.');
   }
@@ -178,7 +179,7 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   Future<Uint8List?> downloadAndRead({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     throw UnimplementedError('downloadAndRead() has not been implemented.');
   }

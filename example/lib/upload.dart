@@ -16,7 +16,7 @@ class _UploadState extends State<Upload> {
   final _containerIdController = TextEditingController();
   final _filePathController = TextEditingController();
   final _destPathController = TextEditingController();
-  StreamSubscription<double>? _progressListner;
+  StreamSubscription<ICloudTransferProgress>? _progressListner;
   String? _error;
   String? _progress;
 
@@ -33,19 +33,28 @@ class _UploadState extends State<Upload> {
         destinationRelativePath:
             _destPathController.text.isEmpty ? null : _destPathController.text,
         onProgress: (stream) {
-          _progressListner = stream.listen(
-            (progress) => setState(() {
-              _progress = 'Upload Progress: $progress';
-            }),
-            onDone: () => setState(() {
-              _progress = 'Upload Completed';
-            }),
-            onError: (err) => setState(() {
-              _progress = null;
-              _error = getErrorMessage(err);
-            }),
-            cancelOnError: true,
-          );
+          _progressListner = stream.listen((event) {
+            if (event.isProgress) {
+              setState(() {
+                _progress = 'Upload Progress: ${event.percent}';
+              });
+              return;
+            }
+
+            if (event.isDone) {
+              setState(() {
+                _progress = 'Upload Completed';
+              });
+              return;
+            }
+
+            if (event.isError) {
+              setState(() {
+                _progress = null;
+                _error = getErrorMessage(event.exception);
+              });
+            }
+          });
         },
       );
     } catch (ex) {

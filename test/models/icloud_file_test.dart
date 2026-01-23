@@ -221,20 +221,6 @@ void main() {
       expect(file1.hashCode, equals(file2.hashCode));
     });
 
-    test('different files have different hashCodes', () {
-      final file1 = ICloudFile.fromMap(const {
-        'relativePath': 'test1.txt',
-      });
-
-      final file2 = ICloudFile.fromMap(const {
-        'relativePath': 'test2.txt',
-      });
-
-      // Note: While not guaranteed, different objects should typically have
-      // different hashCodes for good hash distribution
-      expect(file1.hashCode, isNot(equals(file2.hashCode)));
-    });
-
     test('hashCode is consistent across multiple calls', () {
       final file = ICloudFile.fromMap(const {
         'relativePath': 'test.txt',

@@ -4,8 +4,10 @@ import 'dart:typed_data';
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
+import 'package:icloud_storage_plus/models/transfer_progress.dart';
 export 'models/exceptions.dart';
 export 'models/icloud_file.dart';
+export 'models/transfer_progress.dart';
 
 /// The main class for the plugin. Contains all the API's needed for listing,
 /// uploading, downloading and deleting files.
@@ -133,8 +135,12 @@ class ICloudStorage {
   ///   Example: 'settings/config.json' or just 'data.db'
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage of the data being uploaded.
+  /// upload. It takes a Stream&lt;ICloudTransferProgress&gt; as input.
+  ///
+  /// The stream emits:
+  /// - `ICloudTransferProgress.progress(percent)` progress updates
+  /// - `ICloudTransferProgress.done()` once when the stream completes
+  /// - `ICloudTransferProgress.error(exception)` if the upload fails
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud
@@ -142,7 +148,7 @@ class ICloudStorage {
     required String containerId,
     required String filePath,
     String? destinationRelativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     if (filePath.trim().isEmpty) {
       throw InvalidArgumentException('invalid filePath: $filePath');
@@ -190,8 +196,12 @@ class ICloudStorage {
   /// directly - it's more efficient and handles downloading automatically.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage of the data being downloaded.
+  /// download. It takes a Stream&lt;ICloudTransferProgress&gt; as input.
+  ///
+  /// The stream emits:
+  /// - `ICloudTransferProgress.progress(percent)` progress updates
+  /// - `ICloudTransferProgress.done()` once when the stream completes
+  /// - `ICloudTransferProgress.error(exception)` if the download fails
   ///
   /// Returns true if the download was initiated successfully, false otherwise.
   /// The returned future completes without waiting for the file to be
@@ -199,7 +209,7 @@ class ICloudStorage {
   static Future<bool> download({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
@@ -237,8 +247,7 @@ class ICloudStorage {
   /// app, include the Documents prefix: "Documents/myfile.pdf"
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage of the data being downloaded.
+  /// download. It takes a Stream&lt;ICloudTransferProgress&gt; as input.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist.
   ///
@@ -259,7 +268,7 @@ class ICloudStorage {
   static Future<Uint8List?> downloadAndRead({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
@@ -398,7 +407,7 @@ class ICloudStorage {
     required String containerId,
     required String filePath,
     String? destinationRelativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     final destination = destinationRelativePath ?? filePath.split('/').last;
 
@@ -428,7 +437,7 @@ class ICloudStorage {
     required String containerId,
     required String filePath,
     String? destinationRelativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     // This is effectively the same as upload(), but the method name
     // makes the intent clear
@@ -454,7 +463,7 @@ class ICloudStorage {
   static Future<bool> downloadFromDocuments({
     required String containerId,
     required String relativePath,
-    StreamHandler<double>? onProgress,
+    StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     return download(
       containerId: containerId,

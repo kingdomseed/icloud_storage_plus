@@ -103,3 +103,11 @@
   - macos/Classes/macOSICloudStoragePlugin.swift
   - docs/plans/pr-7-review-comments/findings.md
 - Updated Flutter minimum to >=3.10.0 to align with Dart 3 baseline.
+
+### Phase 3e: Copy Remote-Only Fix
+- **Status:** complete
+- Actions taken:
+  - Updated copy() to use metadata query for source existence (iOS + macOS).
+- Files created/modified:
+  - ios/Classes/iOSICloudStoragePlugin.swift
+  - macos/Classes/macOSICloudStoragePlugin.swift
