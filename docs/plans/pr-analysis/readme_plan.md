@@ -218,7 +218,7 @@ Your iCloud Container (iCloud.com.yourapp.container)
 - Keep current structure but streamline
 - Focus on most common operations first
 - Advanced operations section for specialized needs
- - Clarify `exists()` returns true for files **and directories**
+- Clarify `exists()` returns true for files **and directories**
  - Note breaking change: `getMetadata()` returns metadata for files and
    directories with `isDirectory`/`type` field; directory fields may be null
    if not provided by iCloud metadata
