@@ -159,6 +159,20 @@ void main() {
     var fakePlatform = MockICloudStoragePlatform();
     ICloudStoragePlatform.instance = fakePlatform;
 
+    setUp(() {
+      fakePlatform
+        ..documentExistsResult = true
+        ..documentMetadataResult = {
+          'relativePath': 'Documents/test.pdf',
+          'isDirectory': false,
+          'sizeInBytes': 1024,
+          'creationDate': 1638288000.0,
+          'contentChangeDate': 1638374400.0,
+          'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
+          'hasUnresolvedConflicts': false,
+        };
+    });
+
     test('gather', () async {
       expect(await ICloudStorage.gather(containerId: containerId), isEmpty);
     });
