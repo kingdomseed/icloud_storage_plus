@@ -909,6 +909,50 @@ are from the search snippet.
 
 ---
 
+## Decision: exists() Should Treat Directories as Existing (2026-01-23)
+
+**Decision:** Option B accepted. `exists()` should return true for directories
+as well as files. This supports debugging folder creation issues.
+
+**Implications:**
+- Do **not** filter out directories in `queryFileExists` (remove any
+  `isDirectory` exclusion logic).
+- Update docs for `exists()` to say “file or directory exists.”
+- Keep `getMetadata()` file-focused unless we explicitly add a directory
+  metadata path (directory metadata may be incomplete).
+
+---
+
+## Decision: getMetadata() Must Return Directory Metadata (2026-01-23)
+
+**Decision:** Do not return null for directories. `getMetadata()` should return
+complete metadata for both files and directories, with explicit typing so
+callers decide how to handle each.
+
+**Implications:**
+- Expand the metadata model to include a `type` or `isDirectory` field.
+- Make directory-compatible fields explicit (some file-specific fields may be
+  absent or have different semantics for directories).
+- Avoid silent nulls; return a structured result even when the path is a
+  directory.
+
+---
+
+## Decision: Directory Metadata Fields (2026-01-23)
+
+**Decision:** If a metadata field is available for directories, return it.
+Fields like `sizeInBytes`, `contentChangeDate`, and `downloadStatus` should be
+**optional** in the model but **populated when present**. This is a breaking
+change and is acceptable for this fork.
+
+**Implications:**
+- Add explicit `isDirectory` (or `type`) so callers can interpret fields.
+- Populate fields from NSMetadataItem attributes if available; do not invent
+  values (no recursive size computation).
+- Document which fields may be null for directories and why.
+
+---
+
 ## Plan Review: Citation Sources Refreshed (2026-01-23)
 
 - Refreshed Apple Library Archive sources for NSMetadataQuery behavior,

@@ -491,3 +491,24 @@ Successfully completed implementation design for proper performance optimization
     - Behavioral differences (Files app vs Finder, sync timing)
 18. Updated Section 11 "Changes from Current README" to emphasize Dart API examples and platform transparency.
 19. Fixed example to use actual documents (my_document.md) instead of app settings (which belong in key-value store, not document storage).
+
+---
+
+## Plan Update (2026-01-23)
+
+16. Recorded decision: `exists()` should treat directories as existing (Option B)
+    for folder-creation debugging; updated findings and README plan.
+
+---
+
+## Plan Update (2026-01-23)
+
+17. Recorded decision: getMetadata() must return structured metadata for
+    directories (no nulls), with explicit type info so callers choose behavior.
+
+---
+
+## Plan Update (2026-01-23)
+
+18. Recorded decision: directory metadata fields are optional in the model but
+    populated when available; breaking change accepted; noted in README plan.
