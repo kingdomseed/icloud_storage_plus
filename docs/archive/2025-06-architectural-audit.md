@@ -1,3 +1,11 @@
+> **Archive Notice**: This architectural audit is from June 2025. Many identified gaps have since been implemented.
+> For current architecture and implementation details, see:
+> - Architecture: `docs/architecture/`
+> - Setup guides: `docs/guides/`
+> - Main documentation: `README.md`
+
+---
+
 # iCloud Storage Plus - Architectural Audit & Analysis
 
 ## Important Clarification

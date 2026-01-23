@@ -65,9 +65,10 @@ icloud_storage_plus/
 │       └── IcloudStoragePlugin.swift
 ├── example/                  # Example app
 ├── test/                     # Unit tests
-└── doc/                      # Documentation
-    └── icloud_storage_improvements/
-        └── file_coordination_improvements.md
+└── docs/                     # Documentation
+    ├── architecture/         # System design
+    ├── guides/              # How-to guides
+    └── archive/             # Historical docs
 ```
 
 ## Technical Constraints

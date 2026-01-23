@@ -10,16 +10,16 @@ flowchart TD
     B --> C[Platform Channel]
     C --> D[Native Implementation]
     D --> E[iOS/macOS iCloud APIs]
-    
+
     subgraph "Dart Side"
     A
     B
     end
-    
+
     subgraph "Platform Channel"
     C
     end
-    
+
     subgraph "Native Side"
     D
     E
@@ -45,7 +45,7 @@ flowchart TD
    - NSFileManager for basic file operations
    - NSFileCoordinator for coordinated file access
    - NSMetadataQuery for file discovery and monitoring
-   - UIDocument/NSDocument for document-based operations (planned)
+   - UIDocument/NSDocument for document-based operations (implemented)
 
 ## Key Technical Decisions
 
@@ -123,7 +123,7 @@ classDiagram
         +move()
         +rename()
     }
-    
+
     class ICloudStoragePlatform {
         +instance
         +icloudAvailable()
@@ -133,7 +133,7 @@ classDiagram
         +delete()
         +move()
     }
-    
+
     class MethodChannelICloudStorage {
         -methodChannel
         +icloudAvailable()
@@ -143,7 +143,7 @@ classDiagram
         +delete()
         +move()
     }
-    
+
     ICloudStorage --> ICloudStoragePlatform : uses
     ICloudStoragePlatform <|-- MethodChannelICloudStorage : implements
 ```
@@ -162,7 +162,7 @@ classDiagram
         -delete()
         -move()
     }
-    
+
     class StreamHandler {
         -eventSink
         -onCancelHandler
@@ -170,7 +170,7 @@ classDiagram
         +onCancel()
         +setEvent()
     }
-    
+
     SwiftIcloudStoragePlugin --> StreamHandler : uses
 ```
 
@@ -188,7 +188,7 @@ classDiagram
         -delete()
         -move()
     }
-    
+
     class StreamHandler {
         -eventSink
         -onCancelHandler
@@ -196,7 +196,7 @@ classDiagram
         +onCancel()
         +setEvent()
     }
-    
+
     IcloudStoragePlugin --> StreamHandler : uses
 ```
 
@@ -211,7 +211,7 @@ flowchart TD
     D --> F[UIDocument/NSDocument]
     E --> G[iCloud Storage]
     F --> G[iCloud Storage]
-    
+
     subgraph "Enhanced Native Layer"
     D
     E

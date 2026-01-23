@@ -1,3 +1,11 @@
+> **Archive Notice**: This document is archived historical documentation from the project completion in 2025.
+> For current architecture and implementation details, see:
+> - Architecture: `docs/architecture/`
+> - Setup guides: `docs/guides/`
+> - Main documentation: `README.md`
+
+---
+
 # iCloud Storage Plus - Final Project Summary
 
 ## Project Completion Status: ✅ COMPLETE
