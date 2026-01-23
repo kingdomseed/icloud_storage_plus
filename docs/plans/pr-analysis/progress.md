@@ -512,3 +512,10 @@ Successfully completed implementation design for proper performance optimization
 
 18. Recorded decision: directory metadata fields are optional in the model but
     populated when available; breaking change accepted; noted in README plan.
+
+---
+
+## Plan Update (2026-01-23)
+
+19. Added DRY/SOLID scan notes (potential duplicates and unused constants) to
+    findings.md.

@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'icloud_storage_platform_interface.dart';
-import 'models/exceptions.dart';
-import 'models/icloud_file.dart';
+import 'package:icloud_storage/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage/models/exceptions.dart';
+import 'package:icloud_storage/models/icloud_file.dart';
 export 'models/exceptions.dart';
 export 'models/icloud_file.dart';
 
@@ -15,7 +15,7 @@ export 'models/icloud_file.dart';
 /// **PRIMARY (90% of use cases - most efficient):**
 /// - `readDocument()` / `readJsonDocument()` - Smart file reading with auto-download
 /// - `writeDocument()` / `writeJsonDocument()` - Safe writing with conflict resolution
-/// - `documentExists()` - Efficient file existence checking
+/// - `documentExists()` - Efficient file/directory existence checking
 ///
 /// **COMPATIBILITY (10% of use cases - when you need progress monitoring):**
 /// - `downloadAndRead()` - Combined download+read with progress callbacks
@@ -58,7 +58,7 @@ class ICloudStorage {
   ///
   /// Returns true if iCloud is available and user is logged in, false otherwise
   static Future<bool> icloudAvailable() async {
-    return await ICloudStoragePlatform.instance.icloudAvailable();
+    return ICloudStoragePlatform.instance.icloudAvailable();
   }
 
   /// Get all the files' meta data from iCloud container
@@ -80,7 +80,7 @@ class ICloudStorage {
     required String containerId,
     StreamHandler<List<ICloudFile>>? onUpdate,
   }) async {
-    return await ICloudStoragePlatform.instance.gather(
+    return ICloudStoragePlatform.instance.gather(
       containerId: containerId,
       onUpdate: onUpdate,
     );
@@ -93,7 +93,7 @@ class ICloudStorage {
   /// Returns the root path of the iCloud container, or null if unavailable.
   ///
   /// **Understanding the container structure**:
-  /// ```
+  /// ```md
   /// [returned path]/
   /// ├── Documents/     ← Files here are visible in Files app
   /// ├── Data/          ← App-private data
@@ -116,7 +116,7 @@ class ICloudStorage {
   static Future<String?> getContainerPath({
     required String containerId,
   }) async {
-    return await ICloudStoragePlatform.instance.getContainerPath(
+    return ICloudStoragePlatform.instance.getContainerPath(
       containerId: containerId,
     );
   }
@@ -138,8 +138,8 @@ class ICloudStorage {
   ///   Example: 'settings/config.json' or just 'data.db'
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage of
-  /// the data being uploaded.
+  /// upload. It takes a Stream&lt;double&gt; as input, which is the
+  /// percentage ofthe data being uploaded.
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud
@@ -157,7 +157,8 @@ class ICloudStorage {
 
     if (!_validateRelativePath(destination)) {
       throw InvalidArgumentException(
-          'invalid destination relative path: $destination');
+        'invalid destination relative path: $destination',
+      );
     }
 
     await ICloudStoragePlatform.instance.upload(
@@ -176,13 +177,15 @@ class ICloudStorage {
   /// or folder/myfile2. For files in the Documents directory visible in Files
   /// app, include the Documents prefix: "Documents/myfile.pdf"
   ///
-  /// **Note**: This method downloads files in-place within the iCloud container.
+  /// **Note**: This method downloads files in-place within the iCloud
+  /// container.
   /// The file remains at its original location and is made available locally.
   /// To access the downloaded file, use getContainerPath() and append the
   /// relativePath.
   ///
   /// **🚨 CRITICAL WARNING**: After download completes, do NOT read the file
-  /// directly using standard file operations as this may cause NSCocoaErrorDomain
+  /// directly using standard file operations as this may cause
+  /// NSCocoaErrorDomain
   /// Code=257 permission errors. Instead:
   /// - **RECOMMENDED**: Use `readDocument()` for efficient, safe file reading
   /// - Use `downloadAndRead()` for combined download+read operations
@@ -192,8 +195,8 @@ class ICloudStorage {
   /// directly - it's more efficient and handles downloading automatically.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
-  /// the data being downloaded.
+  /// download. It takes a Stream&lt;double&gt; as input, which is the
+  /// percentage of the data being downloaded.
   ///
   /// Returns true if the download was initiated successfully, false otherwise.
   /// The returned future completes without waiting for the file to be
@@ -207,7 +210,7 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
-    return await ICloudStoragePlatform.instance.download(
+    return ICloudStoragePlatform.instance.download(
       containerId: containerId,
       relativePath: relativePath,
       onProgress: onProgress,
@@ -216,8 +219,8 @@ class ICloudStorage {
 
   /// Download a file from iCloud and safely read its contents
   ///
-  /// **COMPATIBILITY METHOD**: Consider using `readDocument()` instead for better
-  /// performance and efficiency.
+  /// **COMPATIBILITY METHOD**: Consider using `readDocument()` instead for
+  /// better performance and efficiency.
   ///
   /// This method combines download and reading to prevent permission errors
   /// that occur when trying to read iCloud files directly without proper
@@ -239,8 +242,8 @@ class ICloudStorage {
   /// app, include the Documents prefix: "Documents/myfile.pdf"
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
-  /// the data being downloaded.
+  /// download. It takes a Stream&lt;double&gt; as input, which is the
+  /// percentage ofthe data being downloaded.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist.
   ///
@@ -267,7 +270,7 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
-    return await ICloudStoragePlatform.instance.downloadAndRead(
+    return ICloudStoragePlatform.instance.downloadAndRead(
       containerId: containerId,
       relativePath: relativePath,
       onProgress: onProgress,
@@ -316,12 +319,14 @@ class ICloudStorage {
   }) async {
     if (!_validateRelativePath(fromRelativePath)) {
       throw InvalidArgumentException(
-          'invalid relativePath: (from) $fromRelativePath');
+        'invalid relativePath: (from) $fromRelativePath',
+      );
     }
 
     if (!_validateRelativePath(toRelativePath)) {
       throw InvalidArgumentException(
-          'invalid relativePath: (to) $toRelativePath');
+        'invalid relativePath: (to) $toRelativePath',
+      );
     }
 
     await ICloudStoragePlatform.instance.move(
@@ -370,7 +375,7 @@ class ICloudStorage {
     final fileOrDirNames = path.split('/');
     if (fileOrDirNames.isEmpty) return false;
 
-    return fileOrDirNames.every((name) => _validateFileName(name));
+    return fileOrDirNames.every(_validateFileName);
   }
 
   /// Private method to validate file name. It shall not contain '/' or ':', and
@@ -378,7 +383,7 @@ class ICloudStorage {
   /// less than 255.
   static bool _validateFileName(String name) => !(name.isEmpty ||
       name.length > 255 ||
-      RegExp(r"([:/]+)|(^[.].*$)").hasMatch(name));
+      RegExp(r'([:/]+)|(^[.].*$)').hasMatch(name));
 
   /// Upload a file to the Documents directory (visible in Files app)
   ///
@@ -456,7 +461,7 @@ class ICloudStorage {
     required String relativePath,
     StreamHandler<double>? onProgress,
   }) async {
-    return await download(
+    return download(
       containerId: containerId,
       relativePath: '$documentsDirectory/$relativePath',
       onProgress: onProgress,
@@ -467,10 +472,12 @@ class ICloudStorage {
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file to check, such as file1
+  /// [relativePath] is the relative path of the item to check, such as file1
   /// or folder/file2 or Documents/myfile.pdf
   ///
-  /// Returns true if the file exists, false otherwise
+  /// Returns true if the file or directory exists, false otherwise.
+  ///
+  /// This method uses iCloud metadata to detect remote-only items.
   static Future<bool> exists({
     required String containerId,
     required String relativePath,
@@ -478,14 +485,10 @@ class ICloudStorage {
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
-
-    try {
-      final files = await gather(containerId: containerId);
-      return files.any((file) => file.relativePath == relativePath);
-    } catch (e) {
-      // If we can't gather files, assume file doesn't exist
-      return false;
-    }
+    return ICloudStoragePlatform.instance.documentExists(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
   }
 
   /// Copy a file within the iCloud container
@@ -507,12 +510,14 @@ class ICloudStorage {
   }) async {
     if (!_validateRelativePath(fromRelativePath)) {
       throw InvalidArgumentException(
-          'invalid relativePath: (from) $fromRelativePath');
+        'invalid relativePath: (from) $fromRelativePath',
+      );
     }
 
     if (!_validateRelativePath(toRelativePath)) {
       throw InvalidArgumentException(
-          'invalid relativePath: (to) $toRelativePath');
+        'invalid relativePath: (to) $toRelativePath',
+      );
     }
 
     await ICloudStoragePlatform.instance.copy(
@@ -522,13 +527,17 @@ class ICloudStorage {
     );
   }
 
-  /// Get metadata for a specific file without downloading it
+  /// Get metadata for a specific file or directory without downloading it
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file to get metadata for
+  /// [relativePath] is the relative path of the item to get metadata for
   ///
-  /// Returns the ICloudFile metadata if the file exists, null otherwise
+  /// Returns the ICloudFile metadata if the item exists, null otherwise.
+  ///
+  /// The returned metadata includes `isDirectory` to distinguish file vs
+  /// directory, and optional fields may be null if iCloud does not provide
+  /// them for the given item.
   static Future<ICloudFile?> getMetadata({
     required String containerId,
     required String relativePath,
@@ -536,18 +545,12 @@ class ICloudStorage {
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
-
-    try {
-      final files = await gather(containerId: containerId);
-      try {
-        return files.firstWhere((file) => file.relativePath == relativePath);
-      } on StateError {
-        // firstWhere throws StateError when no element is found
-        return null;
-      }
-    } catch (e) {
-      return null;
-    }
+    final metadata = await ICloudStoragePlatform.instance.getDocumentMetadata(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+    if (metadata == null) return null;
+    return ICloudFile.fromMap(metadata);
   }
 
   /// Read a document from iCloud safely
@@ -596,7 +599,7 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
-    return await ICloudStoragePlatform.instance.readDocument(
+    return ICloudStoragePlatform.instance.readDocument(
       containerId: containerId,
       relativePath: relativePath,
     );
@@ -643,16 +646,16 @@ class ICloudStorage {
     );
   }
 
-  /// Check if a document exists using native document APIs
+  /// Check if a file or directory exists using native iCloud metadata APIs
   ///
   /// This method is more efficient than [exists] as it uses native APIs
   /// without gathering all files.
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file on iCloud
+  /// [relativePath] is the relative path of the item on iCloud
   ///
-  /// Returns true if the file exists, false otherwise
+  /// Returns true if the file or directory exists, false otherwise
   static Future<bool> documentExists({
     required String containerId,
     required String relativePath,
@@ -661,26 +664,28 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
-    return await ICloudStoragePlatform.instance.documentExists(
+    return ICloudStoragePlatform.instance.documentExists(
       containerId: containerId,
       relativePath: relativePath,
     );
   }
 
-  /// Get document metadata without downloading content
+  /// Get file or directory metadata without downloading content
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file on iCloud
+  /// [relativePath] is the relative path of the item on iCloud
   ///
-  /// Returns metadata about the file including:
-  /// - sizeInBytes: File size
-  /// - creationDate: Creation timestamp
-  /// - modificationDate: Last modification timestamp
-  /// - isDownloaded: Whether file is downloaded locally
-  /// - hasUnresolvedConflicts: Whether file has sync conflicts
+  /// Returns metadata about the item including:
+  /// - relativePath: Path relative to container
+  /// - isDirectory: Whether this item is a directory
+  /// - sizeInBytes: File or directory size (if provided by iCloud)
+  /// - creationDate: Creation timestamp (if provided)
+  /// - contentChangeDate: Content change timestamp (if provided)
+  /// - downloadStatus: iCloud download status (if provided)
+  /// - isDownloading/isUploading/isUploaded/hasUnresolvedConflicts
   ///
-  /// Returns null if the file doesn't exist
+  /// Returns null if the item doesn't exist
   static Future<Map<String, dynamic>?> getDocumentMetadata({
     required String containerId,
     required String relativePath,
@@ -689,7 +694,7 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
-    return await ICloudStoragePlatform.instance.getDocumentMetadata(
+    return ICloudStoragePlatform.instance.getDocumentMetadata(
       containerId: containerId,
       relativePath: relativePath,
     );

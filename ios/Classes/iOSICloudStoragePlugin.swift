@@ -130,23 +130,46 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     var fileMaps: [[String: Any?]] = []
     for item in query.results {
       guard let fileItem = item as? NSMetadataItem else { continue }
-      guard let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
-      if fileURL.absoluteString.last == "/" { continue }
-
-      let map: [String: Any?] = [
-        "relativePath": String(fileURL.absoluteString.dropFirst(containerURL.absoluteString.count)),
-        "sizeInBytes": fileItem.value(forAttribute: NSMetadataItemFSSizeKey),
-        "creationDate": (fileItem.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
-        "contentChangeDate": (fileItem.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
-        "hasUnresolvedConflicts": (fileItem.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
-        "downloadStatus": fileItem.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey),
-        "isDownloading": (fileItem.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
-        "isUploaded": (fileItem.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
-        "isUploading": (fileItem.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
-      ]
+      guard let map = mapMetadataItem(fileItem, containerURL: containerURL) else {
+        continue
+      }
       fileMaps.append(map)
     }
     return fileMaps
+  }
+
+  /// Map an NSMetadataItem into a Flutter-friendly metadata dictionary.
+  /// Includes directories and sets `isDirectory` for caller interpretation.
+  private func mapMetadataItem(_ item: NSMetadataItem, containerURL: URL) -> [String: Any?]? {
+    guard let fileURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
+      return nil
+    }
+
+    return [
+      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
+      "isDirectory": fileURL.hasDirectoryPath,
+      "sizeInBytes": item.value(forAttribute: NSMetadataItemFSSizeKey),
+      "creationDate": (item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
+      "contentChangeDate": (item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
+      "hasUnresolvedConflicts": (item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
+      "downloadStatus": item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey),
+      "isDownloading": (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
+      "isUploaded": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
+      "isUploading": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
+    ]
+  }
+
+  private func relativePath(for fileURL: URL, containerURL: URL) -> String {
+    let containerPath = containerURL.standardizedFileURL.path
+    let filePath = fileURL.standardizedFileURL.path
+    guard filePath.hasPrefix(containerPath) else {
+      return fileURL.lastPathComponent
+    }
+    var relative = String(filePath.dropFirst(containerPath.count))
+    if relative.hasPrefix("/") {
+      relative.removeFirst()
+    }
+    return relative
   }
   
   private func upload(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -590,13 +613,13 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    let fileURL = containerURL.appendingPathComponent(relativePath)
-    var isDirectory: ObjCBool = false
-    let exists = FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory) && !isDirectory.boolValue
-    result(exists)
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+      result(item != nil)
+    }
   }
   
-  /// Get document metadata without downloading content
+  /// Get file or directory metadata without downloading content.
+  /// Returns a map that includes `isDirectory` when the item exists.
   private func getDocumentMetadata(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -611,49 +634,48 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       result(containerError)
       return
     }
-    
+
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item in
+      guard let item = item else {
+        result(nil)
+        return
+      }
+      result(self.mapMetadataItem(item, containerURL: containerURL))
+    }
+  }
+
+  private func queryMetadataItem(
+    containerURL: URL,
+    relativePath: String,
+    completion: @escaping (NSMetadataItem?) -> Void
+  ) {
+    let query = NSMetadataQuery()
+    query.operationQueue = .main
+    query.searchScopes = querySearchScopes
+
     let fileURL = containerURL.appendingPathComponent(relativePath)
-    
-    // Check if file exists
-    var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory),
-          !isDirectory.boolValue else {
-      result(nil)
-      return
+    query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, fileURL.path)
+
+    var observer: NSObjectProtocol?
+    observer = NotificationCenter.default.addObserver(
+      forName: NSNotification.Name.NSMetadataQueryDidFinishGathering,
+      object: query,
+      queue: query.operationQueue
+    ) { _ in
+      query.disableUpdates()
+      query.stop()
+      if let observer = observer {
+        NotificationCenter.default.removeObserver(observer)
+      }
+      if query.resultCount > 0,
+         let item = query.result(at: 0) as? NSMetadataItem {
+        completion(item)
+      } else {
+        completion(nil)
+      }
     }
-    
-    do {
-      let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-      var metadata: [String: Any] = [:]
-      
-      if let size = attributes[.size] as? Int64 {
-        metadata["sizeInBytes"] = size
-      }
-      
-      if let creationDate = attributes[.creationDate] as? Date {
-        metadata["creationDate"] = creationDate.timeIntervalSince1970
-      }
-      
-      if let modificationDate = attributes[.modificationDate] as? Date {
-        metadata["modificationDate"] = modificationDate.timeIntervalSince1970
-      }
-      
-      // Check download status
-      let resourceValues = try fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemHasUnresolvedConflictsKey])
-      
-      if let downloadingStatus = resourceValues.ubiquitousItemDownloadingStatus {
-        metadata["isDownloaded"] = (downloadingStatus == .current)
-        metadata["downloadingStatus"] = downloadingStatus.rawValue
-      }
-      
-      if let hasConflicts = resourceValues.ubiquitousItemHasUnresolvedConflicts {
-        metadata["hasUnresolvedConflicts"] = hasConflicts
-      }
-      
-      result(metadata)
-    } catch {
-      result(nativeCodeError(error))
-    }
+
+    query.start()
   }
   
   private func moveCloudFile(at: URL, to: URL) throws {

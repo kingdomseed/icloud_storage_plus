@@ -1,14 +1,13 @@
 /// An exception class used for development. It's ued when invalid argument
 /// is passed to the API
 class InvalidArgumentException implements Exception {
-  final String _message;
-
   /// Constructor takes the exception message as an argument
   InvalidArgumentException(this._message);
+  final String _message;
 
   /// Method to print the error message
   @override
-  String toString() => "InvalidArgumentException: $_message";
+  String toString() => 'InvalidArgumentException: $_message';
 }
 
 /// A class contains the error code from PlatformException

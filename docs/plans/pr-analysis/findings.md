@@ -968,3 +968,20 @@ Source: "Synchronizing documents in the iCloud environment" (Apple sample)
 - iCloud container identifiers are case-sensitive and must begin with
   "iCloud."; Info.plist must include a matching NSUbiquitousContainers entry.
 - iCloud Drive must be enabled on the device for documents to synchronize.
+
+---
+
+## DRY/SOLID Scan: Potential Duplicates or Unused Items (2026-01-23)
+
+**Potential duplicates / confusing overlaps**
+- `downloadAndRead()` vs `readDocument()`: both read remote data; one uses
+  explicit download+read with progress while the other is the recommended
+  UIDocument/NSDocument path. Consider consolidating docs or deprecating the
+  less-preferred path.
+- `downloadFromDocuments()` / `uploadToDocuments()` are simple wrappers that
+  only prefix `Documents/`. These are convenience APIs but add surface area.
+
+**Unused or unclear items**
+- `visibilityPrivate`, `visibilityPublic`, `visibilityTemporary` constants are
+  defined in `ICloudStorage` but appear unused in the package; consider
+  removing or wiring into a real API.

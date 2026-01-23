@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:icloud_storage/icloud_storage_method_channel.dart';
+import 'package:icloud_storage/models/icloud_file.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'icloud_storage_method_channel.dart';
-import 'models/icloud_file.dart';
 
 /// A function-type alias takes a stream as argument and returns void
 typedef StreamHandler<T> = void Function(Stream<T>);
@@ -67,8 +67,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// iCloud.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage of
-  /// the data being uploaded.
+  /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage
+  /// of the data being uploaded.
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud.
@@ -91,8 +91,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [destinationFilePath] is the full path of the local file to be saved as.
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
-  /// the data being downloaded.
+  /// download. It takes a Stream&lt;double&gt; as input, which is the
+  /// percentage of the data being downloaded.
   ///
   /// The returned future completes without waiting for the file to be
   /// downloaded.
@@ -169,8 +169,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [relativePath] is the relative path of the file on iCloud
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the percentage of
-  /// the data being downloaded.
+  /// download. It takes a Stream&lt;double&gt; as input, which is the
+  /// percentage of the data being downloaded.
   ///
   /// Returns the file contents as Uint8List, or null if the file doesn't exist
   Future<Uint8List?> downloadAndRead({
@@ -216,13 +216,13 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('writeDocument() has not been implemented.');
   }
 
-  /// Check if a document exists without downloading
+  /// Check if a file or directory exists without downloading
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file on iCloud
+  /// [relativePath] is the relative path of the item on iCloud
   ///
-  /// Returns true if the file exists, false otherwise
+  /// Returns true if the file or directory exists, false otherwise
   Future<bool> documentExists({
     required String containerId,
     required String relativePath,
@@ -230,13 +230,14 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('documentExists() has not been implemented.');
   }
 
-  /// Get document metadata without downloading content
+  /// Get file or directory metadata without downloading content
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file on iCloud
+  /// [relativePath] is the relative path of the item on iCloud
   ///
-  /// Returns metadata about the file, or null if it doesn't exist
+  /// Returns metadata about the item, or null if it doesn't exist.
+  /// The map should include `isDirectory` to distinguish directories.
   Future<Map<String, dynamic>?> getDocumentMetadata({
     required String containerId,
     required String relativePath,
