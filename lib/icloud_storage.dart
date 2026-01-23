@@ -480,10 +480,11 @@ class ICloudStorage {
     }
 
     try {
-      final files = await gather(containerId: containerId);
-      return files.any((file) => file.relativePath == relativePath);
+      return await ICloudStoragePlatform.instance.documentExists(
+        containerId: containerId,
+        relativePath: relativePath,
+      );
     } catch (e) {
-      // If we can't gather files, assume file doesn't exist
       return false;
     }
   }

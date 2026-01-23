@@ -318,15 +318,13 @@ void main() {
 
     group('metadata operations:', () {
       test('exists returns true when file is found', () async {
-        // exists() calls gather(), so we need to return some files
         fakePlatform.calls.clear();
         final exists = await ICloudStorage.exists(
           containerId: containerId,
           relativePath: 'Documents/test.pdf',
         );
-        expect(fakePlatform.calls.contains('gather'), true);
-        // Note: exists() returns false in tests because gather() returns empty list
-        expect(exists, false);
+        expect(fakePlatform.calls.contains('documentExists'), true);
+        expect(exists, true);
       });
 
       test('getMetadata returns null when file not found', () async {
