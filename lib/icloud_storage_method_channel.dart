@@ -12,7 +12,8 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
 
   @override
   Future<bool> icloudAvailable() async {
-    return await methodChannel.invokeMethod('icloudAvailable');
+    final result = await methodChannel.invokeMethod<bool>('icloudAvailable');
+    return result ?? false;
   }
 
   @override
@@ -34,11 +35,10 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       final stream = gatherEventChannel
           .receiveBroadcastStream()
           .where((event) => event is List)
-          .map<List<ICloudFile>>(
-            (event) => _mapFilesFromDynamicList(
-              List<Map<dynamic, dynamic>>.from(event),
-            ),
-          );
+          .map<List<ICloudFile>>((event) {
+        final mapList = (event as List).cast<Map<dynamic, dynamic>>();
+        return _mapFilesFromDynamicList(mapList);
+      });
 
       onUpdate(stream);
     }
@@ -120,11 +120,12 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       onProgress(stream);
     }
 
-    return await methodChannel.invokeMethod('download', {
+    final result = await methodChannel.invokeMethod<bool>('download', {
       'containerId': containerId,
       'cloudFileName': relativePath,
       'eventChannelName': eventChannelName,
     });
+    return result ?? false;
   }
 
   @override
@@ -280,7 +281,9 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
         'event',
         eventType,
         containerId,
-        ...(additionalIdentifier == null ? [] : [additionalIdentifier]),
+        ...(additionalIdentifier == null
+            ? <String>[]
+            : <String>[additionalIdentifier]),
         '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(999)}',
       ].join('/');
 }
