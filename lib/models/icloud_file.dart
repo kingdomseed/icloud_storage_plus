@@ -1,3 +1,4 @@
+/// Metadata for an iCloud file or directory.
 class ICloudFile {
   /// Constructor to create the object from the map passed from platform code
   ICloudFile.fromMap(Map<dynamic, dynamic> map)

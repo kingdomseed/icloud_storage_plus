@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:icloud_storage/icloud_storage.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
 
 String getErrorMessage(dynamic ex) {
   if (ex is PlatformException) {

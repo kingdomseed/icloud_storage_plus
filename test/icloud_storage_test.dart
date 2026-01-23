@@ -160,7 +160,7 @@ void main() {
     ICloudStoragePlatform.instance = fakePlatform;
 
     test('gather', () async {
-      expect(await ICloudStorage.gather(containerId: containerId), []);
+      expect(await ICloudStorage.gather(containerId: containerId), isEmpty);
     });
 
     group('upload tests:', () {

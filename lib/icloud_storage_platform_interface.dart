@@ -4,9 +4,10 @@ import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-/// A function-type alias takes a stream as argument and returns void
+/// A function-type alias that receives a stream of values.
 typedef StreamHandler<T> = void Function(Stream<T>);
 
+/// Platform interface for iCloud storage implementations.
 abstract class ICloudStoragePlatform extends PlatformInterface {
   /// Constructs a ICloudStoragePlatform.
   ICloudStoragePlatform() : super(token: _token);
@@ -51,6 +52,9 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('gather() has not been implemented.');
   }
 
+  /// Get the local path to the iCloud container root, if available.
+  ///
+  /// Returns null when iCloud is unavailable for the given container.
   Future<String?> getContainerPath({
     required String containerId,
   }) async {
@@ -87,8 +91,6 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// [relativePath] is the relative path of the file on iCloud, such as file1
   /// or folder/file2.
-  ///
-  /// [destinationFilePath] is the full path of the local file to be saved as.
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream&lt;double&gt; as input, which is the

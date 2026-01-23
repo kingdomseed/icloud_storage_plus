@@ -8,6 +8,8 @@ void main() {
   const channel = MethodChannel('icloud_storage');
   late MethodCall mockMethodCall;
   const containerId = 'containerId';
+  Map<String, Object?> mockArguments() =>
+      (mockMethodCall.arguments as Map).cast<String, Object?>();
 
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -71,11 +73,11 @@ void main() {
         containerId: containerId,
         onUpdate: (stream) {},
       );
-      expect(mockMethodCall.arguments['containerId'] as String, containerId);
-      expect(
-        (mockMethodCall.arguments['eventChannelName'] as String).isNotEmpty,
-        true,
-      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      final eventChannelName = args['eventChannelName'] as String?;
+      expect(eventChannelName, isNotNull);
+      expect(eventChannelName, isNotEmpty);
     });
   });
 
@@ -86,10 +88,11 @@ void main() {
         filePath: '/dir/file',
         destinationRelativePath: 'dest',
       );
-      expect(mockMethodCall.arguments['containerId'] as String, containerId);
-      expect(mockMethodCall.arguments['localFilePath'] as String, '/dir/file');
-      expect(mockMethodCall.arguments['cloudFileName'] as String, 'dest');
-      expect(mockMethodCall.arguments['eventChannelName'] as String, '');
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['localFilePath'], '/dir/file');
+      expect(args['cloudFileName'], 'dest');
+      expect(args['eventChannelName'], '');
     });
 
     test('upload with onProgress', () async {
@@ -99,10 +102,10 @@ void main() {
         destinationRelativePath: 'dest',
         onProgress: (stream) => {},
       );
-      expect(
-        (mockMethodCall.arguments['eventChannelName'] as String).isNotEmpty,
-        true,
-      );
+      final args = mockArguments();
+      final eventChannelName = args['eventChannelName'] as String?;
+      expect(eventChannelName, isNotNull);
+      expect(eventChannelName, isNotEmpty);
     });
   });
 
@@ -112,9 +115,10 @@ void main() {
         containerId: containerId,
         relativePath: 'file',
       );
-      expect(mockMethodCall.arguments['containerId'] as String, containerId);
-      expect(mockMethodCall.arguments['cloudFileName'] as String, 'file');
-      expect(mockMethodCall.arguments['eventChannelName'] as String, '');
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['cloudFileName'], 'file');
+      expect(args['eventChannelName'], '');
       expect(result, true);
     });
 
@@ -124,10 +128,10 @@ void main() {
         relativePath: 'file',
         onProgress: (stream) => {},
       );
-      expect(
-        (mockMethodCall.arguments['eventChannelName'] as String).isNotEmpty,
-        true,
-      );
+      final args = mockArguments();
+      final eventChannelName = args['eventChannelName'] as String?;
+      expect(eventChannelName, isNotNull);
+      expect(eventChannelName, isNotEmpty);
     });
   });
 
@@ -136,8 +140,9 @@ void main() {
       containerId: containerId,
       relativePath: 'file',
     );
-    expect(mockMethodCall.arguments['containerId'] as String, containerId);
-    expect(mockMethodCall.arguments['cloudFileName'] as String, 'file');
+    final args = mockArguments();
+    expect(args['containerId'], containerId);
+    expect(args['cloudFileName'], 'file');
   });
 
   test('move', () async {
@@ -146,8 +151,9 @@ void main() {
       fromRelativePath: 'from',
       toRelativePath: 'to',
     );
-    expect(mockMethodCall.arguments['containerId'] as String, containerId);
-    expect(mockMethodCall.arguments['atRelativePath'] as String, 'from');
-    expect(mockMethodCall.arguments['toRelativePath'] as String, 'to');
+    final args = mockArguments();
+    expect(args['containerId'], containerId);
+    expect(args['atRelativePath'], 'from');
+    expect(args['toRelativePath'], 'to');
   });
 }
