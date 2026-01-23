@@ -35,6 +35,7 @@
   - Initialized planning files for this task.
   - Removed Shorebird from `scripts/jules_setup.sh`.
   - Added `AGENTS.md` and aligned `CLAUDE.md` with Flutter AI rules.
+  - Synced `CLAUDE.md` and `AGENTS.md` to match `docs/rules.md` content.
 - Files created/modified:
   <!-- 
     WHAT: Which files you created or changed.
@@ -44,7 +45,7 @@
       - todos.json (created by app)
       - task_plan.md (updated)
   -->
-  - AGENTS.md (created)
+  - AGENTS.md (created, updated)
   - CLAUDE.md (updated)
   - scripts/jules_setup.sh (updated)
   - docs/plans/.active-plan (created)
