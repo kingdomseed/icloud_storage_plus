@@ -1,6 +1,6 @@
-# AGENTS.md
+# CLAUDE.md
 
-This file provides guidance to AI coding assistants that read `AGENTS.md` (for example, Cursor).
+This file provides guidance to AI coding assistants that read `CLAUDE.md` (for example, Claude Code).
 
 ## Project Overview
 
