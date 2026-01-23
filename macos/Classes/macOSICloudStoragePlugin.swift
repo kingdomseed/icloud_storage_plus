@@ -6,6 +6,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
+  private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
 
   /// Registers the plugin with the Flutter registrar.
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -848,9 +849,31 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
   
   /// Removes all observers for a metadata query.
+  private func addObserver(
+    for query: NSMetadataQuery,
+    name: Notification.Name,
+    using block: @escaping (Notification) -> Void
+  ) {
+    let token = NotificationCenter.default.addObserver(
+      forName: name,
+      object: query,
+      queue: query.operationQueue,
+      using: block
+    )
+    let key = ObjectIdentifier(query)
+    var tokens = queryObservers[key] ?? []
+    tokens.append(token)
+    queryObservers[key] = tokens
+  }
+
+  /// Removes all observers for a metadata query.
   private func removeObservers(_ query: NSMetadataQuery) {
-    NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: query)
-    NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSMetadataQueryDidUpdate, object: query)
+    let key = ObjectIdentifier(query)
+    guard let tokens = queryObservers[key] else { return }
+    for token in tokens {
+      NotificationCenter.default.removeObserver(token)
+    }
+    queryObservers.removeValue(forKey: key)
   }
   
   /// Creates and registers a stream handler for an event channel.

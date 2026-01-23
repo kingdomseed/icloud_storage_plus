@@ -29,6 +29,9 @@ Comment checklist:
 5. Min Flutter version: update CHANGELOG + pubspec to >=3.3.3.
 6. readDocument remote-only: replace fileExists guard with metadata query
    (iOS + macOS).
+7. Decide Dart 3 baseline (new min SDK + matching Flutter min) and update
+   constraints/docs if approved.
+8. Add "common recipes" section to README (requested).
 
 ### Phase 3: Implementation
 - [x] Apply changes comment-by-comment

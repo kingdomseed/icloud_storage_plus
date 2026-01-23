@@ -110,3 +110,49 @@
 - Fixed doc comment typos in `lib/icloud_storage.dart` (upload/download).
 - Updated minimum Flutter version to `>=3.3.3` in `pubspec.yaml` and
   `CHANGELOG.md` to align with Dart `>=2.18.2`.
+
+## New Unresolved Review Comments (2026-01-23)
+1) Devin — `lib/icloud_storage.dart` line ~59
+   - Unused public constants: `visibilityPrivate`, `visibilityPublic`,
+     `visibilityTemporary` are defined but unused. Suggest remove or wire into
+     API to reduce surface area.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722898230
+
+2) Devin — `ios/Classes/iOSICloudStoragePlugin.swift` lines ~382-419
+   - Potential multiple `result()` invocations because observers are registered
+     for both gather and update; race window if multiple notifications fire.
+   - Suggest guard to ensure result called once.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722899404
+
+3) Sentry — `macos/Classes/macOSICloudStoragePlugin.swift` lines ~387-390
+   - Multiple `result()` invocations possible; observers not removed after
+     first call.
+   - Suggest remove observers or guard with flag after first result.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722900064
+
+4) Devin — `macos/Classes/macOSICloudStoragePlugin.swift` lines ~350-351
+   - Missing `return` after error in startDownloadingUbiquitousItem.
+   - Note: already addressed in code, but thread remains unresolved.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722902927
+
+5) Devin — `lib/icloud_storage.dart` lines ~774-781
+   - `utf8.encode` returns `List<int>` but runtime is `Uint8List`.
+   - Comment says this is not a bug; informational.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722904022
+
+6) Devin — `ios/Classes/iOSICloudStoragePlugin.swift` lines ~840-844
+   - removeObservers uses `removeObserver(self, ...)` but observers were added
+     via closure API and should be removed by token.
+   - Applies to iOS + macOS; use stored tokens or selector-based observers.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722904804
+
+7) Devin — `ios/Classes/iOSICloudStoragePlugin.swift` lines ~382-420
+   - `download()` can invoke `result()` multiple times because query is not
+     stopped/observers not removed after result.
+   - Suggest single-shot cleanup and mirror on macOS.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722904830
+
+8) Copilot — `README.md` line ~512
+   - `upload` example lists `destinationRelativePath` as required, but API
+     allows it to be optional. Update example.
+   - URL: https://github.com/kingdomseed/icloud_storage_plus/pull/7#discussion_r2722905923
