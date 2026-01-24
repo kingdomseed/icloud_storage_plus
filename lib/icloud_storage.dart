@@ -389,6 +389,12 @@ class ICloudStorage {
       name.length > 255 ||
       RegExp(r'([:/]+)|(^[.].*$)').hasMatch(name));
 
+  static String _stripDocumentsPrefix(String path) {
+    const prefix = '$documentsDirectory/';
+    if (path == documentsDirectory) return '';
+    return path.startsWith(prefix) ? path.substring(prefix.length) : path;
+  }
+
   /// Upload a file to the Documents directory (visible in Files app)
   ///
   /// This is a convenience method that automatically prefixes the destination
@@ -399,7 +405,8 @@ class ICloudStorage {
   /// [filePath] is the full path of the local file
   ///
   /// [destinationRelativePath] is the relative path within the Documents
-  /// directory. If not specified, the local file name is used.
+  /// directory. If not specified, the local file name is used. If the path
+  /// already starts with 'Documents/', the prefix is removed automatically.
   /// Example: 'reports/2023/report.pdf' becomes 'Documents/reports/2023/report.pdf'
   ///
   /// [onProgress] is an optional callback to track upload progress
@@ -409,7 +416,13 @@ class ICloudStorage {
     String? destinationRelativePath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
-    final destination = destinationRelativePath ?? filePath.split('/').last;
+    var destination = destinationRelativePath ?? filePath.split('/').last;
+    destination = _stripDocumentsPrefix(destination);
+    if (destination.isEmpty) {
+      throw InvalidArgumentException(
+        'invalid destination relative path: $destinationRelativePath',
+      );
+    }
 
     await upload(
       containerId: containerId,
@@ -457,7 +470,8 @@ class ICloudStorage {
   /// [containerId] is the iCloud Container Id.
   ///
   /// [relativePath] is the relative path within the Documents directory
-  /// Example: 'report.pdf' becomes 'Documents/report.pdf'
+  /// Example: 'report.pdf' becomes 'Documents/report.pdf'. If the path already
+  /// starts with 'Documents/', the prefix is removed automatically.
   ///
   /// [onProgress] is an optional callback to track download progress
   static Future<bool> downloadFromDocuments({
@@ -465,9 +479,13 @@ class ICloudStorage {
     required String relativePath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
+    final normalized = _stripDocumentsPrefix(relativePath);
+    if (normalized.isEmpty) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
     return download(
       containerId: containerId,
-      relativePath: '$documentsDirectory/$relativePath',
+      relativePath: '$documentsDirectory/$normalized',
       onProgress: onProgress,
     );
   }

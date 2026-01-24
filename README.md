@@ -402,6 +402,7 @@ Future<void> uploadToDocuments({
 })
 ```
 Uploads to `Documents/` so files are visible in the Files app.
+If the path already starts with `Documents/`, the prefix is stripped.
 
 #### uploadPrivate
 ```dart
@@ -423,6 +424,7 @@ Future<bool> downloadFromDocuments({
 })
 ```
 Downloads from `Documents/` with progress callbacks.
+If the path already starts with `Documents/`, the prefix is stripped.
 
 ### Advanced Operations
 

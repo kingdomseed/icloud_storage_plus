@@ -1,10 +1,13 @@
 import 'package:equatable/equatable.dart';
+import 'package:icloud_storage_plus/models/exceptions.dart';
 
 /// Metadata for an iCloud file or directory.
 class ICloudFile extends Equatable {
-  /// Constructor to create the object from the map passed from platform code
+  /// Constructor to create the object from the map passed from platform code.
+  /// The native layer guarantees `relativePath` is always present when a map
+  /// is returned.
   ICloudFile.fromMap(Map<dynamic, dynamic> map)
-      : relativePath = map['relativePath'] as String,
+      : relativePath = _requireRelativePath(map),
         isDirectory = (map['isDirectory'] as bool?) ?? false,
         sizeInBytes = _mapToInt(map['sizeInBytes']),
         creationDate = _mapToDateTime(map['creationDate']),
@@ -50,6 +53,15 @@ class ICloudFile extends Equatable {
 
   /// Corresponding to NSMetadataUbiquitousItemHasUnresolvedConflictsKey
   final bool hasUnresolvedConflicts;
+
+  static String _requireRelativePath(Map<dynamic, dynamic> map) {
+    final value = map['relativePath'];
+    if (value is String) return value;
+    throw InvalidArgumentException(
+      'relativePath is required and must be a String '
+      '(got: ${value.runtimeType})',
+    );
+  }
 
   @override
   List<Object?> get props => [
