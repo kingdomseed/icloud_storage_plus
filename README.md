@@ -29,12 +29,14 @@ flutter pub add icloud_storage_plus
 
 ## Usage
 
+This plugin operates on your app’s iCloud container (files you write under that
+container). It does not handle external Files picked outside your container.
+
 ### Basic Example
 
 ```dart
-import 'dart:convert';
+import 'dart:io';
 import 'package:icloud_storage_plus/icloud_storage.dart';
-import 'package:flutter/services.dart';
 
 // Check iCloud availability
 final available = await ICloudStorage.icloudAvailable();
@@ -43,43 +45,26 @@ if (!available) {
   return;
 }
 
-// Write a document
-try {
-  await ICloudStorage.writeDocument(
-    containerId: 'iCloud.com.yourapp.container',
-    relativePath: 'Documents/notes.txt',
-    data: utf8.encode('My notes'),
-  );
-} on PlatformException catch (e) {
-  // Handle errors
-}
+// Prepare local file
+final localPath = '${Directory.systemTemp.path}/notes.txt';
+await File(localPath).writeAsString('My notes');
 
-// Read a document
-final bytes = await ICloudStorage.readDocument(
+// Upload to iCloud (Files app visible)
+await ICloudStorage.uploadFile(
   containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/notes.txt',
+  localPath: localPath,
+  cloudRelativePath: 'Documents/notes.txt',
 );
 
-if (bytes != null) {
-  final content = utf8.decode(bytes);
-}
-```
-
-### JSON Operations
-
-```dart
-// Write JSON
-await ICloudStorage.writeJsonDocument(
+// Download from iCloud to a local path
+final downloadPath = '${Directory.systemTemp.path}/notes-downloaded.txt';
+await ICloudStorage.downloadFile(
   containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/settings.json',
-  data: {'theme': 'dark', 'notifications': true},
+  cloudRelativePath: 'Documents/notes.txt',
+  localPath: downloadPath,
 );
 
-// Read JSON
-final data = await ICloudStorage.readJsonDocument(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/settings.json',
-);
+final content = await File(downloadPath).readAsString();
 ```
 
 ### File Operations
@@ -152,15 +137,16 @@ final size = metadata?.sizeInBytes ?? 0;  // Handle null
 
 #### 2. Directory Detection
 
-`exists()` and `getMetadata()` now return true/non-null for directories. Use `isDirectory` field to distinguish files from directories.
+`documentExists()` and `getMetadata()` return true/non-null for directories.
+Use `isDirectory` to distinguish files from directories.
 
 **Before (2.x):**
 ```dart
 // Directories returned false
-final exists = await ICloudStorage.exists(...);
+final exists = await ICloudStorage.documentExists(...);
 ```
 
-**After (3.0):**
+**After (4.0):**
 ```dart
 final metadata = await ICloudStorage.getMetadata(...);
 if (metadata != null && !metadata.isDirectory) {
@@ -177,7 +163,7 @@ import 'package:icloud_storage_plus/models/icloud_file.dart';
 
 ### Recommended Migration
 
-Replace manual file operations with document methods:
+Replace manual file operations with streaming file-path methods:
 
 **Before (2.x):**
 ```dart
@@ -187,9 +173,15 @@ final file = File('$path/Documents/file.json');
 final contents = await file.readAsString();  // Can fail with permission errors
 ```
 
-**After (3.0):**
+**After (4.0):**
 ```dart
-final data = await ICloudStorage.readJsonDocument(...);  // Safe, coordinated access
+final localPath = '${Directory.systemTemp.path}/file.json';
+await ICloudStorage.downloadFile(
+  containerId: 'iCloud.com.yourapp.container',
+  cloudRelativePath: 'Documents/file.json',
+  localPath: localPath,
+);
+final contents = await File(localPath).readAsString();
 ```
 
 ## Configuration
@@ -228,69 +220,47 @@ To make files visible in the Files app, configure `Info.plist`:
 Files must use the `Documents/` prefix to appear in Files app:
 ```dart
 // Visible in Files app
-relativePath: 'Documents/notes.txt'
+cloudRelativePath: 'Documents/notes.txt'
 
 // Hidden from Files app
-relativePath: 'cache/temp.dat'
+cloudRelativePath: 'cache/temp.dat'
 ```
+Paths outside `Documents/` still sync across devices but remain hidden from
+the Files app.
+
+**Note:** Your app’s folder won’t appear in Files/iCloud Drive until at least
+one file has been written under `Documents/`.
 
 ## API Reference
 
-### Document Operations
+### Streaming File Operations
 
-Recommended methods for most use cases. These methods handle downloading, file coordination, and conflict resolution automatically.
+These methods use file-path-only streaming with Apple’s UIDocument (iOS) and
+NSDocument (macOS) for coordinated reads/writes. No bytes cross the platform
+channel.
 
-#### readDocument
+#### uploadFile
 ```dart
-Future<Uint8List?> readDocument({
+Future<void> uploadFile({
   required String containerId,
-  required String relativePath,
+  required String localPath,
+  required String cloudRelativePath,
+  StreamHandler<ICloudTransferProgress>? onProgress,
 })
 ```
-Reads a document with automatic download if needed. Returns null if the file
-does not exist. Throws `PlatformException` with code `E_READ` if the path
-resolves to a directory.
+Streams a local file into the iCloud container. Use `Documents/` in
+`cloudRelativePath` to expose the file in Files app.
 
-#### writeDocument
+#### downloadFile
 ```dart
-Future<void> writeDocument({
+Future<void> downloadFile({
   required String containerId,
-  required String relativePath,
-  required Uint8List data,
+  required String cloudRelativePath,
+  required String localPath,
+  StreamHandler<ICloudTransferProgress>? onProgress,
 })
 ```
-Writes a document with automatic conflict resolution. Creates parent directories as needed.
-
-#### readJsonDocument
-```dart
-Future<Map<String, dynamic>?> readJsonDocument({
-  required String containerId,
-  required String relativePath,
-})
-```
-Reads and parses JSON document. Returns null if the file does not exist.
-Throws InvalidArgumentException if the JSON is invalid.
-
-#### writeJsonDocument
-```dart
-Future<void> writeJsonDocument({
-  required String containerId,
-  required String relativePath,
-  required Map<String, dynamic> data,
-})
-```
-Encodes and writes JSON document.
-
-#### updateDocument
-```dart
-Future<void> updateDocument({
-  required String containerId,
-  required String relativePath,
-  required Uint8List Function(Uint8List currentData) updater,
-})
-```
-Atomic read-modify-write operation. The updater receives current data (empty if
-the file doesn't exist) and returns new data.
+Streams a file from iCloud into a local path.
 
 #### documentExists
 ```dart
@@ -370,89 +340,6 @@ Future<void> copy({
 ```
 Copies a file.
 
-### Compatibility Helpers
-
-#### downloadAndRead
-```dart
-Future<Uint8List?> downloadAndRead({
-  required String containerId,
-  required String relativePath,
-  StreamHandler<double>? onProgress,
-})
-```
-Downloads a file with progress callbacks and then reads it safely. Throws
-`PlatformException` with `E_FNF` if the file doesn't exist.
-
-#### exists
-```dart
-Future<bool> exists({
-  required String containerId,
-  required String relativePath,
-})
-```
-Alias for `documentExists()` with path validation.
-
-### Convenience Paths
-
-#### uploadToDocuments
-```dart
-Future<void> uploadToDocuments({
-  required String containerId,
-  required String filePath,
-  String? destinationRelativePath,
-  StreamHandler<double>? onProgress,
-})
-```
-Uploads to `Documents/` so files are visible in the Files app.
-If the path already starts with `Documents/`, the prefix is stripped.
-
-#### uploadPrivate
-```dart
-Future<void> uploadPrivate({
-  required String containerId,
-  required String filePath,
-  String? destinationRelativePath,
-  StreamHandler<double>? onProgress,
-})
-```
-Uploads to the container root for app-private storage.
-
-#### downloadFromDocuments
-```dart
-Future<bool> downloadFromDocuments({
-  required String containerId,
-  required String relativePath,
-  StreamHandler<double>? onProgress,
-})
-```
-Downloads from `Documents/` with progress callbacks.
-If the path already starts with `Documents/`, the prefix is stripped.
-
-### Advanced Operations
-
-For specialized use cases requiring progress monitoring or explicit control over download/upload.
-
-#### download
-```dart
-Future<bool> download({
-  required String containerId,
-  required String relativePath,
-  StreamHandler<double>? onProgress,
-})
-```
-Downloads a file with progress callbacks. Returns true if download succeeded.
-
-#### upload
-```dart
-Future<void> upload({
-  required String containerId,
-  required String filePath,
-  String? destinationRelativePath,
-  StreamHandler<double>? onProgress,
-})
-```
-Uploads a local file to iCloud with progress callbacks.
-
 ### Utilities
 
 #### icloudAvailable
@@ -468,6 +355,8 @@ Future<String?> getContainerPath({
 })
 ```
 Returns the local container path when available. Use document APIs for access.
+Avoid direct `File()` reads/writes inside the container; use `uploadFile` and
+`downloadFile` instead.
 
 ### ICloudFile Model
 
@@ -493,10 +382,11 @@ All methods throw `PlatformException` on errors. Common codes:
 - `E_NAT` (native error)
 - `E_ARG` (invalid arguments)
 - `E_READ` (read failure)
+- `E_CANCEL` (operation canceled)
 
 ```dart
 try {
-  await ICloudStorage.writeDocument(...);
+  await ICloudStorage.uploadFile(...);
 } on PlatformException catch (e) {
   switch (e.code) {
     case PlatformExceptionCode.iCloudConnectionOrPermission:
@@ -513,6 +403,9 @@ try {
       break;
     case 'E_READ':
       // Failed to read file content
+      break;
+    case 'E_CANCEL':
+      // Operation canceled by caller
       break;
     default:
       // Other error
@@ -534,13 +427,14 @@ try {
 This plugin uses Apple's document storage APIs to provide safe, coordinated access to iCloud files:
 
 - **NSMetadataQuery**: Discovers files in iCloud container, including files that haven't been downloaded yet
-- **NSFileCoordinator**: Coordinates file access to prevent conflicts with system processes
-- **UIDocument (iOS) / NSDocument (macOS)**: Handles file reading/writing with automatic conflict resolution
+- **UIDocument (iOS) / NSDocument (macOS)**: Coordinates file access and handles conflict resolution
 - **NSUbiquitousContainerIdentifier**: Accesses app-specific iCloud container
 
 ### File Coordination
 
-Without file coordination, your app can encounter "Operation not permitted" errors (NSCocoaErrorDomain Code=257) when iCloud sync is accessing files. This plugin uses `NSFileCoordinator` with `UIDocument`/`NSDocument` to:
+Without coordinated access, your app can encounter "Operation not permitted"
+errors (NSCocoaErrorDomain Code=257) when iCloud sync is accessing files. This
+plugin relies on `UIDocument`/`NSDocument` to coordinate reads/writes and to:
 
 1. Coordinate with iCloud sync processes
 2. Handle file conflicts automatically
@@ -564,7 +458,6 @@ Without file coordination, your app can encounter "Operation not permitted" erro
 ### Apple Documentation
 
 - [NSMetadataQuery](https://developer.apple.com/documentation/foundation/nsmetadataquery)
-- [NSFileCoordinator](https://developer.apple.com/documentation/foundation/nsfilecoordinator)
 - [UIDocument](https://developer.apple.com/documentation/uikit/uidocument)
 - [NSDocument](https://developer.apple.com/documentation/appkit/nsdocument)
 - [iCloud Document Storage](https://developer.apple.com/icloud/documentation/data-storage/)
@@ -592,10 +485,14 @@ If `icloudAvailable()` returns false:
 - File path must start with `Documents/` (case-sensitive)
 - `Info.plist` must include `NSUbiquitousContainers` configuration
 - `NSUbiquitousContainerIsDocumentScopePublic` must be set to true
+- The app folder appears only after writing at least one file under
+  `Documents/`
 
 ### Permission Errors
 
-Use document methods (`readDocument`, `writeDocument`) instead of manual file access. These methods use `NSFileCoordinator` to prevent permission errors.
+Use streaming methods (`uploadFile`, `downloadFile`) instead of manual file
+access within the iCloud container. These methods coordinate access via
+UIDocument/NSDocument to prevent permission errors.
 
 ## License
 

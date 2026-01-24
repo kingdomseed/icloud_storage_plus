@@ -27,11 +27,10 @@ class _UploadState extends State<Upload> {
         _error = null;
       });
 
-      await ICloudStorage.upload(
+      await ICloudStorage.uploadFile(
         containerId: _containerIdController.text,
-        filePath: _filePathController.text,
-        destinationRelativePath:
-            _destPathController.text.isEmpty ? null : _destPathController.text,
+        localPath: _filePathController.text,
+        cloudRelativePath: _destPathController.text,
         onProgress: (stream) {
           _progressListner = stream.listen((event) {
             if (event.isProgress) {
@@ -106,7 +105,7 @@ class _UploadState extends State<Upload> {
               TextField(
                 controller: _destPathController,
                 decoration: const InputDecoration(
-                  labelText: 'destinationRelativePath (optional)',
+                  labelText: 'cloudRelativePath',
                 ),
               ),
               const SizedBox(height: 16),

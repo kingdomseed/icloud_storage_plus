@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
@@ -62,14 +60,13 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('getContainerPath() has not been implemented.');
   }
 
-  /// Upload a local file to iCloud.
+  /// Upload a local file to iCloud from a local path.
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [filePath] is the full path of the local file.
+  /// [localPath] is the full path of the local file.
   ///
-  /// [destinationRelativePath] is the relative path of the file to be stored in
-  /// iCloud.
+  /// [cloudRelativePath] is the relative path of the file in iCloud.
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage
@@ -77,21 +74,22 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud.
-  Future<void> upload({
+  Future<void> uploadFile({
     required String containerId,
-    required String filePath,
-    required String destinationRelativePath,
+    required String localPath,
+    required String cloudRelativePath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
-    throw UnimplementedError('upload() has not been implemented.');
+    throw UnimplementedError('uploadFile() has not been implemented.');
   }
 
-  /// Download a file from iCloud.
+  /// Download a file from iCloud to a local path.
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [relativePath] is the relative path of the file on iCloud, such as file1
-  /// or folder/file2.
+  /// [cloudRelativePath] is the relative path of the file on iCloud.
+
+  /// [localPath] is the full path where the file should be written locally.
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream&lt;double&gt; as input, which is the
@@ -99,12 +97,13 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// The returned future completes without waiting for the file to be
   /// downloaded.
-  Future<bool> download({
+  Future<void> downloadFile({
     required String containerId,
-    required String relativePath,
+    required String cloudRelativePath,
+    required String localPath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
-    throw UnimplementedError('download() has not been implemented.');
+    throw UnimplementedError('downloadFile() has not been implemented.');
   }
 
   /// Delete a file from iCloud container directory, whether it is been
@@ -162,61 +161,6 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     required String toRelativePath,
   }) async {
     throw UnimplementedError('copy() has not been implemented.');
-  }
-
-  /// Download a file from iCloud and safely read its contents
-  /// This method combines download and reading to prevent permission errors
-  ///
-  /// [containerId] is the iCloud Container Id.
-  ///
-  /// [relativePath] is the relative path of the file on iCloud
-  ///
-  /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage of the data being downloaded.
-  ///
-  /// Returns the file contents as Uint8List, or null if the file doesn't exist
-  Future<Uint8List?> downloadAndRead({
-    required String containerId,
-    required String relativePath,
-    StreamHandler<ICloudTransferProgress>? onProgress,
-  }) async {
-    throw UnimplementedError('downloadAndRead() has not been implemented.');
-  }
-
-  /// Read a document from iCloud using UIDocument/NSDocument
-  /// Returns null if file doesn't exist
-  ///
-  /// [containerId] is the iCloud Container Id.
-  ///
-  /// [relativePath] is the relative path of the file on iCloud
-  ///
-  /// This method provides safe, coordinated file reading that prevents
-  /// NSCocoaErrorDomain Code=257 permission errors.
-  Future<Uint8List?> readDocument({
-    required String containerId,
-    required String relativePath,
-  }) async {
-    throw UnimplementedError('readDocument() has not been implemented.');
-  }
-
-  /// Write a document to iCloud using UIDocument/NSDocument
-  /// Creates the file if it doesn't exist, updates if it does
-  ///
-  /// [containerId] is the iCloud Container Id.
-  ///
-  /// [relativePath] is the relative path of the file on iCloud
-  ///
-  /// [data] is the content to write to the file
-  ///
-  /// This method provides safe, coordinated file writing with automatic
-  /// conflict resolution and version tracking.
-  Future<void> writeDocument({
-    required String containerId,
-    required String relativePath,
-    required Uint8List data,
-  }) async {
-    throw UnimplementedError('writeDocument() has not been implemented.');
   }
 
   /// Check if a file or directory exists without downloading

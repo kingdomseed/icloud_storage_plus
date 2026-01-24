@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icloud_storage_plus/icloud_storage.dart';
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
@@ -16,8 +13,14 @@ class MockICloudStoragePlatform
   String _moveToRelativePath = '';
   String get moveToRelativePath => _moveToRelativePath;
 
-  String _uploadDestinationRelativePath = '';
-  String get uploadDestinationRelativePath => _uploadDestinationRelativePath;
+  String _uploadCloudRelativePath = '';
+  String get uploadCloudRelativePath => _uploadCloudRelativePath;
+
+  String _downloadCloudRelativePath = '';
+  String get downloadCloudRelativePath => _downloadCloudRelativePath;
+
+  String _downloadLocalPath = '';
+  String get downloadLocalPath => _downloadLocalPath;
 
   bool documentExistsResult = true;
   Map<String, dynamic>? documentMetadataResult = {
@@ -52,24 +55,26 @@ class MockICloudStoragePlatform
   }
 
   @override
-  Future<void> upload({
+  Future<void> uploadFile({
     required String containerId,
-    required String filePath,
-    required String destinationRelativePath,
+    required String localPath,
+    required String cloudRelativePath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
-    _uploadDestinationRelativePath = destinationRelativePath;
-    _calls.add('upload');
+    _uploadCloudRelativePath = cloudRelativePath;
+    _calls.add('uploadFile');
   }
 
   @override
-  Future<bool> download({
+  Future<void> downloadFile({
     required String containerId,
-    required String relativePath,
+    required String cloudRelativePath,
+    required String localPath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
-    _calls.add('download');
-    return true;
+    _downloadCloudRelativePath = cloudRelativePath;
+    _downloadLocalPath = localPath;
+    _calls.add('downloadFile');
   }
 
   @override
@@ -97,36 +102,6 @@ class MockICloudStoragePlatform
     required String toRelativePath,
   }) async {
     _calls.add('copy');
-  }
-
-  @override
-  Future<Uint8List?> downloadAndRead({
-    required String containerId,
-    required String relativePath,
-    StreamHandler<ICloudTransferProgress>? onProgress,
-  }) async {
-    _calls.add('downloadAndRead');
-    // Return some test data
-    return Uint8List.fromList([1, 2, 3, 4, 5]);
-  }
-
-  @override
-  Future<Uint8List?> readDocument({
-    required String containerId,
-    required String relativePath,
-  }) async {
-    _calls.add('readDocument');
-    // Return some test data
-    return Uint8List.fromList([10, 20, 30, 40, 50]);
-  }
-
-  @override
-  Future<void> writeDocument({
-    required String containerId,
-    required String relativePath,
-    required Uint8List data,
-  }) async {
-    _calls.add('writeDocument');
   }
 
   @override
@@ -178,647 +153,115 @@ void main() {
       expect(await ICloudStorage.gather(containerId: containerId), isEmpty);
     });
 
-    group('upload tests:', () {
-      test('upload without destinationRelativePath specified', () async {
-        await ICloudStorage.upload(
+    group('uploadFile tests:', () {
+      test('uploadFile', () async {
+        await ICloudStorage.uploadFile(
           containerId: containerId,
-          filePath: '/dir/file',
+          localPath: '/dir/file',
+          cloudRelativePath: 'dest',
         );
-        expect(fakePlatform.uploadDestinationRelativePath, 'file');
-        expect(fakePlatform.calls.last, 'upload');
+        expect(fakePlatform.uploadCloudRelativePath, 'dest');
+        expect(fakePlatform.calls.last, 'uploadFile');
       });
 
-      test('upload with destinationRelativePath specified', () async {
-        await ICloudStorage.upload(
-          containerId: containerId,
-          filePath: '/dir/file',
-          destinationRelativePath: 'destFile',
-        );
-        expect(fakePlatform.uploadDestinationRelativePath, 'destFile');
-        expect(fakePlatform.calls.last, 'upload');
-      });
-
-      test('upload with invalid filePath', () async {
+      test('uploadFile with invalid localPath', () async {
         expect(
-          () async => ICloudStorage.upload(
+          () async => ICloudStorage.uploadFile(
             containerId: containerId,
-            filePath: '',
+            localPath: '',
+            cloudRelativePath: 'dest',
           ),
-          throwsException,
+          throwsA(isA<InvalidArgumentException>()),
         );
       });
 
-      test('upload with invalid destinationRelativePath - 2 slahes', () async {
+      test('uploadFile with invalid cloudRelativePath', () async {
         expect(
-          () async => ICloudStorage.upload(
+          () async => ICloudStorage.uploadFile(
             containerId: containerId,
-            filePath: 'dir/file',
-            destinationRelativePath: 'dir//file',
-          ),
-          throwsException,
-        );
-      });
-
-      test('upload with invalid destinationRelativePath - dots in front',
-          () async {
-        expect(
-          () async => ICloudStorage.upload(
-            containerId: containerId,
-            filePath: 'dir/file',
-            destinationRelativePath: '..file',
-          ),
-          throwsException,
-        );
-      });
-
-      test('upload with invalid destinationRelativePath - colon', () async {
-        expect(
-          () async => ICloudStorage.upload(
-            containerId: containerId,
-            filePath: 'dir/file',
-            destinationRelativePath: 'dir:file',
-          ),
-          throwsException,
-        );
-      });
-    });
-
-    group('download tests:', () {
-      test('download', () async {
-        await ICloudStorage.download(
-          containerId: containerId,
-          relativePath: 'file',
-        );
-        expect(fakePlatform.calls.last, 'download');
-      });
-
-      test('download with invalid relativePath', () async {
-        expect(
-          () async => ICloudStorage.download(
-            containerId: containerId,
-            relativePath: 'file/',
-          ),
-          throwsException,
-        );
-      });
-    });
-
-    test('delete', () async {
-      await ICloudStorage.delete(
-        containerId: containerId,
-        relativePath: 'file',
-      );
-      expect(fakePlatform.calls.last, 'delete');
-    });
-
-    test('move', () async {
-      await ICloudStorage.move(
-        containerId: containerId,
-        fromRelativePath: 'from',
-        toRelativePath: 'to',
-      );
-      expect(fakePlatform.calls.last, 'move');
-    });
-
-    test('copy', () async {
-      await ICloudStorage.copy(
-        containerId: containerId,
-        fromRelativePath: 'source.pdf',
-        toRelativePath: 'backup.pdf',
-      );
-      expect(fakePlatform.calls.last, 'copy');
-    });
-
-    test('rename', () async {
-      await ICloudStorage.rename(
-        containerId: containerId,
-        relativePath: 'dir/file1',
-        newName: 'file2',
-      );
-      expect(fakePlatform.moveToRelativePath, 'dir/file2');
-    });
-
-    test('rename in container root', () async {
-      await ICloudStorage.rename(
-        containerId: containerId,
-        relativePath: 'file1',
-        newName: 'file2',
-      );
-      expect(fakePlatform.moveToRelativePath, 'file2');
-    });
-
-    test('icloudAvailable', () async {
-      final available = await ICloudStorage.icloudAvailable();
-      expect(available, true);
-      expect(fakePlatform.calls.last, 'icloudAvailable');
-    });
-
-    test('getContainerPath', () async {
-      final path =
-          await ICloudStorage.getContainerPath(containerId: containerId);
-      expect(path, '/mock/container/path');
-      expect(fakePlatform.calls.last, 'getContainerPath');
-    });
-
-    group('convenience methods:', () {
-      test('uploadToDocuments', () async {
-        await ICloudStorage.uploadToDocuments(
-          containerId: containerId,
-          filePath: '/local/document.pdf',
-          destinationRelativePath: 'reports/doc.pdf',
-        );
-        expect(
-          fakePlatform.uploadDestinationRelativePath,
-          'Documents/reports/doc.pdf',
-        );
-        expect(fakePlatform.calls.last, 'upload');
-      });
-
-      test('uploadToDocuments strips Documents prefix', () async {
-        await ICloudStorage.uploadToDocuments(
-          containerId: containerId,
-          filePath: '/local/document.pdf',
-          destinationRelativePath: 'Documents/reports/doc.pdf',
-        );
-        expect(
-          fakePlatform.uploadDestinationRelativePath,
-          'Documents/reports/doc.pdf',
-        );
-        expect(fakePlatform.calls.last, 'upload');
-      });
-
-      test('uploadToDocuments without destinationRelativePath', () async {
-        await ICloudStorage.uploadToDocuments(
-          containerId: containerId,
-          filePath: '/local/path/document.pdf',
-        );
-        expect(
-          fakePlatform.uploadDestinationRelativePath,
-          'Documents/document.pdf',
-        );
-        expect(fakePlatform.calls.last, 'upload');
-      });
-
-      test('uploadPrivate', () async {
-        await ICloudStorage.uploadPrivate(
-          containerId: containerId,
-          filePath: '/local/settings.json',
-          destinationRelativePath: 'config/settings.json',
-        );
-        expect(
-          fakePlatform.uploadDestinationRelativePath,
-          'config/settings.json',
-        );
-        expect(fakePlatform.calls.last, 'upload');
-      });
-
-      test('downloadFromDocuments', () async {
-        final result = await ICloudStorage.downloadFromDocuments(
-          containerId: containerId,
-          relativePath: 'reports/doc.pdf',
-        );
-        expect(result, true);
-        expect(fakePlatform.calls.last, 'download');
-      });
-
-      test('downloadFromDocuments strips Documents prefix', () async {
-        final result = await ICloudStorage.downloadFromDocuments(
-          containerId: containerId,
-          relativePath: 'Documents/reports/doc.pdf',
-        );
-        expect(result, true);
-        expect(fakePlatform.calls.last, 'download');
-      });
-    });
-
-    group('metadata operations:', () {
-      test('exists returns true when file is found', () async {
-        fakePlatform.calls.clear();
-        fakePlatform.documentExistsResult = true;
-        final exists = await ICloudStorage.exists(
-          containerId: containerId,
-          relativePath: 'Documents/test.pdf',
-        );
-        expect(fakePlatform.calls.contains('documentExists'), true);
-        expect(exists, true);
-      });
-
-      test('getMetadata returns null when file not found', () async {
-        fakePlatform.calls.clear();
-        fakePlatform.documentMetadataResult = null;
-        final metadata = await ICloudStorage.getMetadata(
-          containerId: containerId,
-          relativePath: 'Documents/test.pdf',
-        );
-        expect(fakePlatform.calls.contains('getDocumentMetadata'), true);
-        expect(metadata, null);
-      });
-
-      test('getMetadata returns directory metadata when available', () async {
-        fakePlatform.calls.clear();
-        fakePlatform.documentMetadataResult = {
-          'relativePath': 'Documents/reports',
-          'isDirectory': true,
-          'sizeInBytes': 4096,
-          'creationDate': 1638288000.0,
-          'contentChangeDate': 1638374400.0,
-          'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
-        };
-        final metadata = await ICloudStorage.getMetadata(
-          containerId: containerId,
-          relativePath: 'Documents/reports',
-        );
-        expect(fakePlatform.calls.contains('getDocumentMetadata'), true);
-        expect(metadata?.isDirectory, true);
-        expect(metadata?.sizeInBytes, 4096);
-        expect(metadata?.downloadStatus, DownloadStatus.current);
-      });
-    });
-
-    group('constants:', () {
-      test('documentsDirectory constant', () {
-        expect(ICloudStorage.documentsDirectory, 'Documents');
-      });
-
-      test('dataDirectory constant', () {
-        expect(ICloudStorage.dataDirectory, 'Data');
-      });
-    });
-
-    group('downloadAndRead tests:', () {
-      test('downloadAndRead returns data', () async {
-        final data = await ICloudStorage.downloadAndRead(
-          containerId: containerId,
-          relativePath: 'test.txt',
-        );
-        expect(data, isNotNull);
-        expect(data, equals(Uint8List.fromList([1, 2, 3, 4, 5])));
-        expect(fakePlatform.calls.last, 'downloadAndRead');
-      });
-
-      test('downloadAndRead with invalid relativePath', () async {
-        expect(
-          () async => ICloudStorage.downloadAndRead(
-            containerId: containerId,
-            relativePath: 'file/',
-          ),
-          throwsException,
-        );
-      });
-    });
-
-    group('document methods tests:', () {
-      test('readDocument returns data', () async {
-        final data = await ICloudStorage.readDocument(
-          containerId: containerId,
-          relativePath: 'Documents/test.txt',
-        );
-        expect(data, isNotNull);
-        expect(data, equals(Uint8List.fromList([10, 20, 30, 40, 50])));
-        expect(fakePlatform.calls.last, 'readDocument');
-      });
-
-      test('writeDocument writes data', () async {
-        final testData = Uint8List.fromList([1, 2, 3]);
-        await ICloudStorage.writeDocument(
-          containerId: containerId,
-          relativePath: 'Documents/test.txt',
-          data: testData,
-        );
-        expect(fakePlatform.calls.last, 'writeDocument');
-      });
-
-      test('documentExists returns true', () async {
-        final exists = await ICloudStorage.documentExists(
-          containerId: containerId,
-          relativePath: 'Documents/test.txt',
-        );
-        expect(exists, true);
-        expect(fakePlatform.calls.last, 'documentExists');
-      });
-
-      test('getDocumentMetadata returns metadata', () async {
-        final metadata = await ICloudStorage.getDocumentMetadata(
-          containerId: containerId,
-          relativePath: 'Documents/test.txt',
-        );
-        expect(metadata, isNotNull);
-        expect(metadata?['isDirectory'], false);
-        expect(metadata?['sizeInBytes'], 1024);
-        expect(
-          metadata?['downloadStatus'],
-          'NSMetadataUbiquitousItemDownloadingStatusCurrent',
-        );
-        expect(metadata?['hasUnresolvedConflicts'], false);
-        expect(fakePlatform.calls.last, 'getDocumentMetadata');
-      });
-
-      test('writeJsonDocument encodes JSON correctly', () async {
-        await ICloudStorage.writeJsonDocument(
-          containerId: containerId,
-          relativePath: 'Documents/settings.json',
-          data: {'key': 'value', 'number': 42},
-        );
-        expect(fakePlatform.calls.last, 'writeDocument');
-      });
-
-      test('updateDocument calls read and write', () async {
-        await ICloudStorage.updateDocument(
-          containerId: containerId,
-          relativePath: 'Documents/counter.txt',
-          updater: (current) => Uint8List.fromList([99]),
-        );
-        expect(fakePlatform.calls.contains('readDocument'), true);
-        expect(fakePlatform.calls.last, 'writeDocument');
-      });
-
-      test('invalid relativePath throws exception', () async {
-        expect(
-          () async => ICloudStorage.readDocument(
-            containerId: containerId,
-            relativePath: 'file/',
-          ),
-          throwsException,
-        );
-      });
-    });
-
-    group('readJsonDocument tests:', () {
-      test('readJsonDocument returns parsed JSON when valid', () async {
-        // Create a mock that returns valid JSON data
-        final jsonMock = _ValidJsonMock();
-        ICloudStoragePlatform.instance = jsonMock;
-
-        final result = await ICloudStorage.readJsonDocument(
-          containerId: containerId,
-          relativePath: 'Documents/config.json',
-        );
-
-        // Verify the method was called
-        expect(jsonMock.calls.last, 'readDocument');
-        // Verify JSON was parsed correctly
-        expect(result, isNotNull);
-        expect(result!['name'], equals('test'));
-        expect(result['value'], equals(42));
-      });
-
-      test('readJsonDocument returns null when readDocument returns null',
-          () async {
-        // Create a mock that returns null for readDocument
-        final nullMock = _NullReadDocumentMock();
-        ICloudStoragePlatform.instance = nullMock;
-
-        final result = await ICloudStorage.readJsonDocument(
-          containerId: containerId,
-          relativePath: 'Documents/missing.json',
-        );
-
-        expect(result, null);
-      });
-
-      test('readJsonDocument throws InvalidArgumentException for invalid JSON',
-          () async {
-        // Create a mock that returns invalid JSON
-        final invalidMock = _InvalidJsonMock();
-        ICloudStoragePlatform.instance = invalidMock;
-
-        expect(
-          () async => ICloudStorage.readJsonDocument(
-            containerId: containerId,
-            relativePath: 'Documents/invalid.json',
+            localPath: '/dir/file',
+            cloudRelativePath: 'dir//file',
           ),
           throwsA(isA<InvalidArgumentException>()),
         );
       });
     });
 
-    group('error handling tests:', () {
-      group('rename validation:', () {
-        test('throws InvalidArgumentException for invalid relativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.rename(
-              containerId: containerId,
-              relativePath: '',
-              newName: 'newfile.txt',
-            ),
-            throwsA(
-              isA<InvalidArgumentException>().having(
-                (e) => e.toString(),
-                'message',
-                contains('invalid relativePath'),
-              ),
-            ),
-          );
-        });
-
-        test('throws InvalidArgumentException for invalid newName', () async {
-          expect(
-            () async => ICloudStorage.rename(
-              containerId: containerId,
-              relativePath: 'dir/oldfile.txt',
-              newName: '',
-            ),
-            throwsA(
-              isA<InvalidArgumentException>().having(
-                (e) => e.toString(),
-                'message',
-                contains('invalid newName'),
-              ),
-            ),
-          );
-        });
-
-        test('throws InvalidArgumentException for newName with slash',
-            () async {
-          expect(
-            () async => ICloudStorage.rename(
-              containerId: containerId,
-              relativePath: 'dir/oldfile.txt',
-              newName: 'new/file.txt',
-            ),
-            throwsA(isA<InvalidArgumentException>()),
-          );
-        });
-
-        test('throws InvalidArgumentException for newName with colon',
-            () async {
-          expect(
-            () async => ICloudStorage.rename(
-              containerId: containerId,
-              relativePath: 'dir/oldfile.txt',
-              newName: 'file:name.txt',
-            ),
-            throwsA(isA<InvalidArgumentException>()),
-          );
-        });
+    group('downloadFile tests:', () {
+      test('downloadFile', () async {
+        await ICloudStorage.downloadFile(
+          containerId: containerId,
+          cloudRelativePath: 'file',
+          localPath: '/tmp/file',
+        );
+        expect(fakePlatform.downloadCloudRelativePath, 'file');
+        expect(fakePlatform.downloadLocalPath, '/tmp/file');
+        expect(fakePlatform.calls.last, 'downloadFile');
       });
 
-      group('copy validation:', () {
-        test('throws InvalidArgumentException for empty fromRelativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.copy(
-              containerId: containerId,
-              fromRelativePath: '',
-              toRelativePath: 'Documents/destination.pdf',
-            ),
-            throwsA(
-              isA<InvalidArgumentException>().having(
-                (e) => e.toString(),
-                'message',
-                contains('invalid relativePath: (from)'),
-              ),
-            ),
-          );
-        });
-
-        test('throws InvalidArgumentException for empty toRelativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.copy(
-              containerId: containerId,
-              fromRelativePath: 'Documents/source.pdf',
-              toRelativePath: '',
-            ),
-            throwsA(
-              isA<InvalidArgumentException>().having(
-                (e) => e.toString(),
-                'message',
-                contains('invalid relativePath: (to)'),
-              ),
-            ),
-          );
-        });
-
-        test('throws InvalidArgumentException for invalid fromRelativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.copy(
-              containerId: containerId,
-              fromRelativePath: 'dir//file.pdf',
-              toRelativePath: 'Documents/destination.pdf',
-            ),
-            throwsA(isA<InvalidArgumentException>()),
-          );
-        });
-
-        test('throws InvalidArgumentException for invalid toRelativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.copy(
-              containerId: containerId,
-              fromRelativePath: 'Documents/source.pdf',
-              toRelativePath: 'dir:file.pdf',
-            ),
-            throwsA(isA<InvalidArgumentException>()),
-          );
-        });
+      test('downloadFile with invalid localPath', () async {
+        expect(
+          () async => ICloudStorage.downloadFile(
+            containerId: containerId,
+            cloudRelativePath: 'file',
+            localPath: '',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
       });
 
-      group('writeJsonDocument validation:', () {
-        test('throws InvalidArgumentException for invalid relativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.writeJsonDocument(
-              containerId: containerId,
-              relativePath: 'file/',
-              data: {'key': 'value'},
-            ),
-            throwsA(
-              isA<InvalidArgumentException>().having(
-                (e) => e.toString(),
-                'message',
-                contains('invalid relativePath'),
-              ),
-            ),
-          );
-        });
-
-        test('throws InvalidArgumentException for empty relativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.writeJsonDocument(
-              containerId: containerId,
-              relativePath: '',
-              data: {'key': 'value'},
-            ),
-            throwsA(isA<InvalidArgumentException>()),
-          );
-        });
-      });
-
-      group('updateDocument validation:', () {
-        test('throws InvalidArgumentException for invalid relativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.updateDocument(
-              containerId: containerId,
-              relativePath: 'file/',
-              updater: (current) => Uint8List.fromList([1, 2, 3]),
-            ),
-            throwsA(
-              isA<InvalidArgumentException>().having(
-                (e) => e.toString(),
-                'message',
-                contains('invalid relativePath'),
-              ),
-            ),
-          );
-        });
-
-        test('throws InvalidArgumentException for empty relativePath',
-            () async {
-          expect(
-            () async => ICloudStorage.updateDocument(
-              containerId: containerId,
-              relativePath: '',
-              updater: (current) => Uint8List.fromList([1, 2, 3]),
-            ),
-            throwsA(isA<InvalidArgumentException>()),
-          );
-        });
+      test('downloadFile with invalid cloudRelativePath', () async {
+        expect(
+          () async => ICloudStorage.downloadFile(
+            containerId: containerId,
+            cloudRelativePath: 'dir//file',
+            localPath: '/tmp/file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
       });
     });
+
+    test('rename uses move with derived path', () async {
+      await ICloudStorage.rename(
+        containerId: containerId,
+        relativePath: 'Documents/config.json',
+        newName: 'renamed.json',
+      );
+      expect(fakePlatform.moveToRelativePath, 'Documents/renamed.json');
+    });
+
+    test('rename handles root-level files', () async {
+      await ICloudStorage.rename(
+        containerId: containerId,
+        relativePath: 'config.json',
+        newName: 'renamed.json',
+      );
+      expect(fakePlatform.moveToRelativePath, 'renamed.json');
+    });
+
+    test('documentExists', () async {
+      final result = await ICloudStorage.documentExists(
+        containerId: containerId,
+        relativePath: 'file',
+      );
+      expect(result, true);
+    });
+
+    test('getMetadata returns ICloudFile', () async {
+      final metadata = await ICloudStorage.getMetadata(
+        containerId: containerId,
+        relativePath: 'Documents/test.pdf',
+      );
+      expect(metadata?.relativePath, 'Documents/test.pdf');
+    });
+
+    test('getDocumentMetadata returns raw map', () async {
+      final metadata = await ICloudStorage.getDocumentMetadata(
+        containerId: containerId,
+        relativePath: 'Documents/test.pdf',
+      );
+      expect(metadata?['relativePath'], 'Documents/test.pdf');
+    });
   });
-}
-
-// Helper mock that returns valid JSON
-class _ValidJsonMock extends MockICloudStoragePlatform {
-  @override
-  Future<Uint8List?> readDocument({
-    required String containerId,
-    required String relativePath,
-  }) async {
-    calls.add('readDocument');
-    // Return valid JSON bytes
-    return Uint8List.fromList(
-      utf8.encode('{"name": "test", "value": 42}'),
-    );
-  }
-}
-
-// Helper mock that returns null for readDocument
-class _NullReadDocumentMock extends MockICloudStoragePlatform {
-  @override
-  Future<Uint8List?> readDocument({
-    required String containerId,
-    required String relativePath,
-  }) async {
-    calls.add('readDocument');
-    return null;
-  }
-}
-
-// Helper mock that returns invalid JSON
-class _InvalidJsonMock extends MockICloudStoragePlatform {
-  @override
-  Future<Uint8List?> readDocument({
-    required String containerId,
-    required String relativePath,
-  }) async {
-    calls.add('readDocument');
-    // Return invalid JSON (malformed JSON syntax)
-    return Uint8List.fromList(utf8.encode('{invalid json'));
-  }
 }

@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### BREAKING CHANGES
 
+#### Streaming-Only File Path API
+All byte-based APIs have been removed in favor of streaming file-path methods.
+This aligns with Apple’s URL/Stream tier for large files and avoids platform
+channel memory spikes.
+
+**Removed:** `upload()`, `download()`, `downloadAndRead()`, `readDocument()`,
+`writeDocument()`, JSON helpers, and convenience wrappers.
+
+**New:** `uploadFile()` and `downloadFile()` using local paths plus
+`cloudRelativePath`.
+
+**Migration:**
+1. Write data to a local file in Dart.
+2. Call `uploadFile(localPath, cloudRelativePath)`.
+3. To read, call `downloadFile(cloudRelativePath, localPath)` and read the
+   local file in Dart.
+
 #### Platform Requirements Updated
 Minimum deployment targets have been updated to match Flutter 3.10+ requirements:
 

@@ -25,10 +25,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       icloudAvailable(result)
     case "gather":
       gather(call, result)
-    case "upload":
-      upload(call, result)
-    case "download":
-      download(call, result)
+    case "uploadFile":
+      uploadFile(call, result)
+    case "downloadFile":
+      downloadFile(call, result)
     case "delete":
       delete(call, result)
     case "move":
@@ -39,12 +39,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       createEventChannel(call, result)
     case "getContainerPath":
       getContainerPath(call, result)
-    case "downloadAndRead":
-      downloadAndRead(call, result)
-    case "readDocument":
-      readDocument(call, result)
-    case "writeDocument":
-      writeDocument(call, result)
     case "documentExists":
       documentExists(call, result)
     case "getDocumentMetadata":
@@ -195,11 +189,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
   
   /// Uploads a local file into the iCloud container.
-  private func upload(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+  private func uploadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
           let localFilePath = args["localFilePath"] as? String,
-          let cloudFileName = args["cloudFileName"] as? String,
+          let cloudRelativePath = args["cloudRelativePath"] as? String,
           let eventChannelName = args["eventChannelName"] as? String
     else {
       result(argumentError)
@@ -213,12 +207,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
     
-    let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
+    let cloudFileURL = containerURL.appendingPathComponent(cloudRelativePath)
     let localFileURL = URL(fileURLWithPath: localFilePath)
 
     do {
-      let data = try Data(contentsOf: localFileURL)
-      
       // Create parent directories if needed
       let cloudFileDirURL = cloudFileURL.deletingLastPathComponent()
       if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
@@ -228,8 +220,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           attributes: nil
         )
       }
-      
-      writeDocument(at: cloudFileURL, data: data) { error in
+
+      writeDocument(at: cloudFileURL, sourceURL: localFileURL) { error in
         if let error = error {
           result(self.nativeCodeError(error))
         } else {
@@ -342,11 +334,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
-  /// Downloads a remote item, optionally reporting progress.
-  private func download(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+  /// Downloads a remote item to a local file, optionally reporting progress.
+  private func downloadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
-          let cloudFileName = args["cloudFileName"] as? String,
+          let cloudRelativePath = args["cloudRelativePath"] as? String,
+          let localFilePath = args["localFilePath"] as? String,
           let eventChannelName = args["eventChannelName"] as? String
     else {
       result(argumentError)
@@ -360,7 +353,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
     
-    let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
+    let cloudFileURL = containerURL.appendingPathComponent(cloudRelativePath)
+    let localFileURL = URL(fileURLWithPath: localFilePath)
     do {
       try FileManager.default.startDownloadingUbiquitousItem(at: cloudFileURL)
     } catch {
@@ -398,7 +392,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
     addDownloadObservers(
       query: query,
-      cloudFileURL: cloudFileURL,
+      localFileURL: localFileURL,
       eventChannelName: eventChannelName,
       completeOnce
     )
@@ -409,7 +403,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Adds observers for download progress updates.
   private func addDownloadObservers(
     query: NSMetadataQuery,
-    cloudFileURL: URL,
+    localFileURL: URL,
     eventChannelName: String,
     _ result: @escaping FlutterResult
   ) {
@@ -419,7 +413,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     ) { [self] _ in
       onDownloadQueryNotification(
         query: query,
-        cloudFileURL: cloudFileURL,
+        localFileURL: localFileURL,
         eventChannelName: eventChannelName,
         result
       )
@@ -431,7 +425,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     ) { [self] _ in
       onDownloadQueryNotification(
         query: query,
-        cloudFileURL: cloudFileURL,
+        localFileURL: localFileURL,
         eventChannelName: eventChannelName,
         result
       )
@@ -441,7 +435,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Emits download progress and completion updates.
   private func onDownloadQueryNotification(
     query: NSMetadataQuery,
-    cloudFileURL: URL,
+    localFileURL: URL,
     eventChannelName: String,
     _ result: @escaping FlutterResult
   ) {
@@ -454,7 +448,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
-      result(false)
+      result(
+        FlutterError(
+          code: "E_FNF",
+          message: "File not found in iCloud",
+          details: nil
+        )
+      )
       return
     }
     
@@ -476,296 +476,22 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     
     if fileURLValues.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      // Use NSFileCoordinator to read the file
-      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-      var coordinationError: NSError?
-      
-      fileCoordinator.coordinate(readingItemAt: fileURL, options: .withoutChanges, error: &coordinationError) { (readingURL) in
-        // File is now available for reading
+      readDocumentAt(url: fileURL, destinationURL: localFileURL) { error in
+        if let error = error {
+          streamHandler?.setEvent(nativeCodeError(error))
+          removeObservers(query)
+          query.stop()
+          removeStreamHandler(eventChannelName)
+          result(self.nativeCodeError(error))
+          return
+        }
+
         streamHandler?.setEvent(FlutterEndOfEventStream)
         removeObservers(query)
         query.stop()
         removeStreamHandler(eventChannelName)
-        result(true)
+        result(nil)
       }
-      
-      if let error = coordinationError {
-        streamHandler?.setEvent(nativeCodeError(error))
-        removeObservers(query)
-        query.stop()
-        removeStreamHandler(eventChannelName)
-        result(nativeCodeError(error))
-      }
-    }
-  }
-  
-  /// Download a file from iCloud and safely read its contents
-  /// This method combines download and reading to prevent permission errors
-  /// Downloads a file and returns its data once available.
-  private func downloadAndRead(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-    guard let args = call.arguments as? Dictionary<String, Any>,
-          let containerId = args["containerId"] as? String,
-          let cloudFileName = args["cloudFileName"] as? String,
-          let eventChannelName = args["eventChannelName"] as? String
-    else {
-      result(argumentError)
-      return
-    }
-    
-    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-    else {
-      result(containerError)
-      return
-    }
-    DebugHelper.log("downloadAndRead - containerURL: \(containerURL.path)")
-    
-    let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
-    
-    // First, start the download
-    do {
-      try FileManager.default.startDownloadingUbiquitousItem(at: cloudFileURL)
-    } catch {
-      result(nativeCodeError(error))
-      return
-    }
-    
-    // Set up a query to monitor download progress
-    let query = NSMetadataQuery.init()
-    query.operationQueue = .main
-    query.searchScopes = querySearchScopes
-    query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
-    
-    var didComplete = false
-    let completeOnce: (Any?) -> Void = { value in
-      if didComplete {
-        return
-      }
-      didComplete = true
-      result(value)
-    }
-
-    let downloadStreamHandler = self.streamHandlers[eventChannelName]
-    downloadStreamHandler?.onCancelHandler = { [self] in
-      removeObservers(query)
-      query.stop()
-      removeStreamHandler(eventChannelName)
-      completeOnce(
-        FlutterError(
-          code: "E_CANCEL",
-          message: "Download canceled",
-          details: nil
-        )
-      )
-    }
-    
-    // Add observers for download progress with content reading
-    addObserver(
-      for: query,
-      name: NSNotification.Name.NSMetadataQueryDidFinishGathering
-    ) { [weak self] _ in
-      self?.handleDownloadAndRead(
-        query: query,
-        cloudFileURL: cloudFileURL,
-        eventChannelName: eventChannelName,
-        result: completeOnce
-      )
-    }
-    
-    addObserver(
-      for: query,
-      name: NSNotification.Name.NSMetadataQueryDidUpdate
-    ) { [weak self] _ in
-      self?.handleDownloadAndRead(
-        query: query,
-        cloudFileURL: cloudFileURL,
-        eventChannelName: eventChannelName,
-        result: completeOnce
-      )
-    }
-    
-    query.start()
-  }
-  
-  /// Handle download progress and read file content when complete
-  /// Handles download-and-read query events and returns file data.
-  private func handleDownloadAndRead(
-    query: NSMetadataQuery,
-    cloudFileURL: URL,
-    eventChannelName: String,
-    result: @escaping (Any?) -> Void
-  ) {
-    if !query.isStarted {
-      return
-    }
-    let streamHandler = self.streamHandlers[eventChannelName]
-    if query.results.count == 0 {
-      streamHandler?.setEvent(FlutterEndOfEventStream)
-      removeObservers(query)
-      query.stop()
-      removeStreamHandler(eventChannelName)
-      result(
-        FlutterError(
-          code: "E_FNF",
-          message: "File not found in iCloud",
-          details: nil
-        )
-      )
-      return
-    }
-    
-    guard let fileItem = query.results.first as? NSMetadataItem,
-          let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL,
-          let fileURLValues = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingErrorKey, .ubiquitousItemDownloadingStatusKey]) else {
-      return
-    }
-    
-    // Handle download errors
-    if let error = fileURLValues.ubiquitousItemDownloadingError {
-      streamHandler?.setEvent(nativeCodeError(error))
-      streamHandler?.setEvent(FlutterEndOfEventStream)
-      result(nativeCodeError(error))
-      removeObservers(query)
-      query.stop()
-      removeStreamHandler(eventChannelName)
-      return
-    }
-    
-    // Report download progress
-    if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey) as? Double {
-      streamHandler?.setEvent(progress)
-    }
-    
-    // When download is complete, read the file using NSDocument
-    if fileURLValues.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      // Use our document wrapper to safely read the file
-      readDocumentAt(url: cloudFileURL) { [weak self] (data, error) in
-        guard let self = self else { return }
-        
-        // Clean up the query and observers
-        self.removeObservers(query)
-        query.stop()
-        streamHandler?.setEvent(FlutterEndOfEventStream)
-        self.removeStreamHandler(eventChannelName)
-        
-        if let error = error {
-          result(self.nativeCodeError(error))
-        } else if let data = data {
-          // Return the file content as FlutterStandardTypedData
-          result(FlutterStandardTypedData(bytes: data))
-        } else {
-          result(
-            FlutterError(
-              code: "E_READ",
-              message: "Failed to read file content",
-              details: nil
-            )
-          )
-        }
-      }
-    }
-  }
-  
-  /// Read a document from iCloud using NSDocument
-  /// Returns nil if file doesn't exist
-  /// Reads a document using NSDocument coordination.
-  private func readDocument(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-    guard let args = call.arguments as? Dictionary<String, Any>,
-          let containerId = args["containerId"] as? String,
-          let relativePath = args["relativePath"] as? String
-    else {
-      result(argumentError)
-      return
-    }
-    
-    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-    else {
-      result(containerError)
-      return
-    }
-    
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
-      // Check for timeout
-      if didTimeout {
-        result(self.queryTimeoutError)
-        return
-      }
-
-      guard let item = item,
-            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL
-      else {
-        result(nil) // Return nil for non-existent files or directories
-        return
-      }
-
-      if itemURL.hasDirectoryPath {
-        result(
-          FlutterError(
-            code: "E_READ",
-            message: "Cannot read directory as document",
-            details: nil,
-          ),
-        )
-        return
-      }
-      
-      // Use our NSDocument wrapper for safe reading
-      readDocumentAt(url: itemURL) { (data, error) in
-        if let error = error {
-          result(self.nativeCodeError(error))
-          return
-        }
-        
-        guard let data = data else {
-          result(nil)
-          return
-        }
-        
-        // Return as FlutterStandardTypedData
-        result(FlutterStandardTypedData(bytes: data))
-      }
-    }
-  }
-  
-  /// Write a document to iCloud using NSDocument
-  /// Creates the file if it doesn't exist, updates if it does
-  /// Writes a document using NSDocument coordination.
-  private func writeDocument(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-    guard let args = call.arguments as? Dictionary<String, Any>,
-          let containerId = args["containerId"] as? String,
-          let relativePath = args["relativePath"] as? String,
-          let flutterData = args["data"] as? FlutterStandardTypedData
-    else {
-      result(argumentError)
-      return
-    }
-    
-    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-    else {
-      result(containerError)
-      return
-    }
-    
-    let fileURL = containerURL.appendingPathComponent(relativePath)
-    let data = flutterData.data
-    
-    // Create parent directories if needed
-    let dirURL = fileURL.deletingLastPathComponent()
-    do {
-      if !FileManager.default.fileExists(atPath: dirURL.path) {
-        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: nil)
-      }
-    } catch {
-      result(nativeCodeError(error))
-      return
-    }
-    
-    // Use our NSDocument wrapper for safe writing
-    writeDocument(at: fileURL, data: data) { (error) in
-      if let error = error {
-        result(self.nativeCodeError(error))
-        return
-      }
-      result(nil)
     }
   }
   

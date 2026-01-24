@@ -32,11 +32,22 @@
     structured documents but can still be eager if fully loaded.
 - For our use case, URL/Stream tier aligns with large/rich files and avoids
   RAM spikes that can kill the app under memory pressure.
+- Sync vs visibility clarified:
+  - Any file under the ubiquity container will sync (when iCloud Drive enabled).
+  - Files are visible in Files/iCloud Drive only when placed under
+    `Documents/` **and** `NSUbiquitousContainerIsDocumentScopePublic` is true.
+  - The app’s Files folder appears only after writing at least one file
+    under `Documents/` (creating the directory alone may not surface it).
+- Access patterns:
+  - Internal container files: resolve container URL, append relative path,
+    and coordinate access (UIDocument/NSDocument handle coordination).
+  - External user-picked files are explicitly out of scope for this plugin.
 
 ## Technical Decisions
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+| File-path-only Dart API | Avoid channel serialization and duplicate in-memory buffers. |
+| Rename to uploadFile/downloadFile | Clarifies streaming-only semantics and breaks byte APIs cleanly. |
 
 ## Issues Encountered
 | Issue | Resolution |

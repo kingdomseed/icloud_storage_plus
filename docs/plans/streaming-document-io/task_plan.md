@@ -10,7 +10,7 @@ and Files app exposure without technical-debt shims or size caps.
 2. Expose files in the Files app in iCloud Drive (when enabled by the app).
 
 ## Current Phase
-Phase 2
+Phase 5
 
 ## Phases
 
@@ -21,34 +21,34 @@ Phase 2
 - **Status:** complete
 
 ### Phase 2: Planning & Structure
-- [ ] Define technical approach (single pathway, no shims)
-- [ ] Map required overrides in UIDocument/NSDocument
-- [ ] Define Dart API changes to support streaming path end-to-end
-- [ ] Define migration guide scope for breaking changes
-- [ ] Document decisions with rationale
-- **Status:** in_progress
+- [x] Define technical approach (single pathway, no shims)
+- [x] Map required overrides in UIDocument/NSDocument
+- [x] Define Dart API changes to support streaming path end-to-end
+- [x] Define migration guide scope for breaking changes
+- [x] Document decisions with rationale
+- **Status:** complete
 
 ### Phase 3: Implementation
-- [ ] Rework iOS document layer for streaming write/read
-- [ ] Rework macOS document layer for streaming write/read
-- [ ] Route upload() through the streaming document write path
-- [ ] Remove Data(contentsOf:) from upload path
-- [ ] Update Dart API + method channel to pass streaming source paths
-- [ ] Remove Data-based convenience APIs (breaking change)
-- [ ] Update README + migration guide
-- **Status:** pending
+- [x] Rework iOS document layer for streaming write/read
+- [x] Rework macOS document layer for streaming write/read
+- [x] Route upload() through the streaming document write path
+- [x] Remove Data(contentsOf:) from upload path
+- [x] Update Dart API + method channel to pass streaming source paths
+- [x] Remove Data-based convenience APIs (breaking change)
+- [x] Update README + migration guide
+- **Status:** complete
 
 ### Phase 4: Testing & Verification
-- [ ] Verify behavior on both platforms
-- [ ] Document test results in progress.md
-- [ ] Fix any issues found
-- **Status:** pending
+- [x] Verify behavior on both platforms
+- [x] Document test results in progress.md
+- [x] Fix any issues found
+- **Status:** complete
 
 ### Phase 5: Delivery
 - [ ] Review all output files
 - [ ] Ensure deliverables are complete
 - [ ] Deliver to user
-- **Status:** pending
+- **Status:** in_progress
 
 ## Key Questions
 1. Which UIDocument/NSDocument overrides allow direct streaming to URL without
@@ -62,6 +62,8 @@ Phase 2
 | Decision | Rationale |
 |----------|-----------|
 | Use URL/Stream tier only (no Data tier) | Align with Apple’s pro-path; avoids RAM spikes and meets streaming-only requirement. |
+| File-path-only Dart API | Avoid platform channel serialization and duplicate memory usage. |
+| Rename API to uploadFile/downloadFile | Make streaming path explicit and remove ambiguous byte APIs. |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

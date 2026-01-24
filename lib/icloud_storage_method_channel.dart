@@ -65,16 +65,16 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   }
 
   @override
-  Future<void> upload({
+  Future<void> uploadFile({
     required String containerId,
-    required String filePath,
-    required String destinationRelativePath,
+    required String localPath,
+    required String cloudRelativePath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     var eventChannelName = '';
 
     if (onProgress != null) {
-      eventChannelName = _generateEventChannelName('upload', containerId);
+      eventChannelName = _generateEventChannelName('uploadFile', containerId);
 
       await methodChannel.invokeMethod(
         'createEventChannel',
@@ -87,24 +87,25 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       onProgress(stream);
     }
 
-    await methodChannel.invokeMethod('upload', {
+    await methodChannel.invokeMethod('uploadFile', {
       'containerId': containerId,
-      'localFilePath': filePath,
-      'cloudFileName': destinationRelativePath,
+      'localFilePath': localPath,
+      'cloudRelativePath': cloudRelativePath,
       'eventChannelName': eventChannelName,
     });
   }
 
   @override
-  Future<bool> download({
+  Future<void> downloadFile({
     required String containerId,
-    required String relativePath,
+    required String cloudRelativePath,
+    required String localPath,
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     var eventChannelName = '';
 
     if (onProgress != null) {
-      eventChannelName = _generateEventChannelName('download', containerId);
+      eventChannelName = _generateEventChannelName('downloadFile', containerId);
 
       await methodChannel.invokeMethod(
         'createEventChannel',
@@ -117,12 +118,12 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       onProgress(stream);
     }
 
-    final result = await methodChannel.invokeMethod<bool>('download', {
+    await methodChannel.invokeMethod('downloadFile', {
       'containerId': containerId,
-      'cloudFileName': relativePath,
+      'cloudRelativePath': cloudRelativePath,
+      'localFilePath': localPath,
       'eventChannelName': eventChannelName,
     });
-    return result ?? false;
   }
 
   @override
@@ -159,65 +160,6 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       'containerId': containerId,
       'fromRelativePath': fromRelativePath,
       'toRelativePath': toRelativePath,
-    });
-  }
-
-  @override
-  Future<Uint8List?> downloadAndRead({
-    required String containerId,
-    required String relativePath,
-    StreamHandler<ICloudTransferProgress>? onProgress,
-  }) async {
-    var eventChannelName = '';
-
-    if (onProgress != null) {
-      eventChannelName =
-          _generateEventChannelName('downloadAndRead', containerId);
-
-      await methodChannel.invokeMethod(
-        'createEventChannel',
-        {'eventChannelName': eventChannelName},
-      );
-
-      final downloadEventChannel = EventChannel(eventChannelName);
-      final stream = _receiveTransferProgressStream(downloadEventChannel);
-
-      onProgress(stream);
-    }
-
-    final result =
-        await methodChannel.invokeMethod<Uint8List?>('downloadAndRead', {
-      'containerId': containerId,
-      'cloudFileName': relativePath,
-      'eventChannelName': eventChannelName,
-    });
-
-    return result;
-  }
-
-  @override
-  Future<Uint8List?> readDocument({
-    required String containerId,
-    required String relativePath,
-  }) async {
-    final result =
-        await methodChannel.invokeMethod<Uint8List?>('readDocument', {
-      'containerId': containerId,
-      'relativePath': relativePath,
-    });
-    return result;
-  }
-
-  @override
-  Future<void> writeDocument({
-    required String containerId,
-    required String relativePath,
-    required Uint8List data,
-  }) async {
-    await methodChannel.invokeMethod('writeDocument', {
-      'containerId': containerId,
-      'relativePath': relativePath,
-      'data': data,
     });
   }
 
