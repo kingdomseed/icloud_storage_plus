@@ -215,72 +215,36 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     
     let cloudFileURL = containerURL.appendingPathComponent(cloudFileName)
     let localFileURL = URL(fileURLWithPath: localFilePath)
-    
-    // Check if this is a text file that should use document-based approach
-    let fileExtension = (cloudFileName as NSString).pathExtension.lowercased()
-    let textExtensions = ["json", "txt", "xml", "plist", "yaml", "yml", "md", "log", "csv", "js", "ts", "jsx", "tsx", "swift", "dart", "py", "rb", "java", "kt", "go", "rs", "c", "cpp", "h", "hpp", "m", "mm", "sh", "bash", "zsh", "fish"]
-    
-    if textExtensions.contains(fileExtension) {
-      // Use document-based approach for text files for better conflict resolution
-      do {
-        let data = try Data(contentsOf: localFileURL)
-        
-        // Create parent directories if needed
-        let cloudFileDirURL = cloudFileURL.deletingLastPathComponent()
-        if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
-          try FileManager.default.createDirectory(at: cloudFileDirURL, withIntermediateDirectories: true, attributes: nil)
-        }
-        
-        writeDocument(at: cloudFileURL, data: data) { error in
-          if let error = error {
-            result(self.nativeCodeError(error))
-          } else {
-            // Set up progress monitoring if needed
-            if !eventChannelName.isEmpty {
-              self.setupUploadProgressMonitoring(cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
-            }
-            result(nil)
-          }
-        }
-      } catch {
-        result(nativeCodeError(error))
-      }
-    } else {
-      // Use file coordinator for binary files (images, videos, etc.)
-      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-      var coordinationError: NSError?
+
+    do {
+      let data = try Data(contentsOf: localFileURL)
       
-      fileCoordinator.coordinate(writingItemAt: cloudFileURL, options: .forReplacing, error: &coordinationError) { writingURL in
-        do {
-          // Create parent directories if needed
-          let cloudFileDirURL = writingURL.deletingLastPathComponent()
-          if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
-            try FileManager.default.createDirectory(at: cloudFileDirURL, withIntermediateDirectories: true, attributes: nil)
-          }
-          
-          // Remove existing file if it exists
-          if FileManager.default.fileExists(atPath: writingURL.path) {
-            try FileManager.default.removeItem(at: writingURL)
-          }
-          
-          // Copy the file to iCloud
-          try FileManager.default.copyItem(at: localFileURL, to: writingURL)
-        } catch {
+      // Create parent directories if needed
+      let cloudFileDirURL = cloudFileURL.deletingLastPathComponent()
+      if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
+        try FileManager.default.createDirectory(
+          at: cloudFileDirURL,
+          withIntermediateDirectories: true,
+          attributes: nil
+        )
+      }
+      
+      writeDocument(at: cloudFileURL, data: data) { error in
+        if let error = error {
           result(self.nativeCodeError(error))
+        } else {
+          // Set up progress monitoring if needed
+          if !eventChannelName.isEmpty {
+            self.setupUploadProgressMonitoring(
+              cloudFileURL: cloudFileURL,
+              eventChannelName: eventChannelName
+            )
+          }
+          result(nil)
         }
       }
-      
-      if let error = coordinationError {
-        result(nativeCodeError(error))
-        return
-      }
-      
-      // Set up progress monitoring if needed
-      if !eventChannelName.isEmpty {
-        self.setupUploadProgressMonitoring(cloudFileURL: cloudFileURL, eventChannelName: eventChannelName)
-      }
-      
-      result(nil)
+    } catch {
+      result(nativeCodeError(error))
     }
   }
   
