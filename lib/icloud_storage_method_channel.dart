@@ -133,7 +133,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   }) async {
     await methodChannel.invokeMethod('delete', {
       'containerId': containerId,
-      'cloudFileName': relativePath,
+      'relativePath': relativePath,
     });
   }
 

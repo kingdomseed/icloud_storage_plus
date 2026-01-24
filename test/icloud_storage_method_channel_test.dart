@@ -2,12 +2,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
+import 'package:icloud_storage_plus/models/transfer_progress.dart';
 
 void main() {
   final platform = MethodChannelICloudStorage();
   const channel = MethodChannel('icloud_storage_plus');
   late MethodCall mockMethodCall;
   const containerId = 'containerId';
+  MockStreamHandler? mockStreamHandler;
+  String? lastEventChannelName;
   Map<String, Object?> mockArguments() =>
       (mockMethodCall.arguments as Map).cast<String, Object?>();
 
@@ -18,6 +21,15 @@ void main() {
         .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
       mockMethodCall = methodCall;
       switch (methodCall.method) {
+        case 'createEventChannel':
+          final args = mockArguments();
+          lastEventChannelName = args['eventChannelName'] as String?;
+          if (lastEventChannelName != null && mockStreamHandler != null) {
+            final eventChannel = EventChannel(lastEventChannelName!);
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+                .setMockStreamHandler(eventChannel, mockStreamHandler);
+          }
+          return null;
         case 'gather':
           return [
             {
@@ -54,6 +66,13 @@ void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
+    if (lastEventChannelName != null) {
+      final eventChannel = EventChannel(lastEventChannelName!);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockStreamHandler(eventChannel, null);
+      lastEventChannelName = null;
+    }
+    mockStreamHandler = null;
   });
 
   group('gather tests:', () {
@@ -76,6 +95,33 @@ void main() {
       expect(file.isUploading, false);
       expect(file.isUploaded, false);
       expect(file.hasUnresolvedConflicts, false);
+    });
+
+    test('directory paths should not have trailing slashes', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        if (methodCall.method == 'gather') {
+          return [
+            {
+              'relativePath': 'Documents/folder',
+              'isDirectory': true,
+              'sizeInBytes': null,
+            }
+          ];
+        }
+        return null;
+      });
+
+      final files = await platform.gather(containerId: containerId);
+      final directory = files.first;
+
+      expect(directory.isDirectory, true);
+      expect(directory.relativePath, 'Documents/folder');
+      expect(
+        directory.relativePath.endsWith('/'),
+        false,
+        reason: 'Directory paths should not have trailing slashes',
+      );
     });
 
     test('gather with update', () async {
@@ -147,6 +193,69 @@ void main() {
     });
   });
 
+  group('transfer progress stream tests:', () {
+    test('maps numeric events and completion', () async {
+      mockStreamHandler = MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+          events
+            ..success(0.25)
+            ..success(1.0)
+            ..endOfStream();
+        },
+      );
+
+      late Stream<ICloudTransferProgress> progressStream;
+
+      await platform.uploadFile(
+        containerId: containerId,
+        localPath: '/dir/file',
+        cloudRelativePath: 'dest',
+        onProgress: (stream) {
+          progressStream = stream;
+        },
+      );
+
+      final events = await progressStream.toList();
+      expect(events, hasLength(3));
+      expect(events[0].isProgress, isTrue);
+      expect(events[0].percent, 0.25);
+      expect(events[1].isProgress, isTrue);
+      expect(events[1].percent, 1.0);
+      expect(events[2].isDone, isTrue);
+    });
+
+    test('maps error events to error progress', () async {
+      mockStreamHandler = MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+          events.error(
+            code: 'E_TEST',
+            message: 'Boom',
+            details: 'details',
+          );
+        },
+      );
+
+      late Stream<ICloudTransferProgress> progressStream;
+
+      await platform.downloadFile(
+        containerId: containerId,
+        cloudRelativePath: 'file',
+        localPath: '/tmp/file',
+        onProgress: (stream) {
+          progressStream = stream;
+        },
+      );
+
+      final events = await progressStream.toList();
+      expect(events, hasLength(1));
+      final event = events.first;
+      expect(event.isError, isTrue);
+      expect(event.exception?.code, 'E_TEST');
+      expect(event.exception?.message, 'Boom');
+      expect(event.exception?.details, 'details');
+    });
+  });
+
   test('delete', () async {
     await platform.delete(
       containerId: containerId,
@@ -154,7 +263,7 @@ void main() {
     );
     final args = mockArguments();
     expect(args['containerId'], containerId);
-    expect(args['cloudFileName'], 'file');
+    expect(args['relativePath'], 'file');
   });
 
   test('move', () async {

@@ -19,6 +19,12 @@ class PlatformExceptionCode {
   /// The code indicates file not found
   static const String fileNotFound = 'E_FNF';
 
+  /// The code indicates file not found during a read operation
+  static const String fileNotFoundRead = 'E_FNF_READ';
+
+  /// The code indicates file not found during a write operation
+  static const String fileNotFoundWrite = 'E_FNF_WRITE';
+
   /// The code indicates other error from native code
   static const String nativeCodeError = 'E_NAT';
 

@@ -9,6 +9,16 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
   private let queryMetadataItemTimeoutSeconds = 30
   private let queryMetadataItemWarningSeconds = 10
+  private let fileNotFoundReadError = FlutterError(
+    code: "E_FNF_READ",
+    message: "The file could not be read because it does not exist",
+    details: nil
+  )
+  private let fileNotFoundWriteError = FlutterError(
+    code: "E_FNF_WRITE",
+    message: "The file could not be written because it does not exist",
+    details: nil
+  )
 
   /// Registers the plugin with the Flutter registrar.
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -187,6 +197,10 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     if relative.hasPrefix("/") {
       relative.removeFirst()
     }
+    // Remove trailing slash for directories to ensure Dart validation passes
+    if relative.hasSuffix("/") {
+      relative.removeLast()
+    }
     return relative
   }
   
@@ -268,9 +282,8 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     addObserver(
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
-    ) { [self] notification in
+    ) { [self] _ in
       onUploadQueryNotification(
-        notification: notification,
         query: query,
         eventChannelName: eventChannelName
       )
@@ -279,9 +292,8 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     addObserver(
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidUpdate
-    ) { [self] notification in
+    ) { [self] _ in
       onUploadQueryNotification(
-        notification: notification,
         query: query,
         eventChannelName: eventChannelName
       )
@@ -290,7 +302,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   
   /// Emits upload progress updates to the event channel.
   private func onUploadQueryNotification(
-    notification: Notification,
     query: NSMetadataQuery,
     eventChannelName: String
   ) {
@@ -299,15 +310,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     if query.results.count == 0 {
-      // `NSMetadataQuery` can send update notifications with no results while the
-      // query is still gathering. Only treat it as terminal when the initial
-      // gathering finished and we still have no match.
-      if notification.name == NSNotification.Name.NSMetadataQueryDidFinishGathering {
-        self.streamHandlers[eventChannelName]?.setEvent(FlutterEndOfEventStream)
-        removeObservers(query)
-        query.stop()
-        removeStreamHandler(eventChannelName)
-      }
       return
     }
     
@@ -360,14 +362,10 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     do {
       try FileManager.default.startDownloadingUbiquitousItem(at: cloudFileURL)
     } catch {
-      result(nativeCodeError(error))
+      let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+      result(mapped)
       return
     }
-    
-    let query = NSMetadataQuery.init()
-    query.operationQueue = .main
-    query.searchScopes = querySearchScopes
-    query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
     
     var didComplete = false
     let completeOnce: (Any?) -> Void = { value in
@@ -378,10 +376,26 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       result(value)
     }
 
+    let query: NSMetadataQuery? = eventChannelName.isEmpty
+      ? nil
+      : {
+          let query = NSMetadataQuery()
+          query.operationQueue = .main
+          query.searchScopes = querySearchScopes
+          query.predicate = NSPredicate(
+            format: "%K == %@",
+            NSMetadataItemPathKey,
+            cloudFileURL.path
+          )
+          return query
+        }()
+
     let downloadStreamHandler = self.streamHandlers[eventChannelName]
     downloadStreamHandler?.onCancelHandler = { [self] in
-      removeObservers(query)
-      query.stop()
+      if let query {
+        removeObservers(query)
+        query.stop()
+      }
       removeStreamHandler(eventChannelName)
       completeOnce(
         FlutterError(
@@ -392,32 +406,51 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       )
     }
 
-    addDownloadObservers(
-      query: query,
-      localFileURL: localFileURL,
-      eventChannelName: eventChannelName,
-      completeOnce
-    )
-    
-    query.start()
+    if let query {
+      addDownloadObservers(
+        query: query,
+        eventChannelName: eventChannelName
+      )
+      query.start()
+    }
+
+    readDocumentAt(url: cloudFileURL, destinationURL: localFileURL) { [self] error in
+      if let error = error {
+        let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+        downloadStreamHandler?.setEvent(mapped)
+        downloadStreamHandler?.setEvent(FlutterEndOfEventStream)
+        if let query {
+          removeObservers(query)
+          query.stop()
+        }
+        removeStreamHandler(eventChannelName)
+        completeOnce(mapped)
+        return
+      }
+
+      downloadStreamHandler?.setEvent(100.0)
+      downloadStreamHandler?.setEvent(FlutterEndOfEventStream)
+      if let query {
+        removeObservers(query)
+        query.stop()
+      }
+      removeStreamHandler(eventChannelName)
+      completeOnce(nil)
+    }
   }
   
   /// Adds observers for download progress updates.
   private func addDownloadObservers(
     query: NSMetadataQuery,
-    localFileURL: URL,
-    eventChannelName: String,
-    _ result: @escaping FlutterResult
+    eventChannelName: String
   ) {
     addObserver(
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
-      onDownloadQueryNotification(
+      emitDownloadProgress(
         query: query,
-        localFileURL: localFileURL,
-        eventChannelName: eventChannelName,
-        result
+        eventChannelName: eventChannelName
       )
     }
     
@@ -425,75 +458,25 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidUpdate
     ) { [self] _ in
-      onDownloadQueryNotification(
+      emitDownloadProgress(
         query: query,
-        localFileURL: localFileURL,
-        eventChannelName: eventChannelName,
-        result
+        eventChannelName: eventChannelName
       )
     }
   }
   
-  /// Emits download progress and completion updates.
-  private func onDownloadQueryNotification(
+  /// Emits download progress updates.
+  private func emitDownloadProgress(
     query: NSMetadataQuery,
-    localFileURL: URL,
-    eventChannelName: String,
-    _ result: @escaping FlutterResult
+    eventChannelName: String
   ) {
     if !query.isStarted {
       return
     }
     let streamHandler = self.streamHandlers[eventChannelName]
-    if query.results.count == 0 {
-      streamHandler?.setEvent(FlutterEndOfEventStream)
-      removeObservers(query)
-      query.stop()
-      removeStreamHandler(eventChannelName)
-      result(
-        FlutterError(
-          code: "E_FNF",
-          message: "File not found in iCloud",
-          details: nil
-        )
-      )
-      return
-    }
-    
     guard let fileItem = query.results.first as? NSMetadataItem else { return }
-    guard let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else { return }
-    guard let fileURLValues = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingErrorKey, .ubiquitousItemDownloadingStatusKey]) else { return }
-    if let error = fileURLValues.ubiquitousItemDownloadingError {
-      streamHandler?.setEvent(nativeCodeError(error))
-      streamHandler?.setEvent(FlutterEndOfEventStream)
-      removeObservers(query)
-      query.stop()
-      removeStreamHandler(eventChannelName)
-      result(nativeCodeError(error))
-      return
-    }
-    
     if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey) as? Double {
       streamHandler?.setEvent(progress)
-    }
-    
-    if fileURLValues.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      readDocumentAt(url: fileURL, destinationURL: localFileURL) { error in
-        if let error = error {
-          streamHandler?.setEvent(nativeCodeError(error))
-          removeObservers(query)
-          query.stop()
-          removeStreamHandler(eventChannelName)
-          result(self.nativeCodeError(error))
-          return
-        }
-
-        streamHandler?.setEvent(FlutterEndOfEventStream)
-        removeObservers(query)
-        query.stop()
-        removeStreamHandler(eventChannelName)
-        result(nil)
-      }
     }
   }
   
@@ -655,7 +638,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   private func delete(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
-          let cloudFileName = args["cloudFileName"] as? String
+          let relativePath = args["relativePath"] as? String
     else {
       result(argumentError)
       return
@@ -668,7 +651,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
 
-    queryMetadataItem(containerURL: containerURL, relativePath: cloudFileName) { item, didTimeout in
+    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
       // Check for timeout
       if didTimeout {
         result(self.queryTimeoutError)
@@ -886,6 +869,23 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
   let queryTimeoutError = FlutterError(code: "E_TIMEOUT", message: "Metadata query operation timed out after 30 seconds", details: nil)
   let initializationError = FlutterError(code: "E_INIT", message: "Plugin not properly initialized", details: nil)
+
+  /// Maps file-not-found errors to specific Flutter error codes.
+  private func mapFileNotFoundError(_ error: Error) -> FlutterError? {
+    let nsError = error as NSError
+    guard nsError.domain == NSCocoaErrorDomain else { return nil }
+
+    switch nsError.code {
+    case NSFileNoSuchFileError:
+      return fileNotFoundError
+    case NSFileReadNoSuchFileError:
+      return fileNotFoundReadError
+    case NSFileWriteNoSuchFileError:
+      return fileNotFoundWriteError
+    default:
+      return nil
+    }
+  }
 
   /// Wraps a native Error into a FlutterError.
   private func nativeCodeError(_ error: Error) -> FlutterError {

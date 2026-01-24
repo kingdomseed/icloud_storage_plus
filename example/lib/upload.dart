@@ -16,7 +16,7 @@ class _UploadState extends State<Upload> {
   final _containerIdController = TextEditingController();
   final _filePathController = TextEditingController();
   final _destPathController = TextEditingController();
-  StreamSubscription<ICloudTransferProgress>? _progressListner;
+  StreamSubscription<ICloudTransferProgress>? _progressListener;
   String? _error;
   String? _progress;
 
@@ -32,7 +32,7 @@ class _UploadState extends State<Upload> {
         localPath: _filePathController.text,
         cloudRelativePath: _destPathController.text,
         onProgress: (stream) {
-          _progressListner = stream.listen((event) {
+          _progressListener = stream.listen((event) {
             if (event.isProgress) {
               setState(() {
                 _progress = 'Upload Progress: ${event.percent}';
@@ -72,7 +72,7 @@ class _UploadState extends State<Upload> {
 
   @override
   void dispose() {
-    _progressListner?.cancel();
+    _progressListener?.cancel();
     _containerIdController.dispose();
     _filePathController.dispose();
     _destPathController.dispose();

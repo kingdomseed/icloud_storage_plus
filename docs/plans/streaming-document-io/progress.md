@@ -16,6 +16,14 @@
   - Captured access/visibility and security-scoped considerations in findings.
   - Updated README to align with sync/visibility and coordination rules.
   - Fixed gather(onUpdate) observers to keep update notifications alive.
+  - Aligned delete argument key with relativePath in native handlers/tests.
+  - Removed download metadata timers and made document reads authoritative.
+  - Limited NSMetadataQuery to download progress only.
+  - Kept upload progress query open on empty results to avoid premature close.
+  - Added file-not-found error variants and documented download flow.
+  - Added transfer progress stream tests for numeric, error, and done events.
+  - Renamed example progress listener field for clarity.
+  - Ran dart format and flutter test.
 - Files created/modified:
   - docs/plans/streaming-document-io/task_plan.md
   - docs/plans/streaming-document-io/findings.md
@@ -28,6 +36,8 @@
   - macos/Classes/ICloudDocument.swift
   - ios/Classes/iOSICloudStoragePlugin.swift
   - macos/Classes/macOSICloudStoragePlugin.swift
+  - lib/models/exceptions.dart
+  - docs/download-flow.md
   - test/icloud_storage_method_channel_test.dart
   - test/icloud_storage_test.dart
   - example/lib/upload.dart

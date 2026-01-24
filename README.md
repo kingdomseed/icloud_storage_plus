@@ -379,6 +379,8 @@ comparisons predictable.
 All methods throw `PlatformException` on errors. Common codes:
 - `E_CTR` (iCloud container/permission issues)
 - `E_FNF` (file not found)
+- `E_FNF_READ` (file not found during read)
+- `E_FNF_WRITE` (file not found during write)
 - `E_NAT` (native error)
 - `E_ARG` (invalid arguments)
 - `E_READ` (read failure)
@@ -394,6 +396,12 @@ try {
       break;
     case PlatformExceptionCode.fileNotFound:
       // File does not exist in iCloud
+      break;
+    case PlatformExceptionCode.fileNotFoundRead:
+      // File not found during read
+      break;
+    case PlatformExceptionCode.fileNotFoundWrite:
+      // File not found during write
       break;
     case PlatformExceptionCode.nativeCodeError:
       // Underlying native error

@@ -16,7 +16,7 @@ class _DownloadState extends State<Download> {
   final _containerIdController = TextEditingController();
   final _cloudPathController = TextEditingController();
   final _localPathController = TextEditingController();
-  StreamSubscription<ICloudTransferProgress>? _progressListner;
+  StreamSubscription<ICloudTransferProgress>? _progressListener;
   String? _error;
   String? _progress;
 
@@ -32,7 +32,7 @@ class _DownloadState extends State<Download> {
         cloudRelativePath: _cloudPathController.text,
         localPath: _localPathController.text,
         onProgress: (stream) {
-          _progressListner = stream.listen((event) {
+          _progressListener = stream.listen((event) {
             if (event.isProgress) {
               setState(() {
                 _progress = 'Download Progress: ${event.percent}';
@@ -72,7 +72,7 @@ class _DownloadState extends State<Download> {
 
   @override
   void dispose() {
-    _progressListner?.cancel();
+    _progressListener?.cancel();
     _containerIdController.dispose();
     _cloudPathController.dispose();
     _localPathController.dispose();

@@ -18,6 +18,11 @@ export 'models/transfer_progress.dart';
 /// This API never moves raw bytes over the platform channel. All operations
 /// reference local file paths to avoid memory spikes and IPC limits.
 ///
+/// ## Document IO Tier Rationale
+/// The plugin uses the URL-tier document APIs (`UIDocument`/`NSDocument`) so
+/// reads and writes are coordinated with iCloud and can stream efficiently
+/// for large files.
+///
 /// ## iCloud Storage Locations
 /// - **Container Root**: Syncs across devices but not visible in Files app.
 /// - **Documents/**: Visible in Files app.
