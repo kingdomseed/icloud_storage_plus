@@ -373,14 +373,34 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
     
+    var didComplete = false
+    let completeOnce: (Any?) -> Void = { value in
+      if didComplete {
+        return
+      }
+      didComplete = true
+      result(value)
+    }
+
     let downloadStreamHandler = self.streamHandlers[eventChannelName]
     downloadStreamHandler?.onCancelHandler = { [self] in
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
+      completeOnce(
+        FlutterError(
+          code: "E_CANCEL",
+          message: "Download canceled",
+          details: nil
+        )
+      )
     }
 
-    addDownloadObservers(query: query, eventChannelName: eventChannelName, result)
+    addDownloadObservers(
+      query: query,
+      eventChannelName: eventChannelName,
+      completeOnce
+    )
     
     query.start()
   }
@@ -391,19 +411,31 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
-      onDownloadQueryNotification(query: query, eventChannelName: eventChannelName, result)
+      onDownloadQueryNotification(
+        query: query,
+        eventChannelName: eventChannelName,
+        result
+      )
     }
     
     addObserver(
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidUpdate
     ) { [self] _ in
-      onDownloadQueryNotification(query: query, eventChannelName: eventChannelName, result)
+      onDownloadQueryNotification(
+        query: query,
+        eventChannelName: eventChannelName,
+        result
+      )
     }
   }
   
   /// Emits download progress and completion updates.
-  private func onDownloadQueryNotification(query: NSMetadataQuery, eventChannelName: String, _ result: @escaping FlutterResult) {
+  private func onDownloadQueryNotification(
+    query: NSMetadataQuery,
+    eventChannelName: String,
+    _ result: @escaping FlutterResult
+  ) {
     if !query.isStarted {
       return
     }
@@ -494,11 +526,27 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
     
+    var didComplete = false
+    let completeOnce: (Any?) -> Void = { value in
+      if didComplete {
+        return
+      }
+      didComplete = true
+      result(value)
+    }
+
     let downloadStreamHandler = self.streamHandlers[eventChannelName]
     downloadStreamHandler?.onCancelHandler = { [self] in
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
+      completeOnce(
+        FlutterError(
+          code: "E_CANCEL",
+          message: "Download canceled",
+          details: nil
+        )
+      )
     }
     
     // Add observers for download progress with content reading
@@ -510,7 +558,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
         query: query,
         cloudFileURL: cloudFileURL,
         eventChannelName: eventChannelName,
-        result: result
+        result: completeOnce
       )
     }
     
@@ -522,7 +570,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
         query: query,
         cloudFileURL: cloudFileURL,
         eventChannelName: eventChannelName,
-        result: result
+        result: completeOnce
       )
     }
     
@@ -531,7 +579,12 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   
   /// Handle download progress and read file content when complete
   /// Handles download-and-read query events and returns file data.
-  private func handleDownloadAndRead(query: NSMetadataQuery, cloudFileURL: URL, eventChannelName: String, result: @escaping FlutterResult) {
+  private func handleDownloadAndRead(
+    query: NSMetadataQuery,
+    cloudFileURL: URL,
+    eventChannelName: String,
+    result: @escaping (Any?) -> Void
+  ) {
     if !query.isStarted {
       return
     }
@@ -541,7 +594,13 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       removeObservers(query)
       query.stop()
       removeStreamHandler(eventChannelName)
-      result(FlutterError(code: "E_FNF", message: "File not found in iCloud", details: nil))
+      result(
+        FlutterError(
+          code: "E_FNF",
+          message: "File not found in iCloud",
+          details: nil
+        )
+      )
       return
     }
     
@@ -585,7 +644,13 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
           // Return the file content as FlutterStandardTypedData
           result(FlutterStandardTypedData(bytes: data))
         } else {
-          result(FlutterError(code: "E_READ", message: "Failed to read file content", details: nil))
+          result(
+            FlutterError(
+              code: "E_READ",
+              message: "Failed to read file content",
+              details: nil
+            )
+          )
         }
       }
     }
