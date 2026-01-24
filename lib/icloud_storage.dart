@@ -365,12 +365,14 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid newName: $newName');
     }
 
+    final lastSlash = relativePath.lastIndexOf('/');
+    final directory =
+        lastSlash == -1 ? '' : relativePath.substring(0, lastSlash + 1);
+
     await move(
       containerId: containerId,
       fromRelativePath: relativePath,
-      toRelativePath:
-          relativePath.substring(0, relativePath.lastIndexOf('/') + 1) +
-              newName,
+      toRelativePath: '$directory$newName',
     );
   }
 

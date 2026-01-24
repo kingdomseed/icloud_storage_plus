@@ -188,6 +188,22 @@ void main() {
 
       expect(file1, isNot(equals(file2)));
     });
+
+    test('throws when relativePath is missing or not a string', () {
+      expect(
+        () => ICloudFile.fromMap(const {
+          'relativePath': null,
+        }),
+        throwsException,
+      );
+
+      expect(
+        () => ICloudFile.fromMap(const {
+          'relativePath': 123,
+        }),
+        throwsException,
+      );
+    });
   });
 
   group('ICloudFile hashCode', () {

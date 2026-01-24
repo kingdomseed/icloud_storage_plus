@@ -663,9 +663,20 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       }
 
       guard let item = item,
-            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL,
-            !itemURL.hasDirectoryPath else {
+            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL
+      else {
         result(nil) // Return nil for non-existent files or directories
+        return
+      }
+
+      if itemURL.hasDirectoryPath {
+        result(
+          FlutterError(
+            code: "E_READ",
+            message: "Cannot read directory as document",
+            details: nil,
+          ),
+        )
         return
       }
       
@@ -1095,12 +1106,17 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       result(argumentError)
       return
     }
-    
+
+    guard let messenger = self.messenger else {
+      result(initializationError)
+      return
+    }
+
     let streamHandler = StreamHandler()
-    let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: self.messenger!)
+    let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: messenger)
     eventChannel.setStreamHandler(streamHandler)
     self.streamHandlers[eventChannelName] = streamHandler
-    
+
     result(nil)
   }
   
@@ -1113,6 +1129,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   let containerError = FlutterError(code: "E_CTR", message: "Invalid containerId, or user is not signed in, or user disabled iCloud permission", details: nil)
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
   let queryTimeoutError = FlutterError(code: "E_TIMEOUT", message: "Metadata query operation timed out after 30 seconds", details: nil)
+  let initializationError = FlutterError(code: "E_INIT", message: "Plugin not properly initialized", details: nil)
 
   /// Wraps a native Error into a FlutterError.
   private func nativeCodeError(_ error: Error) -> FlutterError {

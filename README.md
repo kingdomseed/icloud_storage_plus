@@ -247,7 +247,9 @@ Future<Uint8List?> readDocument({
   required String relativePath,
 })
 ```
-Reads a document with automatic download if needed. Returns null if file does not exist.
+Reads a document with automatic download if needed. Returns null if the file
+does not exist. Throws `PlatformException` with code `E_READ` if the path
+resolves to a directory.
 
 #### writeDocument
 ```dart

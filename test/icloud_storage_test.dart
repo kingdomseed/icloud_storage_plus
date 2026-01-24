@@ -298,6 +298,15 @@ void main() {
       expect(fakePlatform.moveToRelativePath, 'dir/file2');
     });
 
+    test('rename in container root', () async {
+      await ICloudStorage.rename(
+        containerId: containerId,
+        relativePath: 'file1',
+        newName: 'file2',
+      );
+      expect(fakePlatform.moveToRelativePath, 'file2');
+    });
+
     test('icloudAvailable', () async {
       final available = await ICloudStorage.icloudAvailable();
       expect(available, true);
@@ -317,6 +326,19 @@ void main() {
           containerId: containerId,
           filePath: '/local/document.pdf',
           destinationRelativePath: 'reports/doc.pdf',
+        );
+        expect(
+          fakePlatform.uploadDestinationRelativePath,
+          'Documents/reports/doc.pdf',
+        );
+        expect(fakePlatform.calls.last, 'upload');
+      });
+
+      test('uploadToDocuments strips Documents prefix', () async {
+        await ICloudStorage.uploadToDocuments(
+          containerId: containerId,
+          filePath: '/local/document.pdf',
+          destinationRelativePath: 'Documents/reports/doc.pdf',
         );
         expect(
           fakePlatform.uploadDestinationRelativePath,
@@ -354,6 +376,15 @@ void main() {
         final result = await ICloudStorage.downloadFromDocuments(
           containerId: containerId,
           relativePath: 'reports/doc.pdf',
+        );
+        expect(result, true);
+        expect(fakePlatform.calls.last, 'download');
+      });
+
+      test('downloadFromDocuments strips Documents prefix', () async {
+        final result = await ICloudStorage.downloadFromDocuments(
+          containerId: containerId,
+          relativePath: 'Documents/reports/doc.pdf',
         );
         expect(result, true);
         expect(fakePlatform.calls.last, 'download');
