@@ -118,8 +118,10 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
       let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
-      removeObservers(query)
-      if eventChannelName.isEmpty { query.stop() }
+      if eventChannelName.isEmpty {
+        removeObservers(query)
+        query.stop()
+      }
       result(files)
     }
     

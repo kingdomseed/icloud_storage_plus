@@ -15,6 +15,7 @@
   - Updated native method channel handlers for uploadFile/downloadFile.
   - Captured access/visibility and security-scoped considerations in findings.
   - Updated README to align with sync/visibility and coordination rules.
+  - Fixed gather(onUpdate) observers to keep update notifications alive.
 - Files created/modified:
   - docs/plans/streaming-document-io/task_plan.md
   - docs/plans/streaming-document-io/findings.md

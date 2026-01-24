@@ -42,6 +42,8 @@
   - Internal container files: resolve container URL, append relative path,
     and coordinate access (UIDocument/NSDocument handle coordination).
   - External user-picked files are explicitly out of scope for this plugin.
+- NSDocument/UIDocument already coordinate file access internally; wrapping
+  their read/write methods in an extra NSFileCoordinator can cause deadlocks.
 
 ## Technical Decisions
 | Decision | Rationale |
