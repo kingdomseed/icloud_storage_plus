@@ -254,6 +254,35 @@ void main() {
       expect(event.exception?.message, 'Boom');
       expect(event.exception?.details, 'details');
     });
+
+    test('buffers early events before first listener attaches', () async {
+      mockStreamHandler = MockStreamHandler.inline(
+        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+          events
+            ..success(0.1)
+            ..endOfStream();
+        },
+      );
+
+      late Stream<ICloudTransferProgress> progressStream;
+
+      await platform.uploadFile(
+        containerId: containerId,
+        localPath: '/dir/file',
+        cloudRelativePath: 'dest',
+        onProgress: (stream) {
+          progressStream = stream;
+        },
+      );
+
+      await Future<void>.delayed(Duration.zero);
+
+      final events = await progressStream.toList();
+      expect(events, hasLength(2));
+      expect(events[0].isProgress, isTrue);
+      expect(events[0].percent, 0.1);
+      expect(events[1].isDone, isTrue);
+    });
   });
 
   test('delete', () async {

@@ -262,6 +262,10 @@ Future<void> downloadFile({
 ```
 Streams a file from iCloud into a local path.
 
+Progress streams are broadcast and may buffer early events until the first
+listener attaches. For the most consistent updates, start listening
+immediately in the `onProgress` callback.
+
 #### documentExists
 ```dart
 Future<bool> documentExists({
@@ -382,6 +386,7 @@ All methods throw `PlatformException` on errors. Common codes:
 - `E_FNF_READ` (file not found during read)
 - `E_FNF_WRITE` (file not found during write)
 - `E_NAT` (native error)
+- `E_PLUGIN_INTERNAL` (internal plugin error)
 - `E_ARG` (invalid arguments)
 - `E_READ` (read failure)
 - `E_CANCEL` (operation canceled)

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
+import 'package:logging/logging.dart';
 
 /// Metadata for an iCloud file or directory.
 class ICloudFile extends Equatable {
@@ -19,6 +20,7 @@ class ICloudFile extends Equatable {
         isUploaded = (map['isUploaded'] as bool?) ?? false,
         hasUnresolvedConflicts =
             (map['hasUnresolvedConflicts'] as bool?) ?? false;
+  static final Logger _logger = Logger('ICloudFile');
 
   /// File path relative to the iCloud container
   final String relativePath;
@@ -88,6 +90,9 @@ class ICloudFile extends Equatable {
       case 'NSMetadataUbiquitousItemDownloadingStatusCurrent':
         return DownloadStatus.current;
       default:
+        _logger.warning(
+          'Unknown download status from native metadata: $key',
+        );
         return null;
     }
   }

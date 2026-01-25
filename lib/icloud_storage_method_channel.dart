@@ -197,42 +197,91 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   ) {
     late final StreamController<ICloudTransferProgress> controller;
     StreamSubscription<dynamic>? subscription;
+    final bufferedEvents = <ICloudTransferProgress>[];
+    var hasListener = false;
+    var flushCompleted = false;
+    var pendingClose = false;
 
     controller = StreamController<ICloudTransferProgress>.broadcast(
       onListen: () {
-        subscription = eventChannel.receiveBroadcastStream().listen(
-          (event) {
+        if (hasListener) return;
+        hasListener = true;
+        if (!flushCompleted && bufferedEvents.isNotEmpty) {
+          for (final event in bufferedEvents) {
             if (controller.isClosed) return;
-            if (event is num) {
-              controller.add(
-                ICloudTransferProgress.progress(event.toDouble()),
-              );
-            }
-          },
-          onError: (Object error) {
-            if (controller.isClosed) return;
-            final exception = error is PlatformException
-                ? error
-                : PlatformException(
-                    code: 'E_STREAM',
-                    message: 'Unexpected progress stream error',
-                    details: error.toString(),
-                  );
-            controller.add(ICloudTransferProgress.error(exception));
-            unawaited(subscription?.cancel());
-            unawaited(controller.close());
-          },
-          onDone: () {
-            if (controller.isClosed) return;
-            controller.add(const ICloudTransferProgress.done());
-            unawaited(controller.close());
-          },
-        );
+            controller.add(event);
+          }
+          bufferedEvents.clear();
+          flushCompleted = true;
+        }
+        if (pendingClose && !controller.isClosed) {
+          unawaited(controller.close());
+        }
       },
       onCancel: () async {
         await subscription?.cancel();
         if (!controller.isClosed) {
           await controller.close();
+        }
+      },
+    );
+
+    subscription = eventChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (controller.isClosed) return;
+        if (event is num) {
+          final progress = ICloudTransferProgress.progress(event.toDouble());
+          if (hasListener) {
+            controller.add(progress);
+          } else {
+            if (bufferedEvents.length >= 10) {
+              bufferedEvents.removeAt(0);
+            }
+            bufferedEvents.add(progress);
+          }
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (controller.isClosed) return;
+        final exception = error is PlatformException
+            ? error
+            : () {
+                _logger.severe(
+                  'Unexpected progress stream error',
+                  error,
+                  stackTrace,
+                );
+                return PlatformException(
+                  code: 'E_PLUGIN_INTERNAL',
+                  message:
+                      'Internal plugin error during progress stream processing',
+                  details: error,
+                  stacktrace: stackTrace.toString(),
+                );
+              }();
+        final wrapped = ICloudTransferProgress.error(exception);
+        if (hasListener) {
+          controller.add(wrapped);
+        } else {
+          bufferedEvents.add(wrapped);
+        }
+        pendingClose = true;
+        unawaited(subscription?.cancel());
+        if (hasListener) {
+          unawaited(controller.close());
+        }
+      },
+      onDone: () {
+        if (controller.isClosed) return;
+        const done = ICloudTransferProgress.done();
+        if (hasListener) {
+          controller.add(done);
+        } else {
+          bufferedEvents.add(done);
+        }
+        pendingClose = true;
+        if (hasListener) {
+          unawaited(controller.close());
         }
       },
     );

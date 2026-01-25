@@ -76,6 +76,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 ### Added
 
 - Directory support via `ICloudFile.isDirectory`.
+- Error code `E_PLUGIN_INTERNAL` for unexpected Dart-side stream errors.
+- Warning log when an unknown download status key is encountered.
 
 ### Changed
 
@@ -90,6 +92,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
   from `gather()` or `getMetadata()` to be used directly in operations like
   `delete()`, `move()`, `rename()`, etc. Previously, directory paths like
   `Documents/folder/` would fail Dart validation when reused.
+- Transfer progress streams now buffer early events until the first listener
+  attaches.
 - Method channel null handling when platform methods return null.
 - Stream mapping and event handling correctness.
 
