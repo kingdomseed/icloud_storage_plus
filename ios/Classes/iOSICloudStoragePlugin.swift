@@ -7,8 +7,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   var streamHandlers: [String: StreamHandler] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
-  private let queryMetadataItemTimeoutSeconds = 30
-  private let queryMetadataItemWarningSeconds = 10
   private let fileNotFoundReadError = FlutterError(
     code: "E_FNF_READ",
     message: "The file could not be read because it does not exist",
@@ -108,10 +106,11 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
     
     if !eventChannelName.isEmpty {
-      guard let streamHandler = self.streamHandlers[eventChannelName] else {
-        result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
-        return
-      }
+    // Safety net: Dart should await createEventChannel before calling gather.
+    guard let streamHandler = self.streamHandlers[eventChannelName] else {
+      result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
+      return
+    }
       streamHandler.onCancelHandler = { [self] in
         removeObservers(query)
         query.stop()
@@ -142,7 +141,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       ) { [self] _ in
         let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
         guard let streamHandler = self.streamHandlers[eventChannelName] else {
-          DebugHelper.log("Warning: streamHandler not found for \(eventChannelName) in gather update")
           return
         }
         streamHandler.setEvent(files)
@@ -183,6 +181,26 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       "isDownloading": (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
       "isUploaded": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
       "isUploading": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
+    ]
+  }
+
+  /// Map URL resource values into a Flutter-friendly metadata dictionary.
+  private func mapResourceValues(
+    fileURL: URL,
+    values: URLResourceValues,
+    containerURL: URL
+  ) -> [String: Any?] {
+    return [
+      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
+      "isDirectory": values.isDirectory ?? false,
+      "sizeInBytes": values.fileSize,
+      "creationDate": values.creationDate?.timeIntervalSince1970,
+      "contentChangeDate": values.contentModificationDate?.timeIntervalSince1970,
+      "hasUnresolvedConflicts": values.hasUnresolvedConflicts ?? false,
+      "downloadStatus": values.ubiquitousItemDownloadingStatus,
+      "isDownloading": values.ubiquitousItemIsDownloading ?? false,
+      "isUploaded": values.ubiquitousItemIsUploaded ?? false,
+      "isUploading": values.ubiquitousItemIsUploading ?? false,
     ]
   }
 
@@ -264,7 +282,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
 
     guard let uploadStreamHandler = self.streamHandlers[eventChannelName] else {
-      DebugHelper.log("Warning: streamHandler not found for \(eventChannelName) in upload monitoring")
       return
     }
     uploadStreamHandler.onCancelHandler = { [self] in
@@ -415,6 +432,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     readDocumentAt(url: cloudFileURL, destinationURL: localFileURL) { [self] error in
+      if didComplete {
+        return
+      }
       if let error = error {
         let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
         downloadStreamHandler?.setEvent(mapped)
@@ -495,11 +515,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       result(containerError)
       return
     }
-    
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
-      // For documentExists, timeout is treated the same as "not found" (both return false)
-      result(item != nil)
-    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+    result(FileManager.default.fileExists(atPath: fileURL.path))
   }
   
   /// Get file or directory metadata without downloading content.
@@ -519,107 +537,32 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
-      // Check for timeout
-      if didTimeout {
-        result(self.queryTimeoutError)
-        return
-      }
-
-      guard let item = item else {
-        result(nil)
-        return
-      }
-      result(self.mapMetadataItem(item, containerURL: containerURL))
-    }
-  }
-
-  /// Runs a metadata query for a single item path with timeout protection.
-  /// - Parameters:
-  ///   - containerURL: The iCloud container URL
-  ///   - relativePath: The relative path of the item to query
-  ///   - completion: Called with (item, didTimeout) where item is the metadata item or nil, and didTimeout indicates if the query timed out
-  private func queryMetadataItem(
-    containerURL: URL,
-    relativePath: String,
-    completion: @escaping (NSMetadataItem?, Bool) -> Void
-  ) {
-    let query = NSMetadataQuery()
-    query.operationQueue = .main
-    query.searchScopes = querySearchScopes
-
     let fileURL = containerURL.appendingPathComponent(relativePath)
-    query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, fileURL.path)
-
-    // State tracking for race condition prevention
-    var hasCompleted = false
-    var observer: NSObjectProtocol?
-    var warningTimer: DispatchSourceTimer?
-    var timeoutTimer: DispatchSourceTimer?
-
-    // Resource cleanup helper (called from success, timeout, and warning paths)
-    let cleanup = {
-      guard !hasCompleted else { return }
-      hasCompleted = true
-
-      query.disableUpdates()
-      query.stop()
-
-      if let observer = observer {
-        NotificationCenter.default.removeObserver(observer)
-      }
-
-      if let timer = warningTimer {
-        timer.cancel()
-      }
-
-      if let timer = timeoutTimer {
-        timer.cancel()
-      }
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      result(nil)
+      return
     }
 
-    // Set up notification observer
-    observer = NotificationCenter.default.addObserver(
-      forName: NSNotification.Name.NSMetadataQueryDidFinishGathering,
-      object: query,
-      queue: query.operationQueue
-    ) { _ in
-      guard !hasCompleted else { return }
-      cleanup()
-
-      if query.resultCount > 0,
-         let item = query.result(at: 0) as? NSMetadataItem {
-        completion(item, false)  // Found item, not a timeout
-      } else {
-        completion(nil, false)  // No item found, but query completed (not a timeout)
-      }
+    do {
+      let values = try fileURL.resourceValues(forKeys: [
+        .isDirectoryKey,
+        .fileSizeKey,
+        .creationDateKey,
+        .contentModificationDateKey,
+        .ubiquitousItemDownloadingStatusKey,
+        .ubiquitousItemIsDownloadingKey,
+        .ubiquitousItemIsUploadedKey,
+        .ubiquitousItemIsUploadingKey,
+        .ubiquitousItemHasUnresolvedConflictsKey,
+      ])
+      result(mapResourceValues(
+        fileURL: fileURL,
+        values: values,
+        containerURL: containerURL
+      ))
+    } catch {
+      result(nativeCodeError(error))
     }
-
-    // Set up warning timer (fires at 10 seconds)
-    let warning = DispatchSource.makeTimerSource(queue: .main)
-    warning.schedule(deadline: .now() + .seconds(queryMetadataItemWarningSeconds))
-    warning.setEventHandler {
-      guard !hasCompleted else { return }
-      DebugHelper.log("queryMetadataItem taking longer than expected (\(self.queryMetadataItemWarningSeconds)s): \(relativePath)")
-      // Note: This can be surfaced to the UI layer via logging or custom notifications
-    }
-    warningTimer = warning
-    warning.resume()
-
-    // Set up timeout timer (fires at 30 seconds)
-    let timeout = DispatchSource.makeTimerSource(queue: .main)
-    timeout.schedule(deadline: .now() + .seconds(queryMetadataItemTimeoutSeconds))
-    timeout.setEventHandler { [weak query] in
-      guard !hasCompleted else { return }
-      cleanup()
-
-      DebugHelper.log("queryMetadataItem timed out after \(self.queryMetadataItemTimeoutSeconds)s: \(relativePath)")
-      completion(nil, true)  // Return nil with timeout flag
-    }
-
-    timeoutTimer = timeout
-    timeout.resume()
-    query.start()
   }
   
   /// Moves a file by copying and removing the original.
@@ -651,32 +594,24 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
 
-    queryMetadataItem(containerURL: containerURL, relativePath: relativePath) { item, didTimeout in
-      // Check for timeout
-      if didTimeout {
-        result(self.queryTimeoutError)
-        return
-      }
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      result(fileNotFoundError)
+      return
+    }
 
-      guard let item = item,
-            let itemURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
-        result(fileNotFoundError)
-        return
-      }
-
-      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-      fileCoordinator.coordinate(
-        writingItemAt: itemURL,
-        options: NSFileCoordinator.WritingOptions.forDeleting,
-        error: nil
-      ) { writingURL in
-        do {
-          try FileManager.default.removeItem(at: writingURL)
-          result(nil)
-        } catch {
-          DebugHelper.log("error: \(error.localizedDescription)")
-          result(nativeCodeError(error))
-        }
+    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+    fileCoordinator.coordinate(
+      writingItemAt: fileURL,
+      options: NSFileCoordinator.WritingOptions.forDeleting,
+      error: nil
+    ) { writingURL in
+      do {
+        try FileManager.default.removeItem(at: writingURL)
+        result(nil)
+      } catch {
+        DebugHelper.log("error: \(error.localizedDescription)")
+        result(nativeCodeError(error))
       }
     }
   }
@@ -699,43 +634,35 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
 
-    queryMetadataItem(containerURL: containerURL, relativePath: atRelativePath) { item, didTimeout in
-      // Check for timeout
-      if didTimeout {
-        result(self.queryTimeoutError)
-        return
-      }
+    let atURL = containerURL.appendingPathComponent(atRelativePath)
+    guard FileManager.default.fileExists(atPath: atURL.path) else {
+      result(fileNotFoundError)
+      return
+    }
 
-      guard let item = item,
-            let atURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
-        result(fileNotFoundError)
-        return
-      }
-
-      let toURL = containerURL.appendingPathComponent(toRelativePath)
-      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-      fileCoordinator.coordinate(
-        writingItemAt: atURL,
-        options: NSFileCoordinator.WritingOptions.forMoving,
-        writingItemAt: toURL,
-        options: NSFileCoordinator.WritingOptions.forReplacing,
-        error: nil
-      ) { atWritingURL, toWritingURL in
-        do {
-          let toDirURL = toWritingURL.deletingLastPathComponent()
-          if !FileManager.default.fileExists(atPath: toDirURL.path) {
-            try FileManager.default.createDirectory(
-              at: toDirURL,
-              withIntermediateDirectories: true,
-              attributes: nil
-            )
-          }
-          try FileManager.default.moveItem(at: atWritingURL, to: toWritingURL)
-          result(nil)
-        } catch {
-          DebugHelper.log("error: \(error.localizedDescription)")
-          result(nativeCodeError(error))
+    let toURL = containerURL.appendingPathComponent(toRelativePath)
+    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+    fileCoordinator.coordinate(
+      writingItemAt: atURL,
+      options: NSFileCoordinator.WritingOptions.forMoving,
+      writingItemAt: toURL,
+      options: NSFileCoordinator.WritingOptions.forReplacing,
+      error: nil
+    ) { atWritingURL, toWritingURL in
+      do {
+        let toDirURL = toWritingURL.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: toDirURL.path) {
+          try FileManager.default.createDirectory(
+            at: toDirURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+          )
         }
+        try FileManager.default.moveItem(at: atWritingURL, to: toWritingURL)
+        result(nil)
+      } catch {
+        DebugHelper.log("error: \(error.localizedDescription)")
+        result(nativeCodeError(error))
       }
     }
   }
@@ -758,53 +685,45 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
     
-    queryMetadataItem(containerURL: containerURL, relativePath: fromRelativePath) { item, didTimeout in
-      // Check for timeout
-      if didTimeout {
-        result(self.queryTimeoutError)
-        return
-      }
+    let fromURL = containerURL.appendingPathComponent(fromRelativePath)
+    guard FileManager.default.fileExists(atPath: fromURL.path) else {
+      result(fileNotFoundError)
+      return
+    }
 
-      guard let item = item,
-            let fromURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
-        result(fileNotFoundError)
-        return
-      }
+    let toURL = containerURL.appendingPathComponent(toRelativePath)
+    let fileCoordinator = NSFileCoordinator(filePresenter: nil)
 
-      let toURL = containerURL.appendingPathComponent(toRelativePath)
-      let fileCoordinator = NSFileCoordinator(filePresenter: nil)
-      
-      // Use reading coordination for source and writing coordination for destination
-      fileCoordinator.coordinate(
-        readingItemAt: fromURL,
-        options: .withoutChanges,
-        writingItemAt: toURL,
-        options: .forReplacing,
-        error: nil
-      ) { fromReadingURL, toWritingURL in
-        do {
-          // Create destination directory if needed
-          let toDirURL = toWritingURL.deletingLastPathComponent()
-          if !FileManager.default.fileExists(atPath: toDirURL.path) {
-            try FileManager.default.createDirectory(
-              at: toDirURL,
-              withIntermediateDirectories: true,
-              attributes: nil
-            )
-          }
-          
-          // Remove destination file if it exists
-          if FileManager.default.fileExists(atPath: toWritingURL.path) {
-            try FileManager.default.removeItem(at: toWritingURL)
-          }
-          
-          // Copy the file
-          try FileManager.default.copyItem(at: fromReadingURL, to: toWritingURL)
-          result(nil)
-        } catch {
-          DebugHelper.log("copy error: \(error.localizedDescription)")
-          result(nativeCodeError(error))
+    // Use reading coordination for source and writing coordination for destination
+    fileCoordinator.coordinate(
+      readingItemAt: fromURL,
+      options: .withoutChanges,
+      writingItemAt: toURL,
+      options: .forReplacing,
+      error: nil
+    ) { fromReadingURL, toWritingURL in
+      do {
+        // Create destination directory if needed
+        let toDirURL = toWritingURL.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: toDirURL.path) {
+          try FileManager.default.createDirectory(
+            at: toDirURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+          )
         }
+
+        // Remove destination file if it exists
+        if FileManager.default.fileExists(atPath: toWritingURL.path) {
+          try FileManager.default.removeItem(at: toWritingURL)
+        }
+
+        // Copy the file
+        try FileManager.default.copyItem(at: fromReadingURL, to: toWritingURL)
+        result(nil)
+      } catch {
+        DebugHelper.log("copy error: \(error.localizedDescription)")
+        result(nativeCodeError(error))
       }
     }
   }
@@ -867,7 +786,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   let argumentError = FlutterError(code: "E_ARG", message: "Invalid Arguments", details: nil)
   let containerError = FlutterError(code: "E_CTR", message: "Invalid containerId, or user is not signed in, or user disabled iCloud permission", details: nil)
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
-  let queryTimeoutError = FlutterError(code: "E_TIMEOUT", message: "Metadata query operation timed out after 30 seconds", details: nil)
   let initializationError = FlutterError(code: "E_INIT", message: "Plugin not properly initialized", details: nil)
 
   /// Maps file-not-found errors to specific Flutter error codes.
@@ -896,9 +814,11 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
 class StreamHandler: NSObject, FlutterStreamHandler {
   private var _eventSink: FlutterEventSink?
   var onCancelHandler: (() -> Void)?
+  var isCancelled = false
   
   /// Starts listening for events from the native side.
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    isCancelled = false
     _eventSink = events
     DebugHelper.log("on listen")
     return nil
@@ -906,6 +826,7 @@ class StreamHandler: NSObject, FlutterStreamHandler {
   
   /// Stops listening for events from the native side.
   func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    isCancelled = true
     onCancelHandler?()
     _eventSink = nil
     DebugHelper.log("on cancel")
@@ -914,6 +835,7 @@ class StreamHandler: NSObject, FlutterStreamHandler {
   
   /// Emits an event to the Flutter stream.
   func setEvent(_ data: Any) {
+    if isCancelled { return }
     _eventSink?(data)
   }
 }

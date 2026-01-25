@@ -101,7 +101,7 @@ await ICloudStorage.move(
 );
 
 // List all files
-final files = await ICloudStorage.gather(
+final result = await ICloudStorage.gather(
   containerId: 'iCloud.com.yourapp.container',
   onUpdate: (stream) {
     stream.listen((updates) {
@@ -109,6 +109,7 @@ final files = await ICloudStorage.gather(
     });
   },
 );
+final files = result.files;
 ```
 
 ## Migration from 2.x
@@ -127,6 +128,21 @@ Four fields are now nullable:
 ```dart
 final metadata = await ICloudStorage.getMetadata(...);
 final size = metadata.sizeInBytes;  // Always non-null
+```
+
+#### 2. gather() now returns GatherResult
+`gather()` now returns a `GatherResult` with `files` and `invalidEntries`
+instead of a raw list. This makes malformed metadata visible to callers.
+
+**Before (2.x):**
+```dart
+final files = await ICloudStorage.gather(...);
+```
+
+**After (3.0):**
+```dart
+final result = await ICloudStorage.gather(...);
+final files = result.files;
 ```
 
 **After (3.0):**
@@ -266,6 +282,9 @@ Progress streams are broadcast and may buffer early events until the first
 listener attaches. For the most consistent updates, start listening
 immediately in the `onProgress` callback.
 
+Existence checks use `FileManager.fileExists` on the container path rather than
+metadata queries.
+
 #### documentExists
 ```dart
 Future<bool> documentExists({
@@ -298,12 +317,21 @@ prefer `getMetadata()` for the typed model.
 
 #### gather
 ```dart
-Future<List<ICloudFile>> gather({
+Future<GatherResult> gather({
   required String containerId,
-  StreamHandler<List<ICloudFile>>? onUpdate,
+  StreamHandler<GatherResult>? onUpdate,
 })
 ```
-Lists all files and directories in the container. Optional `onUpdate` callback receives updates when files change.
+Lists all files and directories in the container. Optional `onUpdate` callback
+receives updates when files change. Invalid entries are returned in
+`result.invalidEntries`.
+
+```dart
+for (final invalid in result.invalidEntries) {
+  // Inspect malformed metadata entries if needed.
+  debugPrint('Invalid entry: ${invalid.error}');
+}
+```
 
 #### delete
 ```dart
@@ -439,9 +467,11 @@ try {
 
 This plugin uses Apple's document storage APIs to provide safe, coordinated access to iCloud files:
 
-- **NSMetadataQuery**: Discovers files in iCloud container, including files that haven't been downloaded yet
+- **NSMetadataQuery**: Reports sync progress and metadata updates
 - **UIDocument (iOS) / NSDocument (macOS)**: Coordinates file access and handles conflict resolution
 - **NSUbiquitousContainerIdentifier**: Accesses app-specific iCloud container
+- **FileManager + NSFileCoordinator**: Performs delete/move/copy/exists/metadata
+  operations on container paths with coordinated access
 
 ### File Coordination
 

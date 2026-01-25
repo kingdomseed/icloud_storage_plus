@@ -26,6 +26,9 @@ from empty results.
 Progress streams close when the transfer completes or errors. If metadata is
 not yet available, the stream remains open until the transfer state is known.
 
+Existence checks (`documentExists`) use direct filesystem URLs rather than
+metadata queries.
+
 ## Error codes
 
 We map Cocoa file-not-found errors to distinct codes:

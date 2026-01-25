@@ -71,6 +71,17 @@ The native method channel name has been renamed from `icloud_storage` to
 `icloud_storage_plus` to match the package name.
 
 #### Linting Package Change
+
+#### gather() Now Returns GatherResult
+`gather()` now returns a `GatherResult` containing `files` and
+`invalidEntries` rather than a raw list, so malformed metadata is visible to
+callers.
+
+**Migration:**
+```dart
+final result = await ICloudStorage.gather(...);
+final files = result.files;
+```
 Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 ### Added
@@ -78,6 +89,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 - Directory support via `ICloudFile.isDirectory`.
 - Error code `E_PLUGIN_INTERNAL` for unexpected Dart-side stream errors.
 - Warning log when an unknown download status key is encountered.
+- `GatherResult.invalidEntries` to surface malformed metadata entries.
+- Removed `E_TIMEOUT` from public error codes.
 
 ### Changed
 
@@ -85,6 +98,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
   homepage, author) to match the package.
 - Native implementation and metadata extraction updated to support the new API
   surface (file-path transfers + richer metadata).
+- Structural operations (`delete`, `move`, `copy`, `documentExists`,
+  `getDocumentMetadata`) now use file URLs with coordinated FileManager access
+  instead of metadata queries.
 
 ### Fixed
 
@@ -96,6 +112,7 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
   attaches.
 - Method channel null handling when platform methods return null.
 - Stream mapping and event handling correctness.
+- Removed metadata query timeouts from structural operations.
 
 ### Migration Guide (2.x -> 3.0.0)
 

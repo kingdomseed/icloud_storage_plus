@@ -1,5 +1,5 @@
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
-import 'package:icloud_storage_plus/models/icloud_file.dart';
+import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -43,10 +43,11 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// when the list of files are updated. It won't be triggered when the
   /// function initially returns the list of files.
   ///
-  /// The function returns a future of list of ICloudFile.
-  Future<List<ICloudFile>> gather({
+  /// The function returns a [GatherResult] containing parsed files and any
+  /// invalid entries.
+  Future<GatherResult> gather({
     required String containerId,
-    StreamHandler<List<ICloudFile>>? onUpdate,
+    StreamHandler<GatherResult>? onUpdate,
   }) async {
     throw UnimplementedError('gather() has not been implemented.');
   }

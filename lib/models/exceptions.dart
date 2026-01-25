@@ -27,7 +27,4 @@ class PlatformExceptionCode {
 
   /// The code indicates other error from native code
   static const String nativeCodeError = 'E_NAT';
-
-  /// The code indicates a metadata query operation timed out
-  static const String timeout = 'E_TIMEOUT';
 }

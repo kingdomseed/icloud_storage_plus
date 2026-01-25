@@ -61,6 +61,9 @@ This repository is a Flutter plugin, not a Flutter app. UI/widget, theming, rout
 * **Functions:** Keep functions short and single-purpose (strive for less than 20 lines).
 * **Testing:** Write code with testing in mind. Use the `file`, `process`, and `platform` packages, if appropriate, so you can inject in-memory and fake versions of the objects.
 * **Logging:** Use the `logging` package instead of `print`.
+* **iCloud existence checks:** Use `FileManager.fileExists(atPath:)` on the
+  container URL for existence checks. Do not use `NSMetadataQuery` for
+  existence.
 
 ## Dart Best Practices
 * **Effective Dart:** Follow the official Effective Dart guidelines (https://dart.dev/effective-dart)

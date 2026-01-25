@@ -1,9 +1,11 @@
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
+import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
 
 export 'models/exceptions.dart';
+export 'models/gather_result.dart';
 export 'models/icloud_file.dart';
 export 'models/transfer_progress.dart';
 
@@ -40,9 +42,9 @@ class ICloudStorage {
   }
 
   /// Get all file metadata from the iCloud container.
-  static Future<List<ICloudFile>> gather({
+  static Future<GatherResult> gather({
     required String containerId,
-    StreamHandler<List<ICloudFile>>? onUpdate,
+    StreamHandler<GatherResult>? onUpdate,
   }) async {
     return ICloudStoragePlatform.instance.gather(
       containerId: containerId,

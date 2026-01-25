@@ -77,8 +77,8 @@ void main() {
 
   group('gather tests:', () {
     test('maps meta data correctly', () async {
-      final files = await platform.gather(containerId: containerId);
-      final file = files.last;
+      final result = await platform.gather(containerId: containerId);
+      final file = result.files.last;
       expect(file.relativePath, 'relativePath');
       expect(file.isDirectory, false);
       expect(file.sizeInBytes, 100);
@@ -112,8 +112,8 @@ void main() {
         return null;
       });
 
-      final files = await platform.gather(containerId: containerId);
-      final directory = files.first;
+      final result = await platform.gather(containerId: containerId);
+      final directory = result.files.first;
 
       expect(directory.isDirectory, true);
       expect(directory.relativePath, 'Documents/folder');

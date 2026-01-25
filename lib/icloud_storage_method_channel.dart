@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
 import 'package:logging/logging.dart';
@@ -22,9 +23,9 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   }
 
   @override
-  Future<List<ICloudFile>> gather({
+  Future<GatherResult> gather({
     required String containerId,
-    StreamHandler<List<ICloudFile>>? onUpdate,
+    StreamHandler<GatherResult>? onUpdate,
   }) async {
     final eventChannelName = onUpdate == null
         ? ''
@@ -40,7 +41,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       final stream = gatherEventChannel
           .receiveBroadcastStream()
           .where((event) => event is List)
-          .map<List<ICloudFile>>((event) {
+          .map<GatherResult>((event) {
         return _mapFilesFromDynamicList(event as List);
       });
 
@@ -291,16 +292,25 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
 
   /// Private method to convert the list of maps from platform code to a list of
   /// ICloudFile object
-  List<ICloudFile> _mapFilesFromDynamicList(
+  GatherResult _mapFilesFromDynamicList(
     List<dynamic>? mapList,
   ) {
     final files = <ICloudFile>[];
+    final invalidEntries = <GatherInvalidEntry>[];
     if (mapList != null) {
-      for (final entry in mapList) {
+      for (var index = 0; index < mapList.length; index += 1) {
+        final entry = mapList[index];
         if (entry is! Map<dynamic, dynamic>) {
           _logger.warning(
             'Skipping malformed metadata entry: expected Map, got '
             '${entry.runtimeType}',
+          );
+          invalidEntries.add(
+            GatherInvalidEntry(
+              error: 'Expected map, got ${entry.runtimeType}',
+              rawEntry: entry,
+              index: index,
+            ),
           );
           continue;
         }
@@ -312,10 +322,23 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
             error,
             stackTrace,
           );
+          invalidEntries.add(
+            GatherInvalidEntry(
+              error: error.toString(),
+              rawEntry: entry,
+              index: index,
+            ),
+          );
         }
       }
     }
-    return files;
+    if (invalidEntries.isNotEmpty) {
+      _logger.warning(
+        'Skipped ${invalidEntries.length} malformed metadata '
+        '${invalidEntries.length == 1 ? 'entry' : 'entries'} during gather.',
+      );
+    }
+    return GatherResult(files: files, invalidEntries: invalidEntries);
   }
 
   /// Private method to generate event channel names

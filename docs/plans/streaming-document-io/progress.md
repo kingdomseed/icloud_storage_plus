@@ -22,6 +22,9 @@
   - Kept upload progress query open on empty results to avoid premature close.
   - Added file-not-found error variants and documented download flow.
   - Buffered early progress events and logged unknown download status keys.
+  - Replaced metadata query timeouts with coordinated FileManager operations.
+  - Documented filesystem-based existence checks and removed E_TIMEOUT.
+  - gather() now returns GatherResult with invalid entries.
   - Added transfer progress stream tests for numeric, error, and done events.
   - Renamed example progress listener field for clarity.
   - Ran dart format and flutter test.

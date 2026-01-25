@@ -46,12 +46,12 @@ class MockICloudStoragePlatform
   }
 
   @override
-  Future<List<ICloudFile>> gather({
+  Future<GatherResult> gather({
     required String containerId,
-    StreamHandler<List<ICloudFile>>? onUpdate,
+    StreamHandler<GatherResult>? onUpdate,
   }) async {
     _calls.add('gather');
-    return [];
+    return const GatherResult(files: [], invalidEntries: []);
   }
 
   @override
@@ -150,7 +150,9 @@ void main() {
     });
 
     test('gather', () async {
-      expect(await ICloudStorage.gather(containerId: containerId), isEmpty);
+      final result = await ICloudStorage.gather(containerId: containerId);
+      expect(result.files, isEmpty);
+      expect(result.invalidEntries, isEmpty);
     });
 
     group('uploadFile tests:', () {
