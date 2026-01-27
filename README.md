@@ -196,7 +196,7 @@ final file = File('$path/Documents/file.json');
 final contents = await file.readAsString();  // Can fail with permission errors
 ```
 
-**After (4.0):**
+**After (3.0):**
 ```dart
 final localPath = '${Directory.systemTemp.path}/file.json';
 await ICloudStorage.downloadFile(
