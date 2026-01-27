@@ -201,66 +201,53 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   Stream<ICloudTransferProgress> _receiveTransferProgressStream(
     EventChannel eventChannel,
   ) {
-    late final StreamController<ICloudTransferProgress> controller;
-    StreamSubscription<dynamic>? subscription;
-
-    controller = StreamController<ICloudTransferProgress>.broadcast(
-      onListen: () {
-        if (subscription != null) return;
-        subscription = eventChannel.receiveBroadcastStream().listen(
-          (event) {
-            if (controller.isClosed) return;
-            if (event is num) {
-              controller.add(
-                ICloudTransferProgress.progress(event.toDouble()),
-              );
-              return;
-            }
-            final exception = PlatformException(
-              code: 'E_INVALID_EVENT',
-              message: 'Unexpected progress event type: ${event.runtimeType}',
-              details: event,
-            );
-            controller.add(ICloudTransferProgress.error(exception));
-            unawaited(controller.close());
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            if (controller.isClosed) return;
-            final exception = error is PlatformException
-                ? error
-                : () {
-                    _logger.severe(
-                      'Unexpected progress stream error',
-                      error,
-                      stackTrace,
-                    );
-                    return PlatformException(
-                      code: 'E_PLUGIN_INTERNAL',
-                      message: 'Internal plugin error during progress '
-                          'stream processing',
-                      details: error,
-                      stacktrace: stackTrace.toString(),
-                    );
-                  }();
-            controller.add(ICloudTransferProgress.error(exception));
-            unawaited(controller.close());
-          },
-          onDone: () {
-            if (controller.isClosed) return;
-            controller.add(const ICloudTransferProgress.done());
-            unawaited(controller.close());
-          },
-        );
-      },
-      onCancel: () async {
-        await subscription?.cancel();
-        if (!controller.isClosed) {
-          await controller.close();
+    final transformer =
+        StreamTransformer<Object?, ICloudTransferProgress>.fromHandlers(
+      handleData: (event, sink) {
+        if (event is num) {
+          sink.add(ICloudTransferProgress.progress(event.toDouble()));
+          return;
         }
+
+        final exception = PlatformException(
+          code: 'E_INVALID_EVENT',
+          message: 'Unexpected progress event type: ${event.runtimeType}',
+          details: event,
+        );
+        sink
+          ..add(ICloudTransferProgress.error(exception))
+          ..close();
+      },
+      handleError: (Object error, StackTrace stackTrace, sink) {
+        final exception = error is PlatformException
+            ? error
+            : () {
+                _logger.severe(
+                  'Unexpected progress stream error',
+                  error,
+                  stackTrace,
+                );
+                return PlatformException(
+                  code: 'E_PLUGIN_INTERNAL',
+                  message: 'Internal plugin error during progress '
+                      'stream processing',
+                  details: error,
+                  stacktrace: stackTrace.toString(),
+                );
+              }();
+
+        sink
+          ..add(ICloudTransferProgress.error(exception))
+          ..close();
+      },
+      handleDone: (sink) {
+        sink
+          ..add(const ICloudTransferProgress.done())
+          ..close();
       },
     );
 
-    return controller.stream;
+    return eventChannel.receiveBroadcastStream().transform(transformer);
   }
 
   /// Private method to convert the list of maps from platform code to a list of

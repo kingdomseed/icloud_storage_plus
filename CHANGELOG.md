@@ -117,6 +117,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
   paths like `Documents/folder/` would fail Dart validation when reused.
 - Transfer progress streams are now listener-driven; attach immediately to
   avoid missing early progress updates.
+- Transfer progress stream failures are surfaced as `ICloudTransferProgress`
+  error events (not stream `onError`) and terminal events close the stream.
 - Method channel null handling when platform methods return null.
 - Stream mapping and event handling correctness.
 - Removed metadata query timeouts from structural operations.

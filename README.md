@@ -288,6 +288,11 @@ Streams a file from iCloud into a local path.
 Progress streams are broadcast and start when a listener attaches. For the most
 consistent updates, start listening immediately in the `onProgress` callback.
 
+Progress failures are delivered as `ICloudTransferProgressType.error` events
+(not as stream `onError`). Treat `error` and `done` as terminal: the stream
+emits the event and then closes. Unexpected progress event payload types are
+surfaced as `E_INVALID_EVENT` and terminate the stream.
+
 Existence checks use `FileManager.fileExists` on the container path rather than
 metadata queries.
 

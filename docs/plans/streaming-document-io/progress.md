@@ -23,8 +23,9 @@
   - Updated CHANGELOG for trailing slash validation behavior.
   - Removed custom buffering in favor of listener-driven progress streams.
   - Updated progress stream tests and README/CHANGELOG to match new behavior.
-  - Added minimal controller to emit done/error events and fixed stream tests.
-  - Ran dart format and flutter test for method channel streams.
+  - Refactored transfer progress stream mapping to a StreamTransformer
+    (no manual controller/subscription lifecycle) and confirmed tests pass.
+  - Ran flutter test for method channel streams.
 - Files created/modified:
   - docs/plans/streaming-document-io/task_plan.md
   - docs/plans/streaming-document-io/findings.md

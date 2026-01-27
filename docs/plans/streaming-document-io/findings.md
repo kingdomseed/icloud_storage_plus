@@ -91,6 +91,12 @@
   - Progress streams subscribe lazily when a listener attaches.
   - Early events may be missed if listeners attach late; callers should listen
     immediately in the `onProgress` callback.
+  - Progress stream errors are surfaced as data events
+    (`ICloudTransferProgressType.error`) rather than stream `onError`.
+  - Terminal events are explicit and final: the stream emits `done` or `error`
+    and then closes.
+  - Unexpected progress event payload types are treated as fatal:
+    `E_INVALID_EVENT` is emitted as an error event and the stream closes.
   - README documents the listener-driven behavior.
 
 ## Technical Decisions
