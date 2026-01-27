@@ -97,13 +97,13 @@ void main() {
       expect(file.hasUnresolvedConflicts, false);
     });
 
-    test('directory paths should not have trailing slashes', () async {
+    test('directory paths preserve trailing slashes', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
         if (methodCall.method == 'gather') {
           return [
             {
-              'relativePath': 'Documents/folder',
+              'relativePath': 'Documents/folder/',
               'isDirectory': true,
               'sizeInBytes': null,
             }
@@ -116,11 +116,11 @@ void main() {
       final directory = result.files.first;
 
       expect(directory.isDirectory, true);
-      expect(directory.relativePath, 'Documents/folder');
+      expect(directory.relativePath, 'Documents/folder/');
       expect(
         directory.relativePath.endsWith('/'),
-        false,
-        reason: 'Directory paths should not have trailing slashes',
+        true,
+        reason: 'Directory paths may include trailing slashes',
       );
     });
 
@@ -255,7 +255,7 @@ void main() {
       expect(event.exception?.details, 'details');
     });
 
-    test('buffers early events before first listener attaches', () async {
+    test('delivers events after listener attaches', () async {
       mockStreamHandler = MockStreamHandler.inline(
         onListen: (Object? arguments, MockStreamHandlerEventSink events) {
           events
@@ -274,8 +274,6 @@ void main() {
           progressStream = stream;
         },
       );
-
-      await Future<void>.delayed(Duration.zero);
 
       final events = await progressStream.toList();
       expect(events, hasLength(2));

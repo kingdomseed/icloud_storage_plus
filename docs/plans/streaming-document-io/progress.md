@@ -20,6 +20,11 @@
   - Documented 64KB streamCopy buffer scope and rationale in findings.
   - Added gather() return-type findings and follow-up tasks to the plan.
   - Reduced per-entry gather() log noise and documented invalidEntries usage.
+  - Updated CHANGELOG for trailing slash validation behavior.
+  - Removed custom buffering in favor of listener-driven progress streams.
+  - Updated progress stream tests and README/CHANGELOG to match new behavior.
+  - Added minimal controller to emit done/error events and fixed stream tests.
+  - Ran dart format and flutter test for method channel streams.
 - Files created/modified:
   - docs/plans/streaming-document-io/task_plan.md
   - docs/plans/streaming-document-io/findings.md
@@ -90,11 +95,13 @@
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | flutter test | default | pass | pass | ✓ |
+| flutter test | test/icloud_storage_method_channel_test.dart | pass | pass | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
 | 2026-01-27 | Ran `dart format` on README/CHANGELOG and got parse errors (non-Dart). | 1 | Avoid formatting markdown with dart format. |
+| 2026-01-27 | Progress stream tests failed after simplification (missing done/error events). | 1 | Added minimal controller to emit done/error events; tests pass. |
 
 ## 5-Question Reboot Check
 | Question | Answer |

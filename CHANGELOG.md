@@ -111,12 +111,12 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 ### Fixed
 
-- Directory paths no longer include trailing slashes, allowing directory metadata
-  from `gather()` or `getMetadata()` to be used directly in operations like
-  `delete()`, `move()`, `rename()`, etc. Previously, directory paths like
-  `Documents/folder/` would fail Dart validation when reused.
-- Transfer progress streams now buffer early events until the first listener
-  attaches.
+- Dart relative-path validation now accepts trailing slashes so directory
+  metadata from `gather()` or `getMetadata()` can be used directly in
+  operations like `delete()`, `move()`, `rename()`, etc. Previously, directory
+  paths like `Documents/folder/` would fail Dart validation when reused.
+- Transfer progress streams are now listener-driven; attach immediately to
+  avoid missing early progress updates.
 - Method channel null handling when platform methods return null.
 - Stream mapping and event handling correctness.
 - Removed metadata query timeouts from structural operations.

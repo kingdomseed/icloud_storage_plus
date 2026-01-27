@@ -56,7 +56,7 @@ Phase 5
 - [x] Clarify 64KB streamCopy buffer scope and decision (doc read/write only).
 - [x] Document gather() return type change with invalidEntries usage example.
 - [x] Decide whether to reduce per-entry gather() warning logs.
-- [ ] Verify progress stream buffering logic is documented in README/migration.
+- [x] Verify progress stream buffering logic is documented in README/migration.
 - [ ] Remove any unused imports or dead code introduced by streaming refactor.
 - [ ] Ensure error handling pathways surface typed exceptions consistently.
 - [ ] Re-check method channel argument naming consistency across platforms/tests.

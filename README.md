@@ -285,9 +285,8 @@ Future<void> downloadFile({
 ```
 Streams a file from iCloud into a local path.
 
-Progress streams are broadcast and may buffer early events until the first
-listener attaches. For the most consistent updates, start listening
-immediately in the `onProgress` callback.
+Progress streams are broadcast and start when a listener attaches. For the most
+consistent updates, start listening immediately in the `onProgress` callback.
 
 Existence checks use `FileManager.fileExists` on the container path rather than
 metadata queries.

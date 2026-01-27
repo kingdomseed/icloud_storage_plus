@@ -87,6 +87,11 @@
     one-line fix: `final files = (await gather()).files`.
   - Decision: per-entry logs reduced to `fine` while keeping the summary
     warning to avoid log spam in large datasets.
+- Progress stream behavior:
+  - Progress streams subscribe lazily when a listener attaches.
+  - Early events may be missed if listeners attach late; callers should listen
+    immediately in the `onProgress` callback.
+  - README documents the listener-driven behavior.
 
 ## Technical Decisions
 | Decision | Rationale |
