@@ -105,6 +105,9 @@
   - Unexpected progress event payload types are treated as fatal:
     `E_INVALID_EVENT` is emitted as an error event and the stream closes.
   - README documents the listener-driven behavior.
+- macOS write semantics:
+  - Existing iCloud files use `.saveOperation` to overwrite in-place.
+  - `.saveAsOperation` is reserved for new writes to a new location.
 
 ## Technical Decisions
 | Decision | Rationale |

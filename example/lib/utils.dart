@@ -12,3 +12,8 @@ String getErrorMessage(dynamic ex) {
 
   return ex.toString();
 }
+
+String formatProgressPercent(double? percent) {
+  final safePercent = (percent ?? 0).clamp(0, 100).toDouble();
+  return '${safePercent.toStringAsFixed(1)}%';
+}

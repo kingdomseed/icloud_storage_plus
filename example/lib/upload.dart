@@ -37,8 +37,8 @@ class _UploadState extends State<Upload> {
               switch (event.type) {
                 case ICloudTransferProgressType.progress:
                   _error = null;
-                  _progress = 'Upload Progress: '
-                      '${event.percent ?? 0}';
+                  _progress =
+                      'Upload Progress: ${formatProgressPercent(event.percent)}';
                   break;
                 case ICloudTransferProgressType.done:
                   _error = null;

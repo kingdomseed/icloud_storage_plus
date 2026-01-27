@@ -95,6 +95,10 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 - Directory support via `ICloudFile.isDirectory`.
 - Error code `E_PLUGIN_INTERNAL` for unexpected Dart-side stream errors.
+- Error code `E_INVALID_EVENT` for invalid event types from native layer.
+- `PlatformExceptionCode` constants for all error codes (`argumentError`,
+  `readError`, `canceled`, `pluginInternal`, `invalidEvent`) to replace
+  hardcoded string literals.
 - Warning log when an unknown download status key is encountered.
 - `GatherResult.invalidEntries` to surface malformed metadata entries.
 - Removed `E_TIMEOUT` from public error codes.
@@ -111,6 +115,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 - `documentExists` uses `FileManager.fileExists` and returns true for iCloud
   placeholder entries once container metadata syncs (even if bytes are not
   downloaded).
+- Documentation clarifies that `gather()` update streams deliver the full list,
+  `uploadFile`/`downloadFile` reject directory paths, and `downloadStatus` may
+  be null for unknown platform statuses.
 
 ### Fixed
 
@@ -125,6 +132,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 - `uploadFile()` / `downloadFile()` now reject `cloudRelativePath` values that
   end with `/` (directory-style paths). Directory operations still accept
   trailing slashes when appropriate.
+- macOS streaming writes now use `.saveOperation` for existing files to avoid
+  unintended “Save As” behavior.
 - Method channel null handling when platform methods return null.
 - Stream mapping and event handling correctness.
 - Removed metadata query timeouts from structural operations.
@@ -136,7 +145,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 2. Update imports to package-qualified paths.
 3. Add null checks for `ICloudFile` fields and handle directories via
    `isDirectory`.
-4. Run `flutter analyze` to address any `very_good_analysis` lint findings.
+4. If you use transfer progress, attach a listener immediately inside
+  `onProgress` (streams are listener-driven and may miss early events).
+5. Run `flutter analyze` to address any `very_good_analysis` lint findings.
 
 ---
 

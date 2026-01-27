@@ -66,6 +66,10 @@ class ICloudStorage {
   /// [localPath] is the absolute path to a local file.
   /// [cloudRelativePath] is the path within the iCloud container.
   /// Use 'Documents/' prefix for Files app visibility.
+  ///
+  /// If [onProgress] is provided, attach a listener immediately inside the
+  /// callback. Progress streams are listener-driven (not buffered), so delaying
+  /// `listen()` may miss early progress events.
   static Future<void> uploadFile({
     required String containerId,
     required String localPath,
@@ -102,6 +106,10 @@ class ICloudStorage {
   ///
   /// [cloudRelativePath] is the path within the iCloud container.
   /// [localPath] is the absolute destination path to write.
+  ///
+  /// If [onProgress] is provided, attach a listener immediately inside the
+  /// callback. Progress streams are listener-driven (not buffered), so delaying
+  /// `listen()` may miss early progress events.
   static Future<void> downloadFile({
     required String containerId,
     required String cloudRelativePath,

@@ -237,8 +237,8 @@ extension ICloudStoragePlugin {
                     to: url,
                     ofType: "public.data",
                     for: FileManager.default.fileExists(atPath: url.path)
-                        ? .saveAsOperation
-                        : .saveOperation,
+                        ? .saveOperation
+                        : .saveAsOperation,
                     originalContentsURL: nil
                 )
                 DispatchQueue.main.async {

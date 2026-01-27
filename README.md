@@ -185,6 +185,13 @@ Use package-qualified imports:
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 ```
 
+#### 4. Progress Streams Are Listener-Driven
+
+`uploadFile`/`downloadFile` progress streams subscribe lazily when a listener
+attaches. Attach a listener immediately inside the `onProgress` callback.
+If you delay calling `listen()` (for example, awaiting something first), you
+may miss early progress events.
+
 ### Recommended Migration
 
 Replace manual file operations with streaming file-path methods:
@@ -438,13 +445,13 @@ All methods throw `PlatformException` on errors. Common codes:
 - `E_FNF_READ` (file not found during read)
 - `E_FNF_WRITE` (file not found during write)
 - `E_NAT` (native error)
-- `E_PLUGIN_INTERNAL` (internal plugin error — please open a GitHub issue)
 - `E_ARG` (invalid arguments)
 - `E_READ` (read failure)
 - `E_CANCEL` (operation canceled)
+- `E_PLUGIN_INTERNAL` (internal plugin error — please open a GitHub issue)
+- `E_INVALID_EVENT` (invalid event from native layer — please open a GitHub issue)
 
-`PlatformExceptionCode` provides constants for the common native error codes
-above. Use string literals for codes that are not defined there.
+`PlatformExceptionCode` provides constants for all error codes above.
 
 ```dart
 try {
@@ -466,17 +473,20 @@ try {
     case PlatformExceptionCode.nativeCodeError:
       // Underlying native error
       break;
-    case 'E_PLUGIN_INTERNAL':
-      // Internal plugin error — please open a GitHub issue
-      break;
-    case 'E_ARG':
+    case PlatformExceptionCode.argumentError:
       // Invalid arguments
       break;
-    case 'E_READ':
+    case PlatformExceptionCode.readError:
       // Failed to read file content
       break;
-    case 'E_CANCEL':
+    case PlatformExceptionCode.canceled:
       // Operation canceled by caller
+      break;
+    case PlatformExceptionCode.pluginInternal:
+      // Internal plugin error — please open a GitHub issue
+      break;
+    case PlatformExceptionCode.invalidEvent:
+      // Invalid event from native layer — please open a GitHub issue
       break;
     default:
       // Other error

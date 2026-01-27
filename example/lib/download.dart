@@ -37,8 +37,8 @@ class _DownloadState extends State<Download> {
               switch (event.type) {
                 case ICloudTransferProgressType.progress:
                   _error = null;
-                  _progress = 'Download Progress: '
-                      '${event.percent ?? 0}';
+                  _progress =
+                      'Download Progress: ${formatProgressPercent(event.percent)}';
                   break;
                 case ICloudTransferProgressType.done:
                   _error = null;

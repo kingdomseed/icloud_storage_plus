@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
@@ -210,7 +211,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
         }
 
         final exception = PlatformException(
-          code: 'E_INVALID_EVENT',
+          code: PlatformExceptionCode.invalidEvent,
           message: 'Unexpected progress event type: ${event.runtimeType}',
           details: event,
         );
@@ -228,7 +229,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
                   stackTrace,
                 );
                 return PlatformException(
-                  code: 'E_PLUGIN_INTERNAL',
+                  code: PlatformExceptionCode.pluginInternal,
                   message: 'Internal plugin error during progress '
                       'stream processing',
                   details: error,

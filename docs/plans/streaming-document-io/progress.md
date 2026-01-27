@@ -27,6 +27,8 @@
   - Added placeholder clarification to CHANGELOG.
   - Documented E_PLUGIN_INTERNAL guidance in README.
   - Updated README migration/version headers, gather examples, and path notes.
+  - Added README clarifications to CHANGELOG.
+  - Fixed macOS write save operation to use .saveOperation for existing files.
   - Refactored transfer progress stream mapping to a StreamTransformer
     (no manual controller/subscription lifecycle) and confirmed tests pass.
   - Restored context-aware relative path validation: directory paths may end
