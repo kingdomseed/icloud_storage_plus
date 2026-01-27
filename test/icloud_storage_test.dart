@@ -250,6 +250,22 @@ void main() {
       expect(result, true);
     });
 
+    test('delete accepts trailing slash', () async {
+      await ICloudStorage.delete(
+        containerId: containerId,
+        relativePath: 'Documents/folder/',
+      );
+      expect(fakePlatform.calls.last, 'delete');
+    });
+
+    test('getMetadata accepts trailing slash', () async {
+      await ICloudStorage.getMetadata(
+        containerId: containerId,
+        relativePath: 'Documents/folder/',
+      );
+      expect(fakePlatform.calls.last, 'getDocumentMetadata');
+    });
+
     test('getMetadata returns ICloudFile', () async {
       final metadata = await ICloudStorage.getMetadata(
         containerId: containerId,

@@ -33,26 +33,25 @@ class _UploadState extends State<Upload> {
         cloudRelativePath: _destPathController.text,
         onProgress: (stream) {
           _progressListener = stream.listen((event) {
-            if (event.isProgress) {
-              setState(() {
-                _progress = 'Upload Progress: ${event.percent}';
-              });
-              return;
-            }
-
-            if (event.isDone) {
-              setState(() {
-                _progress = 'Upload Completed';
-              });
-              return;
-            }
-
-            if (event.isError) {
-              setState(() {
-                _progress = null;
-                _error = getErrorMessage(event.exception);
-              });
-            }
+            setState(() {
+              switch (event.type) {
+                case ICloudTransferProgressType.progress:
+                  _error = null;
+                  _progress = 'Upload Progress: '
+                      '${event.percent ?? 0}';
+                  break;
+                case ICloudTransferProgressType.done:
+                  _error = null;
+                  _progress = 'Upload Completed';
+                  break;
+                case ICloudTransferProgressType.error:
+                  _progress = null;
+                  _error = getErrorMessage(
+                    event.exception ?? 'Unknown upload error',
+                  );
+                  break;
+              }
+            });
           });
         },
       );

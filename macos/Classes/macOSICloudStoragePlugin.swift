@@ -5,6 +5,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
+  private var progressByEventChannel: [String: Double] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
   private let fileNotFoundReadError = FlutterError(
@@ -215,10 +216,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     if relative.hasPrefix("/") {
       relative.removeFirst()
     }
-    // Remove trailing slash for directories to ensure Dart validation passes
-    if relative.hasSuffix("/") {
-      relative.removeLast()
-    }
     return relative
   }
   
@@ -284,6 +281,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     guard let uploadStreamHandler = self.streamHandlers[eventChannelName] else {
       return
     }
+    emitProgress(10.0, eventChannelName: eventChannelName)
     uploadStreamHandler.onCancelHandler = { [self] in
       removeObservers(query)
       query.stop()
@@ -332,10 +330,15 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     
     guard let fileItem = query.results.first as? NSMetadataItem else { return }
     guard let fileURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else { return }
-    guard let fileURLValues = try? fileURL.resourceValues(forKeys: [.ubiquitousItemUploadingErrorKey]) else { return}
-    guard let streamHandler = self.streamHandlers[eventChannelName] else { return }
+    guard let fileURLValues = try? fileURL.resourceValues(
+      forKeys: [.ubiquitousItemUploadingErrorKey]
+    ) else { return }
+    guard self.streamHandlers[eventChannelName] != nil else { return }
     
     if let error = fileURLValues.ubiquitousItemUploadingError {
+      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+        return
+      }
       streamHandler.setEvent(nativeCodeError(error))
       streamHandler.setEvent(FlutterEndOfEventStream)
       removeObservers(query)
@@ -345,8 +348,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     
     if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentUploadedKey) as? Double {
-      streamHandler.setEvent(progress)
+      emitProgress(progress, eventChannelName: eventChannelName)
       if (progress >= 100) {
+        guard let streamHandler = self.streamHandlers[eventChannelName] else {
+          return
+        }
         streamHandler.setEvent(FlutterEndOfEventStream)
         removeObservers(query)
         query.stop()
@@ -430,6 +436,9 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       )
       query.start()
     }
+    if downloadStreamHandler != nil {
+      emitProgress(10.0, eventChannelName: eventChannelName)
+    }
 
     readDocumentAt(url: cloudFileURL, destinationURL: localFileURL) { [self] error in
       if didComplete {
@@ -448,7 +457,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         return
       }
 
-      downloadStreamHandler?.setEvent(100.0)
+      emitProgress(100.0, eventChannelName: eventChannelName)
       downloadStreamHandler?.setEvent(FlutterEndOfEventStream)
       if let query {
         removeObservers(query)
@@ -496,7 +505,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let streamHandler = self.streamHandlers[eventChannelName]
     guard let fileItem = query.results.first as? NSMetadataItem else { return }
     if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey) as? Double {
-      streamHandler?.setEvent(progress)
+      emitProgress(progress, eventChannelName: eventChannelName)
     }
   }
   
@@ -611,7 +620,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         result(nil)
       } catch {
         DebugHelper.log("error: \(error.localizedDescription)")
-        result(nativeCodeError(error))
+        let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+        result(mapped)
       }
     }
   }
@@ -781,6 +791,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Removes a stream handler for the given event channel.
   private func removeStreamHandler(_ eventChannelName: String) {
     self.streamHandlers[eventChannelName] = nil
+    progressByEventChannel.removeValue(forKey: eventChannelName)
+  }
+
+  /// Emits a monotonic progress update to the Flutter stream.
+  private func emitProgress(_ progress: Double, eventChannelName: String) {
+    guard let streamHandler = streamHandlers[eventChannelName] else { return }
+    let lastProgress = progressByEventChannel[eventChannelName] ?? 0
+    let clamped = max(progress, lastProgress)
+    progressByEventChannel[eventChannelName] = clamped
+    streamHandler.setEvent(clamped)
   }
   
   let argumentError = FlutterError(code: "E_ARG", message: "Invalid Arguments", details: nil)

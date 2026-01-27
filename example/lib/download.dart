@@ -33,32 +33,31 @@ class _DownloadState extends State<Download> {
         localPath: _localPathController.text,
         onProgress: (stream) {
           _progressListener = stream.listen((event) {
-            if (event.isProgress) {
-              setState(() {
-                _progress = 'Download Progress: ${event.percent}';
-              });
-              return;
-            }
-
-            if (event.isDone) {
-              setState(() {
-                _progress = 'Download Completed';
-              });
-              return;
-            }
-
-            if (event.isError) {
-              setState(() {
-                _error = getErrorMessage(event.exception);
-                _progress = '';
-              });
-            }
+            setState(() {
+              switch (event.type) {
+                case ICloudTransferProgressType.progress:
+                  _error = null;
+                  _progress = 'Download Progress: '
+                      '${event.percent ?? 0}';
+                  break;
+                case ICloudTransferProgressType.done:
+                  _error = null;
+                  _progress = 'Download Completed';
+                  break;
+                case ICloudTransferProgressType.error:
+                  _progress = null;
+                  _error = getErrorMessage(
+                    event.exception ?? 'Unknown download error',
+                  );
+                  break;
+              }
+            });
           });
         },
       );
     } catch (ex) {
       setState(() {
-        _progress = '';
+        _progress = null;
         _error = getErrorMessage(ex);
       });
     }

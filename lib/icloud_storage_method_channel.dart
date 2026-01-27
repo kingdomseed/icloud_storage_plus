@@ -301,7 +301,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       for (var index = 0; index < mapList.length; index += 1) {
         final entry = mapList[index];
         if (entry is! Map<dynamic, dynamic>) {
-          _logger.warning(
+          _logger.fine(
             'Skipping malformed metadata entry: expected Map, got '
             '${entry.runtimeType}',
           );
@@ -317,7 +317,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
         try {
           files.add(ICloudFile.fromMap(entry));
         } on Exception catch (error, stackTrace) {
-          _logger.warning(
+          _logger.fine(
             'Skipping malformed metadata entry: $error',
             error,
             stackTrace,

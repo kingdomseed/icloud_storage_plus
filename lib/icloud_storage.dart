@@ -259,6 +259,10 @@ class ICloudStorage {
     final fileOrDirNames = path.split('/');
     if (fileOrDirNames.isEmpty) return false;
 
+    if (fileOrDirNames.length > 1 && fileOrDirNames.last.isEmpty) {
+      fileOrDirNames.removeLast();
+    }
+
     return fileOrDirNames.every(_validateFileName);
   }
 

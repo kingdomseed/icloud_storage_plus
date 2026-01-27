@@ -44,11 +44,30 @@ Phase 5
 - [x] Fix any issues found
 - **Status:** complete
 
-### Phase 5: Delivery
+### Phase 5: Refinement & Tech Debt Cleanup
+- [x] Normalize progress event handling in example app (avoid empty strings).
+- [x] Use enum-based switch for progress events in example app.
+- [x] Audit upload/download UI states for consistent null-safe updates.
+- [x] Map delete coordination errors to E_FNF to avoid TOCTOU mismatch.
+- [x] Add 10% kickoff progress events (upload/download) with monotonic clamp.
+- [ ] Document "read is authoritative" download model and progress caveats.
+- [ ] Document upload progress query behavior (empty results, long-lived stream).
+- [x] Decide where to normalize trailing slashes (Dart accepts either; no trim).
+- [x] Clarify 64KB streamCopy buffer scope and decision (doc read/write only).
+- [x] Document gather() return type change with invalidEntries usage example.
+- [x] Decide whether to reduce per-entry gather() warning logs.
+- [ ] Verify progress stream buffering logic is documented in README/migration.
+- [ ] Remove any unused imports or dead code introduced by streaming refactor.
+- [ ] Ensure error handling pathways surface typed exceptions consistently.
+- [ ] Re-check method channel argument naming consistency across platforms/tests.
+- [ ] Run `dart fix`, `dart format`, and analyzer to confirm clean lint state.
+- **Status:** in_progress
+
+### Phase 6: Delivery
 - [ ] Review all output files
 - [ ] Ensure deliverables are complete
 - [ ] Deliver to user
-- **Status:** in_progress
+- **Status:** pending
 
 ## Key Questions
 1. Which UIDocument/NSDocument overrides allow direct streaming to URL without

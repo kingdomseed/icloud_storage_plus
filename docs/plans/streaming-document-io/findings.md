@@ -44,6 +44,49 @@
   - External user-picked files are explicitly out of scope for this plugin.
 - NSDocument/UIDocument already coordinate file access internally; wrapping
   their read/write methods in an extra NSFileCoordinator can cause deadlocks.
+- Download flow authority:
+  - The document read path (UIDocument/NSDocument) is the authoritative
+    success/failure signal for downloads.
+  - NSMetadataQuery is progress-only telemetry and may lag or return zero
+    results, so progress updates are best-effort.
+  - The completeOnce guard is required to prevent double completion when both
+    metadata updates and the read path fire completion events.
+  - This shifts the mental model: "read = done" rather than "metadata current
+    = done," which should be documented for maintainers.
+  - UX caveat: progress may be silent if metadata is unavailable; consider an
+    initial progress event or a short retry before declaring "no progress."
+- Upload progress monitoring:
+  - Upload progress queries now stay alive when results are empty to avoid
+    missing late metadata indexing, preventing "0% then done" gaps.
+  - This means progress streams can remain open longer if metadata never
+    appears; they close on 100%, error, or cancellation.
+  - A kickoff progress event (10%) makes activity visible even when metadata
+    results lag, with monotonic clamping to avoid regressions.
+  - Consider documenting optional UI timeouts (e.g., hide after 60–120s) for
+    apps that want to avoid indefinite progress indicators.
+- Path normalization (trailing slashes):
+  - Native implementations trim trailing slashes from container-relative paths
+    returned by metadata to satisfy Dart validation rules.
+  - Dart `_validateRelativePath` rejects empty path segments, so `folder/`
+    fails without normalization.
+  - This is a cross-layer mismatch: Apple uses trailing slashes to signal
+    directories, while Dart validation is strict.
+  - Decision: Dart now accepts trailing slashes (no normalization), and native
+    trimming was removed to avoid layered fixes.
+- Streamed copy buffer size:
+  - The 64KB buffer lives inside UIDocument/NSDocument streamCopy and is used
+    for document read/write (download/upload), not the copy() API.
+  - The approach is disk-to-disk streaming to avoid large in-memory buffers,
+    with correct partial write handling.
+  - Fixed 64KB is acceptable for v3.0; tuning and per-op progress callbacks
+    can be deferred unless real-world perf issues appear.
+- gather() return type change:
+  - gather() now returns GatherResult with files + invalidEntries to surface
+    malformed metadata rather than silently dropping it.
+  - Migration burden is real but acceptable for v3.0; docs should show the
+    one-line fix: `final files = (await gather()).files`.
+  - Decision: per-entry logs reduced to `fine` while keeping the summary
+    warning to avoid log spam in large datasets.
 
 ## Technical Decisions
 | Decision | Rationale |

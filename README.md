@@ -143,6 +143,13 @@ final files = await ICloudStorage.gather(...);
 ```dart
 final result = await ICloudStorage.gather(...);
 final files = result.files;
+
+if (result.invalidEntries.isNotEmpty) {
+  // Optional: log or surface skipped metadata to aid debugging.
+  debugPrint(
+    'Skipped ${result.invalidEntries.length} invalid metadata entries.',
+  );
+}
 ```
 
 **After (3.0):**

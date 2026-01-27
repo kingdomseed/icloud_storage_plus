@@ -81,6 +81,13 @@ callers.
 ```dart
 final result = await ICloudStorage.gather(...);
 final files = result.files;
+
+if (result.invalidEntries.isNotEmpty) {
+  // Optional: log or surface skipped metadata to aid debugging.
+  debugPrint(
+    'Skipped ${result.invalidEntries.length} invalid metadata entries.',
+  );
+}
 ```
 Dependency changed from `flutter_lints` to `very_good_analysis`.
 

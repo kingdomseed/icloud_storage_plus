@@ -1,5 +1,35 @@
 # Progress Log
 
+## Session: 2026-01-27
+
+### Phase 5: Refinement & Tech Debt Cleanup
+- **Status:** in_progress
+- **Started:** 2026-01-27
+- Actions taken:
+  - Reviewed plan and added eight refinement mini-tasks.
+  - Updated example upload/download progress handling to switch on
+    ICloudTransferProgressType.
+  - Normalized example progress/error state handling to use nulls.
+  - Ran dart format and analyzer on updated example files.
+  - Mapped delete coordination errors to E_FNF for TOCTOU consistency.
+  - Documented download read-path authority and progress caveats in findings.
+  - Added 10% kickoff progress events with monotonic clamping (upload/download).
+  - Noted upload progress query behavior and optional UI timeouts in findings.
+  - Captured trailing slash normalization mismatch and follow-up task in plan.
+  - Updated Dart validation to accept trailing slashes and removed native trims.
+  - Documented 64KB streamCopy buffer scope and rationale in findings.
+  - Added gather() return-type findings and follow-up tasks to the plan.
+  - Reduced per-entry gather() log noise and documented invalidEntries usage.
+- Files created/modified:
+  - docs/plans/streaming-document-io/task_plan.md
+  - docs/plans/streaming-document-io/findings.md
+  - lib/icloud_storage.dart
+  - test/icloud_storage_test.dart
+  - example/lib/upload.dart
+  - example/lib/download.dart
+  - ios/Classes/iOSICloudStoragePlugin.swift
+  - macos/Classes/macOSICloudStoragePlugin.swift
+
 ## Session: 2026-01-24
 
 ### Phase 1: Requirements & Discovery
@@ -64,13 +94,13 @@
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-|           |       | 1       |            |
+| 2026-01-27 | Ran `dart format` on README/CHANGELOG and got parse errors (non-Dart). | 1 | Avoid formatting markdown with dart format. |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 1 |
-| Where am I going? | Phases 2-5 |
+| Where am I? | Phase 5 |
+| Where am I going? | Phase 6 |
 | What's the goal? | Streamed document IO for uploads |
 | What have I learned? | See findings.md |
-| What have I done? | Initialized plan files |
+| What have I done? | See session logs above |
