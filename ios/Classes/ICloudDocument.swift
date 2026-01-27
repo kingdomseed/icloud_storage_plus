@@ -194,11 +194,17 @@ class ICloudDocument: UIDocument {
                     let base = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
                     return output.write(base.advanced(by: totalWritten), maxLength: read - totalWritten)
                 }
-                if written < 0 {
+                // `OutputStream.write` returns the number of bytes written or -1 on error.
+                // While rare for file-backed streams, it can also return 0. In a tight loop,
+                // a 0-byte write would spin forever; fail fast rather than hang the app.
+                if written <= 0 {
+                    let message = written == 0
+                        ? "Stream write returned 0 bytes (stalled); treating as failure"
+                        : "Stream write error"
                     throw output.streamError ?? NSError(
                         domain: NSCocoaErrorDomain,
                         code: NSFileWriteUnknownError,
-                        userInfo: [NSLocalizedDescriptionKey: "Stream write error"]
+                        userInfo: [NSLocalizedDescriptionKey: message]
                     )
                 }
                 totalWritten += written

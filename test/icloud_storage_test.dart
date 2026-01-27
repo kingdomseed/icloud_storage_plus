@@ -166,6 +166,17 @@ void main() {
         expect(fakePlatform.calls.last, 'uploadFile');
       });
 
+      test('uploadFile rejects trailing slash cloudRelativePath', () async {
+        expect(
+          () async => ICloudStorage.uploadFile(
+            containerId: containerId,
+            localPath: '/dir/file',
+            cloudRelativePath: 'Documents/folder/',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
       test('uploadFile with invalid localPath', () async {
         expect(
           () async => ICloudStorage.uploadFile(
@@ -199,6 +210,17 @@ void main() {
         expect(fakePlatform.downloadCloudRelativePath, 'file');
         expect(fakePlatform.downloadLocalPath, '/tmp/file');
         expect(fakePlatform.calls.last, 'downloadFile');
+      });
+
+      test('downloadFile rejects trailing slash cloudRelativePath', () async {
+        expect(
+          () async => ICloudStorage.downloadFile(
+            containerId: containerId,
+            cloudRelativePath: 'Documents/folder/',
+            localPath: '/tmp/file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
       });
 
       test('downloadFile with invalid localPath', () async {

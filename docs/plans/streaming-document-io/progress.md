@@ -23,8 +23,13 @@
   - Updated CHANGELOG for trailing slash validation behavior.
   - Removed custom buffering in favor of listener-driven progress streams.
   - Updated progress stream tests and README/CHANGELOG to match new behavior.
+  - Clarified `documentExists` placeholder behavior in README and download flow.
+  - Added placeholder clarification to CHANGELOG.
   - Refactored transfer progress stream mapping to a StreamTransformer
     (no manual controller/subscription lifecycle) and confirmed tests pass.
+  - Restored context-aware relative path validation: directory paths may end
+    with `/`, but transfer APIs (`uploadFile`/`downloadFile`) now reject
+    trailing slashes to avoid UIDocument/NSDocument ambiguity.
   - Ran flutter test for method channel streams.
 - Files created/modified:
   - docs/plans/streaming-document-io/task_plan.md

@@ -58,6 +58,7 @@ Phase 5
 - [x] Decide whether to reduce per-entry gather() warning logs.
 - [x] Verify progress stream buffering logic is documented in README/migration.
 - [x] Clarify progress stream error-as-data semantics and terminal close.
+- [x] Reject trailing slashes for upload/download file paths.
 - [ ] Remove any unused imports or dead code introduced by streaming refactor.
 - [ ] Ensure error handling pathways surface typed exceptions consistently.
 - [ ] Re-check method channel argument naming consistency across platforms/tests.

@@ -108,6 +108,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 - Structural operations (`delete`, `move`, `copy`, `documentExists`,
   `getDocumentMetadata`) now use file URLs with coordinated FileManager access
   instead of metadata queries.
+- `documentExists` uses `FileManager.fileExists` and returns true for iCloud
+  placeholder entries once container metadata syncs (even if bytes are not
+  downloaded).
 
 ### Fixed
 
@@ -119,6 +122,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
   avoid missing early progress updates.
 - Transfer progress stream failures are surfaced as `ICloudTransferProgress`
   error events (not stream `onError`) and terminal events close the stream.
+- `uploadFile()` / `downloadFile()` now reject `cloudRelativePath` values that
+  end with `/` (directory-style paths). Directory operations still accept
+  trailing slashes when appropriate.
 - Method channel null handling when platform methods return null.
 - Stream mapping and event handling correctness.
 - Removed metadata query timeouts from structural operations.

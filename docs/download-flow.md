@@ -27,7 +27,9 @@ Progress streams close when the transfer completes or errors. If metadata is
 not yet available, the stream remains open until the transfer state is known.
 
 Existence checks (`documentExists`) use direct filesystem URLs rather than
-metadata queries.
+metadata queries. iCloud placeholders are local entries, so `fileExists`
+returns true once the directory metadata syncs, even if the file is not
+downloaded.
 
 ## Error codes
 

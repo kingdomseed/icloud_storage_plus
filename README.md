@@ -274,6 +274,10 @@ Future<void> uploadFile({
 Streams a local file into the iCloud container. Use `Documents/` in
 `cloudRelativePath` to expose the file in Files app.
 
+`cloudRelativePath` must refer to a file and must not end with `/`. Directory
+paths with trailing slashes may appear in metadata and are accepted by
+directory-oriented operations like `delete`, `move`, and `getMetadata`.
+
 #### downloadFile
 ```dart
 Future<void> downloadFile({
@@ -285,6 +289,8 @@ Future<void> downloadFile({
 ```
 Streams a file from iCloud into a local path.
 
+`cloudRelativePath` must refer to a file and must not end with `/`.
+
 Progress streams are broadcast and start when a listener attaches. For the most
 consistent updates, start listening immediately in the `onProgress` callback.
 
@@ -294,7 +300,9 @@ emits the event and then closes. Unexpected progress event payload types are
 surfaced as `E_INVALID_EVENT` and terminate the stream.
 
 Existence checks use `FileManager.fileExists` on the container path rather than
-metadata queries.
+metadata queries. iCloud creates local placeholder entries for remote files, so
+`fileExists` returns true once the container metadata has synced, even if the
+file’s bytes are not downloaded. This method does not force a download.
 
 #### documentExists
 ```dart

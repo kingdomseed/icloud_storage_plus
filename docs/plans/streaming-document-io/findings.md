@@ -55,6 +55,10 @@
     = done," which should be documented for maintainers.
   - UX caveat: progress may be silent if metadata is unavailable; consider an
     initial progress event or a short retry before declaring "no progress."
+- Existence checks:
+  - `documentExists` uses `FileManager.fileExists` on container paths.
+  - iCloud placeholders are local entries, so `fileExists` returns true once
+    container metadata syncs even if bytes are not downloaded.
 - Upload progress monitoring:
   - Upload progress queries now stay alive when results are empty to avoid
     missing late metadata indexing, preventing "0% then done" gaps.
@@ -73,6 +77,9 @@
     directories, while Dart validation is strict.
   - Decision: Dart now accepts trailing slashes (no normalization), and native
     trimming was removed to avoid layered fixes.
+  - Follow-up: transfers are file-centric (UIDocument/NSDocument), so
+    `uploadFile`/`downloadFile` must reject `cloudRelativePath` values ending
+    in `/` even though directory operations accept them.
 - Streamed copy buffer size:
   - The 64KB buffer lives inside UIDocument/NSDocument streamCopy and is used
     for document read/write (download/upload), not the copy() API.

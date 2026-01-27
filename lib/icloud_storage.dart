@@ -76,6 +76,14 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid localPath: $localPath');
     }
 
+    // Transfers are file-centric (UIDocument/NSDocument). A trailing slash
+    // indicates a directory path and would be ambiguous or fail natively.
+    if (cloudRelativePath.endsWith('/')) {
+      throw InvalidArgumentException(
+        'invalid cloudRelativePath: $cloudRelativePath',
+      );
+    }
+
     if (!_validateRelativePath(cloudRelativePath)) {
       throw InvalidArgumentException(
         'invalid cloudRelativePath: $cloudRelativePath',
@@ -102,6 +110,14 @@ class ICloudStorage {
   }) async {
     if (localPath.trim().isEmpty) {
       throw InvalidArgumentException('invalid localPath: $localPath');
+    }
+
+    // Transfers are file-centric (UIDocument/NSDocument). A trailing slash
+    // indicates a directory path and would be ambiguous or fail natively.
+    if (cloudRelativePath.endsWith('/')) {
+      throw InvalidArgumentException(
+        'invalid cloudRelativePath: $cloudRelativePath',
+      );
     }
 
     if (!_validateRelativePath(cloudRelativePath)) {
