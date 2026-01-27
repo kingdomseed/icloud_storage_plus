@@ -25,6 +25,7 @@
   - Updated progress stream tests and README/CHANGELOG to match new behavior.
   - Clarified `documentExists` placeholder behavior in README and download flow.
   - Added placeholder clarification to CHANGELOG.
+  - Documented E_PLUGIN_INTERNAL guidance in README.
   - Refactored transfer progress stream mapping to a StreamTransformer
     (no manual controller/subscription lifecycle) and confirmed tests pass.
   - Restored context-aware relative path validation: directory paths may end

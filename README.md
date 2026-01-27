@@ -30,7 +30,7 @@ flutter pub add icloud_storage_plus
 ## Usage
 
 This plugin operates on your app’s iCloud container (files you write under that
-container). It does not handle external Files picked outside your container.
+container). 
 
 ### Basic Example
 
@@ -433,7 +433,7 @@ All methods throw `PlatformException` on errors. Common codes:
 - `E_FNF_READ` (file not found during read)
 - `E_FNF_WRITE` (file not found during write)
 - `E_NAT` (native error)
-- `E_PLUGIN_INTERNAL` (internal plugin error)
+- `E_PLUGIN_INTERNAL` (internal plugin error — please open a GitHub issue)
 - `E_ARG` (invalid arguments)
 - `E_READ` (read failure)
 - `E_CANCEL` (operation canceled)
@@ -457,6 +457,9 @@ try {
       break;
     case PlatformExceptionCode.nativeCodeError:
       // Underlying native error
+      break;
+    case 'E_PLUGIN_INTERNAL':
+      // Internal plugin error — please open a GitHub issue
       break;
     case 'E_ARG':
       // Invalid arguments
