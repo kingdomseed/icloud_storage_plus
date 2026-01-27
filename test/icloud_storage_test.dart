@@ -255,6 +255,15 @@ void main() {
       expect(fakePlatform.moveToRelativePath, 'Documents/renamed.json');
     });
 
+    test('rename on directory strips trailing slash for parent', () async {
+      await ICloudStorage.rename(
+        containerId: containerId,
+        relativePath: 'Documents/folder/',
+        newName: 'renamedFolder',
+      );
+      expect(fakePlatform.moveToRelativePath, 'Documents/renamedFolder');
+    });
+
     test('rename handles root-level files', () async {
       await ICloudStorage.rename(
         containerId: containerId,

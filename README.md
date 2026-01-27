@@ -104,8 +104,9 @@ await ICloudStorage.move(
 final result = await ICloudStorage.gather(
   containerId: 'iCloud.com.yourapp.container',
   onUpdate: (stream) {
-    stream.listen((updates) {
-      // Handle file list updates
+    stream.listen((gatherResult) {
+      final files = gatherResult.files;
+      // Handle full file list updates
     });
   },
 );
@@ -122,7 +123,7 @@ Four fields are now nullable:
 - `sizeInBytes: int?` - null for directories and undownloaded files
 - `creationDate: DateTime?` - null when metadata unavailable
 - `contentChangeDate: DateTime?` - null when metadata unavailable
-- `downloadStatus: DownloadStatus?` - null for local-only files
+- `downloadStatus: DownloadStatus?` - null for local-only or unknown statuses
 
 **Before (2.x):**
 ```dart
@@ -169,7 +170,7 @@ Use `isDirectory` to distinguish files from directories.
 final exists = await ICloudStorage.documentExists(...);
 ```
 
-**After (4.0):**
+**After (3.0):**
 ```dart
 final metadata = await ICloudStorage.getMetadata(...);
 if (metadata != null && !metadata.isDirectory) {
@@ -277,6 +278,8 @@ Streams a local file into the iCloud container. Use `Documents/` in
 `cloudRelativePath` must refer to a file and must not end with `/`. Directory
 paths with trailing slashes may appear in metadata and are accepted by
 directory-oriented operations like `delete`, `move`, and `getMetadata`.
+`uploadFile` rejects directory paths because it uses file-specific document
+coordination APIs.
 
 #### downloadFile
 ```dart
@@ -290,6 +293,8 @@ Future<void> downloadFile({
 Streams a file from iCloud into a local path.
 
 `cloudRelativePath` must refer to a file and must not end with `/`.
+`downloadFile` rejects directory paths because it uses file-specific document
+coordination APIs.
 
 Progress streams are broadcast and start when a listener attaches. For the most
 consistent updates, start listening immediately in the `onProgress` callback.
@@ -342,7 +347,7 @@ Future<GatherResult> gather({
 })
 ```
 Lists all files and directories in the container. Optional `onUpdate` callback
-receives updates when files change. Invalid entries are returned in
+receives the full list when files change. Invalid entries are returned in
 `result.invalidEntries`.
 
 ```dart
@@ -437,6 +442,9 @@ All methods throw `PlatformException` on errors. Common codes:
 - `E_ARG` (invalid arguments)
 - `E_READ` (read failure)
 - `E_CANCEL` (operation canceled)
+
+`PlatformExceptionCode` provides constants for the common native error codes
+above. Use string literals for codes that are not defined there.
 
 ```dart
 try {
