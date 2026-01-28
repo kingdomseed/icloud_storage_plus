@@ -137,6 +137,7 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
   avoid missing early progress updates.
 - Transfer progress stream failures are surfaced as `ICloudTransferProgress`
   error events (not stream `onError`) and terminal events close the stream.
+- Documented progress stream error-as-data behavior in code comments.
 - `uploadFile()` / `downloadFile()` now reject `cloudRelativePath` values that
   end with `/` (directory-style paths). Directory operations still accept
   trailing slashes when appropriate.

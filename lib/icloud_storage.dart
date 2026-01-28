@@ -70,6 +70,9 @@ class ICloudStorage {
   /// [cloudRelativePath] is the path within the iCloud container.
   /// Use 'Documents/' prefix for Files app visibility.
   ///
+  /// Trailing slashes are rejected here because transfers are file-centric and
+  /// coordinated through UIDocument/NSDocument (directories are not supported).
+  ///
   /// If [onProgress] is provided, attach a listener immediately inside the
   /// callback. Progress streams are listener-driven (not buffered), so delaying
   /// `listen()` may miss early progress events.
@@ -110,6 +113,9 @@ class ICloudStorage {
   /// [cloudRelativePath] is the path within the iCloud container.
   /// [localPath] is the absolute destination path to write.
   ///
+  /// Trailing slashes are rejected here because transfers are file-centric and
+  /// coordinated through UIDocument/NSDocument (directories are not supported).
+  ///
   /// If [onProgress] is provided, attach a listener immediately inside the
   /// callback. Progress streams are listener-driven (not buffered), so delaying
   /// `listen()` may miss early progress events.
@@ -146,6 +152,9 @@ class ICloudStorage {
   }
 
   /// Delete a file from the iCloud container.
+  ///
+  /// Trailing slashes are allowed here because directory paths can include
+  /// them in metadata and FileManager operations handle directories.
   static Future<void> delete({
     required String containerId,
     required String relativePath,
@@ -161,6 +170,9 @@ class ICloudStorage {
   }
 
   /// Move a file within the iCloud container.
+  ///
+  /// Trailing slashes are allowed for directory paths (from metadata), but both
+  /// paths must resolve to valid filesystem entries.
   static Future<void> move({
     required String containerId,
     required String fromRelativePath,
@@ -186,6 +198,9 @@ class ICloudStorage {
   }
 
   /// Rename a file in the iCloud container.
+  ///
+  /// Trailing slashes are allowed in [relativePath] for directory entries and
+  /// are normalized before deriving the new path.
   static Future<void> rename({
     required String containerId,
     required String relativePath,
@@ -215,6 +230,9 @@ class ICloudStorage {
   }
 
   /// Copy a file within the iCloud container.
+  ///
+  /// Trailing slashes are allowed for directory paths (from metadata), but both
+  /// paths must resolve to valid filesystem entries.
   static Future<void> copy({
     required String containerId,
     required String fromRelativePath,
@@ -240,6 +258,8 @@ class ICloudStorage {
   }
 
   /// Check if a file or directory exists without downloading.
+  ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
   static Future<bool> documentExists({
     required String containerId,
     required String relativePath,
@@ -255,6 +275,8 @@ class ICloudStorage {
   }
 
   /// Get metadata for a file or directory without downloading content.
+  ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
   static Future<ICloudFile?> getMetadata({
     required String containerId,
     required String relativePath,
@@ -271,6 +293,8 @@ class ICloudStorage {
   }
 
   /// Get raw metadata map for a file or directory.
+  ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
   static Future<Map<String, dynamic>?> getDocumentMetadata({
     required String containerId,
     required String relativePath,

@@ -199,6 +199,12 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   /// The stream subscribes lazily when a listener attaches. Callers should
   /// listen immediately in the `onProgress` callback to avoid missing early
   /// progress events.
+  ///
+  /// **Note on Error Handling:**
+  /// This stream does **not** emit Dart errors via `onError`. Failures are
+  /// delivered as data events with `type == ICloudTransferProgressType.error`.
+  /// You must check `event.isError` (or `event.type`) inside the data listener
+  /// to handle failures. See [ICloudTransferProgress] for details.
   Stream<ICloudTransferProgress> _receiveTransferProgressStream(
     EventChannel eventChannel,
   ) {

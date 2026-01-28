@@ -72,6 +72,9 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// [cloudRelativePath] is the relative path of the file in iCloud.
   ///
+  /// Trailing slashes are rejected here because transfers are file-centric and
+  /// coordinated through UIDocument/NSDocument (directories are not supported).
+  ///
   /// [onProgress] is an optional callback to track the progress of the
   /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage
   /// of the data being uploaded.
@@ -94,6 +97,9 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [cloudRelativePath] is the relative path of the file on iCloud.
 
   /// [localPath] is the full path where the file should be written locally.
+  ///
+  /// Trailing slashes are rejected here because transfers are file-centric and
+  /// coordinated through UIDocument/NSDocument (directories are not supported).
   ///
   /// [onProgress] is an optional callback to track the progress of the
   /// download. It takes a Stream&lt;double&gt; as input, which is the
@@ -118,6 +124,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [relativePath] is the relative path of the file on iCloud, such as file1
   /// or folder/file2
   ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
+  ///
   /// PlatformException with code PlatformExceptionCode.fileNotFound will be
   /// thrown if the file does not exist
   Future<void> delete({
@@ -136,6 +144,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// [toRelativePath] is the relative path to move to, such as folder2/file
   ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
+  ///
   /// PlatformException with code PlatformExceptionCode.fileNotFound will be
   /// thrown if the file does not exist
   Future<void> move({
@@ -153,6 +163,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [fromRelativePath] is the relative path of the source file
   ///
   /// [toRelativePath] is the relative path of the destination file
+  ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
   ///
   /// The destination file will be overwritten if it exists.
   /// Parent directories will be created if needed.
@@ -173,6 +185,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// [relativePath] is the relative path of the item on iCloud
   ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
+  ///
   /// Returns true if the file or directory exists, false otherwise
   Future<bool> documentExists({
     required String containerId,
@@ -186,6 +200,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [containerId] is the iCloud Container Id.
   ///
   /// [relativePath] is the relative path of the item on iCloud
+  ///
+  /// Trailing slashes are allowed for directory paths returned by metadata.
   ///
   /// Returns metadata about the item, or null if it doesn't exist.
   /// The map should include `isDirectory` to distinguish directories.

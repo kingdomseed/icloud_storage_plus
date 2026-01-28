@@ -209,6 +209,7 @@ extension ICloudStoragePlugin {
         document.destinationURL = destinationURL
 
         DispatchQueue.global(qos: .userInitiated).async {
+            defer { DispatchQueue.main.async { document.close() } }
             do {
                 try document.read(from: url, ofType: "public.data")
                 DispatchQueue.main.async {
@@ -232,6 +233,7 @@ extension ICloudStoragePlugin {
         document.sourceURL = sourceURL
 
         DispatchQueue.global(qos: .userInitiated).async {
+            defer { DispatchQueue.main.async { document.close() } }
             do {
                 try document.write(
                     to: url,
