@@ -32,6 +32,7 @@
   - Moved gather onUpdate lifecycle note to Dart API docs.
   - Documented context-dependent trailing slash rules in Dart API docs.
   - Added progress stream error-as-data docstring and updated CHANGELOG.
+  - Fixed platform interface progress docs and example listener naming.
   - Fixed macOS write save operation to use .saveOperation for existing files.
   - Refactored transfer progress stream mapping to a StreamTransformer
     (no manual controller/subscription lifecycle) and confirmed tests pass.

@@ -75,9 +75,11 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// Trailing slashes are rejected here because transfers are file-centric and
   /// coordinated through UIDocument/NSDocument (directories are not supported).
   ///
-  /// [onProgress] is an optional callback to track the progress of the
-  /// upload. It takes a Stream&lt;double&gt; as input, which is the percentage
-  /// of the data being uploaded.
+  /// [onProgress] is an optional callback to track the progress of the upload.
+  /// It receives a Stream&lt;ICloudTransferProgress&gt; that emits:
+  /// - progress events with [ICloudTransferProgress.percent]
+  /// - terminal `done` events
+  /// - terminal `error` events (data events, not stream `onError`)
   ///
   /// The returned future completes without waiting for the file to be uploaded
   /// to iCloud.
@@ -102,8 +104,10 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// coordinated through UIDocument/NSDocument (directories are not supported).
   ///
   /// [onProgress] is an optional callback to track the progress of the
-  /// download. It takes a Stream&lt;double&gt; as input, which is the
-  /// percentage of the data being downloaded.
+  /// download. It receives a Stream&lt;ICloudTransferProgress&gt; that emits:
+  /// - progress events with [ICloudTransferProgress.percent]
+  /// - terminal `done` events
+  /// - terminal `error` events (data events, not stream `onError`)
   ///
   /// The returned future completes without waiting for the file to be
   /// downloaded.
