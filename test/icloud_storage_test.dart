@@ -305,6 +305,21 @@ void main() {
       expect(metadata?.relativePath, 'Documents/test.pdf');
     });
 
+    test('getMetadata maps NSURL download status constants', () async {
+      fakePlatform.documentMetadataResult = {
+        'relativePath': 'Documents/test.pdf',
+        'isDirectory': false,
+        'downloadStatus': 'NSURLUbiquitousItemDownloadingStatusCurrent',
+      };
+
+      final metadata = await ICloudStorage.getMetadata(
+        containerId: containerId,
+        relativePath: 'Documents/test.pdf',
+      );
+
+      expect(metadata?.downloadStatus, DownloadStatus.current);
+    });
+
     test('getDocumentMetadata returns raw map', () async {
       final metadata = await ICloudStorage.getDocumentMetadata(
         containerId: containerId,

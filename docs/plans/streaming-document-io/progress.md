@@ -35,6 +35,7 @@
     with `/`, but transfer APIs (`uploadFile`/`downloadFile`) now reject
     trailing slashes to avoid UIDocument/NSDocument ambiguity.
   - Ran flutter test for method channel streams.
+  - Mapped NSURL download status constants and added coverage in tests.
 - Files created/modified:
   - docs/plans/streaming-document-io/task_plan.md
   - docs/plans/streaming-document-io/findings.md

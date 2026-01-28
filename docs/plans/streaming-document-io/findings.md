@@ -108,6 +108,10 @@
 - macOS write semantics:
   - Existing iCloud files use `.saveOperation` to overwrite in-place.
   - `.saveAsOperation` is reserved for new writes to a new location.
+- Download status mapping:
+  - `getMetadata` uses URLResourceValues (`NSURLUbiquitousItemDownloadingStatus*`)
+    while `gather` uses NSMetadataQuery (`NSMetadataUbiquitousItemDownloadingStatus*`).
+  - ICloudFile now maps both constant families to DownloadStatus.
 
 ## Technical Decisions
 | Decision | Rationale |

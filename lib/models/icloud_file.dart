@@ -84,10 +84,13 @@ class ICloudFile extends Equatable {
     if (key == null) return null;
     switch (key) {
       case 'NSMetadataUbiquitousItemDownloadingStatusNotDownloaded':
+      case 'NSURLUbiquitousItemDownloadingStatusNotDownloaded':
         return DownloadStatus.notDownloaded;
       case 'NSMetadataUbiquitousItemDownloadingStatusDownloaded':
+      case 'NSURLUbiquitousItemDownloadingStatusDownloaded':
         return DownloadStatus.downloaded;
       case 'NSMetadataUbiquitousItemDownloadingStatusCurrent':
+      case 'NSURLUbiquitousItemDownloadingStatusCurrent':
         return DownloadStatus.current;
       default:
         _logger.warning(
