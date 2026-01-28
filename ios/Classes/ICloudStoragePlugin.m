@@ -1,8 +1,8 @@
 #import "ICloudStoragePlugin.h"
-#if __has_include(<icloud_storage/icloud_storage-Swift.h>)
-#import <icloud_storage/icloud_storage-Swift.h>
+#if __has_include(<icloud_storage_plus/icloud_storage_plus-Swift.h>)
+#import <icloud_storage_plus/icloud_storage_plus-Swift.h>
 #else
-#import "icloud_storage-Swift.h"
+#import "icloud_storage_plus-Swift.h"
 #endif
 
 @implementation ICloudStoragePlugin

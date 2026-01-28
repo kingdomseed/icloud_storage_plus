@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:icloud_storage/icloud_storage.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
 import 'utils.dart';
 
 class Download extends StatefulWidget {
@@ -14,8 +14,9 @@ class Download extends StatefulWidget {
 
 class _DownloadState extends State<Download> {
   final _containerIdController = TextEditingController();
-  final _filePathController = TextEditingController();
-  StreamSubscription<double>? _progressListner;
+  final _cloudPathController = TextEditingController();
+  final _localPathController = TextEditingController();
+  StreamSubscription<ICloudTransferProgress>? _progressListener;
   String? _error;
   String? _progress;
 
@@ -26,28 +27,37 @@ class _DownloadState extends State<Download> {
         _error = null;
       });
 
-      await ICloudStorage.download(
+      await ICloudStorage.downloadFile(
         containerId: _containerIdController.text,
-        relativePath: _filePathController.text,
+        cloudRelativePath: _cloudPathController.text,
+        localPath: _localPathController.text,
         onProgress: (stream) {
-          _progressListner = stream.listen(
-            (progress) => setState(() {
-              _progress = 'Download Progress: $progress';
-            }),
-            onDone: () => setState(() {
-              _progress = 'Download Completed';
-            }),
-            onError: (err) => setState(() {
-              _error = getErrorMessage(err);
-              _progress = '';
-            }),
-            cancelOnError: true,
-          );
+          _progressListener = stream.listen((event) {
+            setState(() {
+              switch (event.type) {
+                case ICloudTransferProgressType.progress:
+                  _error = null;
+                  _progress =
+                      'Download Progress: ${formatProgressPercent(event.percent)}';
+                  break;
+                case ICloudTransferProgressType.done:
+                  _error = null;
+                  _progress = 'Download Completed';
+                  break;
+                case ICloudTransferProgressType.error:
+                  _progress = null;
+                  _error = getErrorMessage(
+                    event.exception ?? 'Unknown download error',
+                  );
+                  break;
+              }
+            });
+          });
         },
       );
     } catch (ex) {
       setState(() {
-        _progress = '';
+        _progress = null;
         _error = getErrorMessage(ex);
       });
     }
@@ -61,9 +71,10 @@ class _DownloadState extends State<Download> {
 
   @override
   void dispose() {
-    _progressListner?.cancel();
+    _progressListener?.cancel();
     _containerIdController.dispose();
-    _filePathController.dispose();
+    _cloudPathController.dispose();
+    _localPathController.dispose();
     super.dispose();
   }
 
@@ -85,9 +96,15 @@ class _DownloadState extends State<Download> {
                 ),
               ),
               TextField(
-                controller: _filePathController,
+                controller: _cloudPathController,
                 decoration: const InputDecoration(
-                  labelText: 'relativePath',
+                  labelText: 'cloudRelativePath',
+                ),
+              ),
+              TextField(
+                controller: _localPathController,
+                decoration: const InputDecoration(
+                  labelText: 'localPath',
                 ),
               ),
               const SizedBox(height: 16),

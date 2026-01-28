@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:icloud_storage/icloud_storage.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
 import 'utils.dart';
 
 class Gather extends StatefulWidget {
@@ -12,7 +12,7 @@ class Gather extends StatefulWidget {
 
 class _GatherState extends State<Gather> {
   final _containerIdController = TextEditingController();
-  StreamSubscription<List<ICloudFile>>? _updateListner;
+  StreamSubscription<GatherResult>? _updateListener;
 
   List<String> _files = [];
   String? _error;
@@ -27,9 +27,9 @@ class _GatherState extends State<Gather> {
       final results = await ICloudStorage.gather(
         containerId: _containerIdController.text,
         onUpdate: (stream) {
-          _updateListner = stream.listen((updatedFileList) {
+          _updateListener = stream.listen((updatedResult) {
             setState(() {
-              _files = updatedFileList.map((e) => e.relativePath).toList();
+              _files = updatedResult.files.map((e) => e.relativePath).toList();
             });
           });
         },
@@ -38,7 +38,7 @@ class _GatherState extends State<Gather> {
       setState(() {
         _status = 'listening';
         _error = null;
-        _files = results.map((e) => e.relativePath).toList();
+        _files = results.files.map((e) => e.relativePath).toList();
       });
     } catch (ex) {
       setState(() {
@@ -49,7 +49,7 @@ class _GatherState extends State<Gather> {
   }
 
   Future<void> _cancel() async {
-    await _updateListner?.cancel();
+    await _updateListener?.cancel();
     setState(() {
       _status = '';
     });
@@ -57,7 +57,7 @@ class _GatherState extends State<Gather> {
 
   @override
   void dispose() {
-    _updateListner?.cancel();
+    _updateListener?.cancel();
     _containerIdController.dispose();
     super.dispose();
   }

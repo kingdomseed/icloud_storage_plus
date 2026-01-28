@@ -1,67 +1,165 @@
-## 2.2.0
+# Changelog
 
-- Bug fix: upload and download errors were not passed from the platform code.
+All notable changes to this project will be documented in this file.
 
-## 2.1.0
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- Add support for managing files in the iCloud container's `Documents` subdirectory.
+## [3.0.0] - Unreleased
 
-## 2.0.0
+This repository is currently tracking the upcoming `3.0.0` release. There are a number of breaking changes below.
 
-What's New
+### BREAKING CHANGES
 
-- Support for macOS
-- Support for multiple iCloud Containers
+#### Streaming-Only File Path API
+All byte-based APIs have been removed in favor of file-path methods.
+This aligns with Apple’s URL/stream tier for large files and avoids platform
+channel memory spikes.
 
-Breaking changes
+**Removed:** `upload()`, `download()`, and related byte/JSON/document helpers.
 
-- All methods have been changed to static methods.
-- `getInstance` has been removed. You need to specifiy the `iCloudContainerId` in each method.
-- `gatherFiles` has been renamed to `gather`.
-- `startUpload` has been renamed to `upload`.
-- `startDownload` has been renamed to `download`.
-- `listFiles` and `watchFiles` have been removed.
-- `DownloadStatus` enum members haved been changed to camel case from pascal case.
+**New:** `uploadFile()` and `downloadFile()` using local paths plus
+`cloudRelativePath`.
 
-## 1.0.0
+**Migration:**
+1. Write data to a local file in Dart.
+2. Call `uploadFile(localPath, cloudRelativePath)`.
+3. To read, call `downloadFile(cloudRelativePath, localPath)` and read the
+   local file in Dart.
 
-Breaking changes
+#### ICloudFile Nullable Fields
+Some `ICloudFile` metadata fields are now nullable and may return `null` in
+specific scenarios (directories, undownloaded iCloud files, missing timestamps,
+and local-only items).
 
-- The 'destinationFileName' parameter is renamed to 'destinationRelativePath' for the 'startUpload' API, as it is now supporting subdirectory creation.
-- The 'fileName' parameter is renamed to 'relativePath' for the 'startDownload' API, as it now supporting downloading file from a subdirectory location.
+**Migration:** Check for null before use and choose appropriate fallbacks.
 
-New API
+#### New Required Field: isDirectory
+`ICloudFile` now includes `isDirectory: bool` to distinguish files vs
+directories.
 
-- 'gatherFiles': returns all the files' meta data and any updates can be listened to. This API is to replace 'listFiles' and 'watchFiles' which will be removed from a future release.
-- 'move': move a file from one location to another
-- 'rename': rename a file
+**Migration:** Filter directories explicitly if your code expects only files.
 
-## 0.2.3
+#### Directory Detection Behavior
+`exists()`, `documentExists()`, and `getMetadata()` now return `true` / non-null
+results for directories. In version 2.x these methods returned `false` / `null`
+for directories.
 
-- Bug fix: delete didn't work if the file hadn't been downloaded https://github.com/deansyd/icloud_storage/issues/11
-- Bug fix: startUpload https://github.com/deansyd/icloud_storage/issues/12
+#### Import Path Requirements
+Plugin internal imports and the example/test app now use package-qualified
+paths.
 
-## 0.2.2
+**Before:**
+```dart
+import 'models/icloud_file.dart';
+```
 
-- Bug fix: listFiles type cast issue
+**After:**
+```dart
+import 'package:icloud_storage_plus/models/icloud_file.dart';
+```
 
-## 0.2.1
+#### Platform Requirements Updated
+Minimum deployment targets have been updated to match Flutter 3.10+
+requirements:
 
-- Bug fix: startUpload/startDownload progress stream synchronisation issue
-- Bug fix: startDownload not moving file to destination if onProgress is null
+- **iOS**: minimum version increased from iOS 9.0 to iOS 13.0
+- **macOS**: minimum version increased from macOS 10.11 to macOS 10.15
 
-## 0.2.0
+#### Internal Channel Name Change
+The native method channel name has been renamed from `icloud_storage` to
+`icloud_storage_plus` to match the package name.
 
-- Release for null safety.
+#### Linting Package Change
 
-## 0.1.0
+#### gather() Now Returns GatherResult
+`gather()` now returns a `GatherResult` containing `files` and
+`invalidEntries` rather than a raw list, so malformed metadata is visible to
+callers.
 
-- Added a new API for file deletion.
+**Migration:**
+```dart
+final result = await ICloudStorage.gather(...);
+final files = result.files;
 
-## 0.0.2
+if (result.invalidEntries.isNotEmpty) {
+  // Optional: log or surface skipped metadata to aid debugging.
+  debugPrint(
+    'Skipped ${result.invalidEntries.length} invalid metadata entries.',
+  );
+}
+```
+Dependency changed from `flutter_lints` to `very_good_analysis`.
 
-- Added API documentation.
+### Added
 
-## 0.0.1
+- Directory support via `ICloudFile.isDirectory`.
+- Error code `E_PLUGIN_INTERNAL` for unexpected Dart-side stream errors.
+- Error code `E_INVALID_EVENT` for invalid event types from native layer.
+- `PlatformExceptionCode` constants for all error codes (`argumentError`,
+  `readError`, `canceled`, `pluginInternal`, `invalidEvent`) to replace
+  hardcoded string literals.
+- Warning log when an unknown download status key is encountered.
+- `GatherResult.invalidEntries` to surface malformed metadata entries.
+- Removed `E_TIMEOUT` from public error codes.
 
-- Initial release.
+### Changed
+
+- Updated iOS/macOS podspec metadata (name, version, summary, description,
+  homepage, author) to match the package.
+- Native implementation and metadata extraction updated to support the new API
+  surface (file-path transfers + richer metadata).
+- Structural operations (`delete`, `move`, `copy`, `documentExists`,
+  `getDocumentMetadata`) now use file URLs with coordinated FileManager access
+  instead of metadata queries.
+- `documentExists` uses `FileManager.fileExists` and returns true for iCloud
+  placeholder entries once container metadata syncs (even if bytes are not
+  downloaded).
+- Documentation clarifies that `gather()` update streams deliver the full list,
+  `uploadFile`/`downloadFile` reject directory paths, and `downloadStatus` may
+  be null for unknown platform statuses.
+
+### Fixed
+
+- Resource leak in `gather()` where NSMetadataQuery observers were registered
+  before verifying event channel handler exists. On E_NO_HANDLER early return,
+  observers would remain registered. Now the handler check occurs before
+  observer registration.
+- Serialization bug in `getDocumentMetadata()` where `downloadStatus` was
+  passed as a non-serializable Swift enum struct instead of extracting its
+  `.rawValue` string, causing the field to be null or unserializable on the
+  Dart side.
+- Dart relative-path validation now accepts trailing slashes so directory
+  metadata from `gather()` or `getMetadata()` can be used directly in
+  operations like `delete()`, `move()`, `rename()`, etc. Previously, directory
+  paths like `Documents/folder/` would fail Dart validation when reused.
+- Transfer progress streams are now listener-driven; attach immediately to
+  avoid missing early progress updates.
+- Transfer progress stream failures are surfaced as `ICloudTransferProgress`
+  error events (not stream `onError`) and terminal events close the stream.
+- Documented progress stream error-as-data behavior in code comments.
+- `uploadFile()` / `downloadFile()` now reject `cloudRelativePath` values that
+  end with `/` (directory-style paths). Directory operations still accept
+  trailing slashes when appropriate.
+- macOS streaming writes now use `.saveOperation` for existing files to avoid
+  unintended “Save As” behavior.
+- Method channel null handling when platform methods return null.
+- Stream mapping and event handling correctness.
+- Removed metadata query timeouts from structural operations.
+
+### Migration Guide (2.x -> 3.0.0)
+
+1. Replace byte-based reads/writes with local files + `uploadFile()` /
+   `downloadFile()`.
+2. Update imports to package-qualified paths.
+3. Add null checks for `ICloudFile` fields and handle directories via
+   `isDirectory`.
+4. If you use transfer progress, attach a listener immediately inside
+  `onProgress` (streams are listener-driven and may miss early events).
+5. Run `flutter analyze` to address any `very_good_analysis` lint findings.
+
+---
+
+## [2.x.x] - Previous Releases
+
+See git history for changelog of releases before 3.0.0.

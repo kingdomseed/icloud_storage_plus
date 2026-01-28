@@ -1,22 +1,22 @@
 PODS:
   - FlutterMacOS (1.0.0)
-  - icloud_storage (0.0.1):
+  - icloud_storage_plus (0.0.1):
     - FlutterMacOS
 
 DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - icloud_storage (from `Flutter/ephemeral/.symlinks/plugins/icloud_storage/macos`)
+  - icloud_storage_plus (from `Flutter/ephemeral/.symlinks/plugins/icloud_storage_plus/macos`)
 
 EXTERNAL SOURCES:
   FlutterMacOS:
     :path: Flutter/ephemeral
-  icloud_storage:
-    :path: Flutter/ephemeral/.symlinks/plugins/icloud_storage/macos
+  icloud_storage_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/icloud_storage_plus/macos
 
 SPEC CHECKSUMS:
-  FlutterMacOS: ae6af50a8ea7d6103d888583d46bd8328a7e9811
-  icloud_storage: 33b05299e26d1391d724da8d62860e702380a1cd
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  icloud_storage_plus: cb29addd37b096666c2275ceadeb52cd986da64e
 
-PODFILE CHECKSUM: 6eac6b3292e5142cfc23bdeb71848a40ec51c14c
+PODFILE CHECKSUM: 0d3963a09fc94f580682bd88480486da345dc3f0
 
-COCOAPODS: 1.11.3
+COCOAPODS: 1.16.2

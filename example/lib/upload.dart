@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:icloud_storage/icloud_storage.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
 import 'utils.dart';
 
 class Upload extends StatefulWidget {
@@ -16,7 +16,7 @@ class _UploadState extends State<Upload> {
   final _containerIdController = TextEditingController();
   final _filePathController = TextEditingController();
   final _destPathController = TextEditingController();
-  StreamSubscription<double>? _progressListner;
+  StreamSubscription<ICloudTransferProgress>? _progressListener;
   String? _error;
   String? _progress;
 
@@ -27,25 +27,32 @@ class _UploadState extends State<Upload> {
         _error = null;
       });
 
-      await ICloudStorage.upload(
+      await ICloudStorage.uploadFile(
         containerId: _containerIdController.text,
-        filePath: _filePathController.text,
-        destinationRelativePath:
-            _destPathController.text.isEmpty ? null : _destPathController.text,
+        localPath: _filePathController.text,
+        cloudRelativePath: _destPathController.text,
         onProgress: (stream) {
-          _progressListner = stream.listen(
-            (progress) => setState(() {
-              _progress = 'Upload Progress: $progress';
-            }),
-            onDone: () => setState(() {
-              _progress = 'Upload Completed';
-            }),
-            onError: (err) => setState(() {
-              _progress = null;
-              _error = getErrorMessage(err);
-            }),
-            cancelOnError: true,
-          );
+          _progressListener = stream.listen((event) {
+            setState(() {
+              switch (event.type) {
+                case ICloudTransferProgressType.progress:
+                  _error = null;
+                  _progress =
+                      'Upload Progress: ${formatProgressPercent(event.percent)}';
+                  break;
+                case ICloudTransferProgressType.done:
+                  _error = null;
+                  _progress = 'Upload Completed';
+                  break;
+                case ICloudTransferProgressType.error:
+                  _progress = null;
+                  _error = getErrorMessage(
+                    event.exception ?? 'Unknown upload error',
+                  );
+                  break;
+              }
+            });
+          });
         },
       );
     } catch (ex) {
@@ -64,7 +71,7 @@ class _UploadState extends State<Upload> {
 
   @override
   void dispose() {
-    _progressListner?.cancel();
+    _progressListener?.cancel();
     _containerIdController.dispose();
     _filePathController.dispose();
     _destPathController.dispose();
@@ -97,7 +104,7 @@ class _UploadState extends State<Upload> {
               TextField(
                 controller: _destPathController,
                 decoration: const InputDecoration(
-                  labelText: 'destinationRelativePath (optional)',
+                  labelText: 'cloudRelativePath',
                 ),
               ),
               const SizedBox(height: 16),

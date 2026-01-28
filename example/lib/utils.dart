@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:icloud_storage/icloud_storage.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
 
 String getErrorMessage(dynamic ex) {
   if (ex is PlatformException) {
@@ -11,4 +11,9 @@ String getErrorMessage(dynamic ex) {
   }
 
   return ex.toString();
+}
+
+String formatProgressPercent(double? percent) {
+  final safePercent = (percent ?? 0).clamp(0, 100).toDouble();
+  return '${safePercent.toStringAsFixed(1)}%';
 }

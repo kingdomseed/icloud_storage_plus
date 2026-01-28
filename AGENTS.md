@@ -61,6 +61,9 @@ This repository is a Flutter plugin, not a Flutter app. UI/widget, theming, rout
 * **Functions:** Keep functions short and single-purpose (strive for less than 20 lines).
 * **Testing:** Write code with testing in mind. Use the `file`, `process`, and `platform` packages, if appropriate, so you can inject in-memory and fake versions of the objects.
 * **Logging:** Use the `logging` package instead of `print`.
+* **iCloud existence checks:** Use `FileManager.fileExists(atPath:)` on the
+  container URL for existence checks. Do not use `NSMetadataQuery` for
+  existence.
 
 ## Dart Best Practices
 * **Effective Dart:** Follow the official Effective Dart guidelines (https://dart.dev/effective-dart)
@@ -77,6 +80,7 @@ This repository is a Flutter plugin, not a Flutter app. UI/widget, theming, rout
 * **Records:** Use records to return multiple types in situations where defining an entire class is cumbersome.
 * **Switch Statements:** Prefer using exhaustive `switch` statements or expressions, which don't require `break` statements.
 * **Exception Handling:** Use `try-catch` blocks for handling exceptions, and use exceptions appropriate for the type of exception. Use custom exceptions for situations specific to your code.
+  * Prefer `on Exception catch (...)` with specific types; avoid catching `Error` types. Use `on` clauses to make catches explicit.
 * **Arrow Functions:** Use arrow syntax for simple one-line functions.
 
 ## Lint Rules
