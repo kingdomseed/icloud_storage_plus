@@ -121,6 +121,14 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 ### Fixed
 
+- Resource leak in `gather()` where NSMetadataQuery observers were registered
+  before verifying event channel handler exists. On E_NO_HANDLER early return,
+  observers would remain registered. Now the handler check occurs before
+  observer registration.
+- Serialization bug in `getDocumentMetadata()` where `downloadStatus` was
+  passed as a non-serializable Swift enum struct instead of extracting its
+  `.rawValue` string, causing the field to be null or unserializable on the
+  Dart side.
 - Dart relative-path validation now accepts trailing slashes so directory
   metadata from `gather()` or `getMetadata()` can be used directly in
   operations like `delete()`, `move()`, `rename()`, etc. Previously, directory

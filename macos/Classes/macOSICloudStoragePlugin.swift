@@ -202,7 +202,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       "creationDate": values.creationDate?.timeIntervalSince1970,
       "contentChangeDate": values.contentModificationDate?.timeIntervalSince1970,
       "hasUnresolvedConflicts": values.hasUnresolvedConflicts ?? false,
-      "downloadStatus": values.ubiquitousItemDownloadingStatus,
+      "downloadStatus": values.ubiquitousItemDownloadingStatus?.rawValue,
       "isDownloading": values.ubiquitousItemIsDownloading ?? false,
       "isUploaded": values.ubiquitousItemIsUploaded ?? false,
       "isUploading": values.ubiquitousItemIsUploading ?? false,
