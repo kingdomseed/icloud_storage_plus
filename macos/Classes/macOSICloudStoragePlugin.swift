@@ -92,26 +92,30 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       result(argumentError)
       return
     }
-    
+
     guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
     else {
       result(containerError)
       return
     }
     DebugHelper.log("containerURL: \(containerURL.path)")
-    
+
+    // Verify event channel handler exists before registering observers
+    if !eventChannelName.isEmpty {
+      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+        result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
+        return
+      }
+    }
+
     let query = NSMetadataQuery.init()
     query.operationQueue = .main
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K beginswith %@", NSMetadataItemPathKey, containerURL.path)
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
-    
+
     if !eventChannelName.isEmpty {
-    // Safety net: Dart should await createEventChannel before calling gather.
-    guard let streamHandler = self.streamHandlers[eventChannelName] else {
-      result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
-      return
-    }
+      let streamHandler = self.streamHandlers[eventChannelName]!
       streamHandler.onCancelHandler = { [self] in
         removeObservers(query)
         query.stop()
