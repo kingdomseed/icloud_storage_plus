@@ -43,6 +43,9 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// when the list of files are updated. It won't be triggered when the
   /// function initially returns the list of files.
   ///
+  /// When [onUpdate] is provided, the update stream stays active until the
+  /// subscription is canceled. Callers should dispose listeners when done.
+  ///
   /// The function returns a [GatherResult] containing parsed files and any
   /// invalid entries.
   Future<GatherResult> gather({

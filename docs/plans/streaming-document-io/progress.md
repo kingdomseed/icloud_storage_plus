@@ -28,6 +28,8 @@
   - Documented E_PLUGIN_INTERNAL guidance in README.
   - Updated README migration/version headers, gather examples, and path notes.
   - Added README clarifications to CHANGELOG.
+  - Documented gather onUpdate stream lifecycle in README.
+  - Moved gather onUpdate lifecycle note to Dart API docs.
   - Fixed macOS write save operation to use .saveOperation for existing files.
   - Refactored transfer progress stream mapping to a StreamTransformer
     (no manual controller/subscription lifecycle) and confirmed tests pass.

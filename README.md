@@ -354,8 +354,9 @@ Future<GatherResult> gather({
 })
 ```
 Lists all files and directories in the container. Optional `onUpdate` callback
-receives the full list when files change. Invalid entries are returned in
-`result.invalidEntries`.
+receives the full list when files change. The update stream stays active until
+the subscription is canceled, so dispose listeners when no longer needed.
+Invalid entries are returned in `result.invalidEntries`.
 
 ```dart
 for (final invalid in result.invalidEntries) {

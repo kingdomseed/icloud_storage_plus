@@ -42,6 +42,9 @@ class ICloudStorage {
   }
 
   /// Get all file metadata from the iCloud container.
+  ///
+  /// When [onUpdate] is provided, the update stream stays active until the
+  /// subscription is canceled. Callers should dispose listeners when done.
   static Future<GatherResult> gather({
     required String containerId,
     StreamHandler<GatherResult>? onUpdate,
