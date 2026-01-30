@@ -265,8 +265,8 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     final files = <ICloudFile>[];
     final invalidEntries = <GatherInvalidEntry>[];
     if (mapList != null) {
-      for (var index = 0; index < mapList.length; index += 1) {
-        final entry = mapList[index];
+      var index = 0;
+      for (final entry in mapList) {
         if (entry is! Map<dynamic, dynamic>) {
           _logger.fine(
             'Skipping malformed metadata entry: expected Map, got '
@@ -279,24 +279,25 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
               index: index,
             ),
           );
-          continue;
+        } else {
+          try {
+            files.add(ICloudFile.fromMap(entry));
+          } on Exception catch (error, stackTrace) {
+            _logger.fine(
+              'Skipping malformed metadata entry: $error',
+              error,
+              stackTrace,
+            );
+            invalidEntries.add(
+              GatherInvalidEntry(
+                error: error.toString(),
+                rawEntry: entry,
+                index: index,
+              ),
+            );
+          }
         }
-        try {
-          files.add(ICloudFile.fromMap(entry));
-        } on Exception catch (error, stackTrace) {
-          _logger.fine(
-            'Skipping malformed metadata entry: $error',
-            error,
-            stackTrace,
-          );
-          invalidEntries.add(
-            GatherInvalidEntry(
-              error: error.toString(),
-              rawEntry: entry,
-              index: index,
-            ),
-          );
-        }
+        index++;
       }
     }
     if (invalidEntries.isNotEmpty) {
