@@ -127,21 +127,30 @@ class _GatherState extends State<Gather> {
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: ListView(
-                  children: [
-                    if (_error != null)
-                      Text(
-                        _error!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                        ),
-                      ),
-                    for (final file in _files)
-                      Padding(
+                child: ListView.builder(
+                  itemCount: _files.length + (_error != null ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (_error != null) {
+                      if (index == 0) {
+                        return Text(
+                          _error!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                          ),
+                        );
+                      }
+                      final file = _files[index - 1];
+                      return Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: SelectableText(file),
-                      ),
-                  ],
+                      );
+                    }
+                    final file = _files[index];
+                    return Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: SelectableText(file),
+                    );
+                  },
                 ),
               ),
             ],
