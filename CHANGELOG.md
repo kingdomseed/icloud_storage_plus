@@ -94,6 +94,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 ### Added
 
 - Directory support via `ICloudFile.isDirectory`.
+- Coordinated in-place text APIs: `readInPlace` and `writeInPlace` for small
+  JSON/text files using UIDocument/NSDocument.
 - Error code `E_PLUGIN_INTERNAL` for unexpected Dart-side stream errors.
 - Error code `E_INVALID_EVENT` for invalid event types from native layer.
 - `PlatformExceptionCode` constants for all error codes (`argumentError`,
@@ -107,6 +109,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 - Updated iOS/macOS podspec metadata (name, version, summary, description,
   homepage, author) to match the package.
+- Clarified `uploadFile` and `downloadFile` semantics in documentation:
+  - `uploadFile` = copy-in (local -> iCloud container); OS uploads afterward.
+  - `downloadFile` = download-then-copy-out (iCloud container -> local).
 - Native implementation and metadata extraction updated to support the new API
   surface (file-path transfers + richer metadata).
 - Structural operations (`delete`, `move`, `copy`, `documentExists`,

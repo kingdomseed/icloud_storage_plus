@@ -64,11 +64,14 @@ class ICloudStorage {
     );
   }
 
-  /// Upload a local file to iCloud using streaming IO.
+  /// Copy a local file into the iCloud container (copy-in).
   ///
-  /// [localPath] is the absolute path to a local file.
+  /// [localPath] is the absolute path to a local file to copy.
   /// [cloudRelativePath] is the path within the iCloud container.
   /// Use 'Documents/' prefix for Files app visibility.
+  ///
+  /// This does not keep the local file in sync. After the copy completes,
+  /// iCloud uploads the container file automatically in the background.
   ///
   /// Trailing slashes are rejected here because transfers are file-centric and
   /// coordinated through UIDocument/NSDocument (directories are not supported).
@@ -108,10 +111,13 @@ class ICloudStorage {
     );
   }
 
-  /// Download a file from iCloud to a local path using streaming IO.
+  /// Download a file from iCloud, then copy it out to a local path.
   ///
   /// [cloudRelativePath] is the path within the iCloud container.
-  /// [localPath] is the absolute destination path to write.
+  /// [localPath] is the absolute destination path to write a local copy.
+  ///
+  /// This is not in-place access. Use [readInPlace] for coordinated reads
+  /// inside the container.
   ///
   /// Trailing slashes are rejected here because transfers are file-centric and
   /// coordinated through UIDocument/NSDocument (directories are not supported).
@@ -148,6 +154,68 @@ class ICloudStorage {
       cloudRelativePath: cloudRelativePath,
       localPath: localPath,
       onProgress: onProgress,
+    );
+  }
+
+  /// Read a file in place from the iCloud container using coordinated access.
+  ///
+  /// [relativePath] is the path within the iCloud container.
+  ///
+  /// Trailing slashes are rejected here because reads are file-centric and
+  /// coordinated through UIDocument/NSDocument.
+  ///
+  /// Coordinated access loads the full contents into memory. Use for small
+  /// text/JSON files.
+  ///
+  /// Returns the file contents as a String, or null if the file does not exist.
+  static Future<String?> readInPlace({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    // Reads are file-centric; reject directory paths.
+    if (relativePath.endsWith('/')) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    return ICloudStoragePlatform.instance.readInPlace(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+  }
+
+  /// Write a file in place inside the iCloud container using coordinated
+  /// access.
+  ///
+  /// [relativePath] is the path within the iCloud container.
+  /// [contents] is the full contents to write.
+  ///
+  /// Trailing slashes are rejected here because writes are file-centric and
+  /// coordinated through UIDocument/NSDocument.
+  ///
+  /// Coordinated access writes the full contents as a single operation. Use
+  /// for small text/JSON files.
+  static Future<void> writeInPlace({
+    required String containerId,
+    required String relativePath,
+    required String contents,
+  }) async {
+    // Writes are file-centric; reject directory paths.
+    if (relativePath.endsWith('/')) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    await ICloudStoragePlatform.instance.writeInPlace(
+      containerId: containerId,
+      relativePath: relativePath,
+      contents: contents,
     );
   }
 

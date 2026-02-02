@@ -22,6 +22,17 @@ class MockICloudStoragePlatform
   String _downloadLocalPath = '';
   String get downloadLocalPath => _downloadLocalPath;
 
+  String _readInPlaceRelativePath = '';
+  String get readInPlaceRelativePath => _readInPlaceRelativePath;
+
+  String? readInPlaceResult = 'contents';
+
+  String _writeInPlaceRelativePath = '';
+  String get writeInPlaceRelativePath => _writeInPlaceRelativePath;
+
+  String _writeInPlaceContents = '';
+  String get writeInPlaceContents => _writeInPlaceContents;
+
   bool documentExistsResult = true;
   Map<String, dynamic>? documentMetadataResult = {
     'relativePath': 'Documents/test.pdf',
@@ -75,6 +86,27 @@ class MockICloudStoragePlatform
     _downloadCloudRelativePath = cloudRelativePath;
     _downloadLocalPath = localPath;
     _calls.add('downloadFile');
+  }
+
+  @override
+  Future<String?> readInPlace({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    _readInPlaceRelativePath = relativePath;
+    _calls.add('readInPlace');
+    return readInPlaceResult;
+  }
+
+  @override
+  Future<void> writeInPlace({
+    required String containerId,
+    required String relativePath,
+    required String contents,
+  }) async {
+    _writeInPlaceRelativePath = relativePath;
+    _writeInPlaceContents = contents;
+    _calls.add('writeInPlace');
   }
 
   @override
@@ -146,7 +178,8 @@ void main() {
           'contentChangeDate': 1638374400.0,
           'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
           'hasUnresolvedConflicts': false,
-        };
+        }
+        ..readInPlaceResult = 'contents';
     });
 
     test('gather', () async {
@@ -240,6 +273,73 @@ void main() {
             containerId: containerId,
             cloudRelativePath: 'dir//file',
             localPath: '/tmp/file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+    });
+
+    group('readInPlace tests:', () {
+      test('readInPlace', () async {
+        final result = await ICloudStorage.readInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/test.json',
+        );
+        expect(result, 'contents');
+        expect(fakePlatform.readInPlaceRelativePath, 'Documents/test.json');
+        expect(fakePlatform.calls.last, 'readInPlace');
+      });
+
+      test('readInPlace rejects trailing slash relativePath', () async {
+        expect(
+          () async => ICloudStorage.readInPlace(
+            containerId: containerId,
+            relativePath: 'Documents/folder/',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('readInPlace with invalid relativePath', () async {
+        expect(
+          () async => ICloudStorage.readInPlace(
+            containerId: containerId,
+            relativePath: 'dir//file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+    });
+
+    group('writeInPlace tests:', () {
+      test('writeInPlace', () async {
+        await ICloudStorage.writeInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/test.json',
+          contents: '{"ok":true}',
+        );
+        expect(fakePlatform.writeInPlaceRelativePath, 'Documents/test.json');
+        expect(fakePlatform.writeInPlaceContents, '{"ok":true}');
+        expect(fakePlatform.calls.last, 'writeInPlace');
+      });
+
+      test('writeInPlace rejects trailing slash relativePath', () async {
+        expect(
+          () async => ICloudStorage.writeInPlace(
+            containerId: containerId,
+            relativePath: 'Documents/folder/',
+            contents: 'data',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('writeInPlace with invalid relativePath', () async {
+        expect(
+          () async => ICloudStorage.writeInPlace(
+            containerId: containerId,
+            relativePath: 'dir//file',
+            contents: 'data',
           ),
           throwsA(isA<InvalidArgumentException>()),
         );

@@ -12,6 +12,7 @@ Flutter plugin for iCloud document storage with automatic conflict resolution an
 ## Features
 
 - Document-based operations with automatic download and conflict resolution
+- Coordinated in-place reads/writes (UIDocument/NSDocument) for small JSON/text
 - Files app integration for user-visible documents
 - Directory detection and metadata extraction
 - Progress callbacks for long-running operations
@@ -31,7 +32,11 @@ flutter pub add icloud_storage_plus
 ## Usage
 
 This plugin operates on your app’s iCloud container (files you write under that
-container). 
+container).
+
+`uploadFile`/`downloadFile` are copy operations. If you want to read or write
+files where they live (inside the container), use the coordinated in-place
+APIs (`readInPlace`/`writeInPlace`).
 
 ### Basic Example
 
@@ -50,14 +55,14 @@ if (!available) {
 final localPath = '${Directory.systemTemp.path}/notes.txt';
 await File(localPath).writeAsString('My notes');
 
-// Upload to iCloud (Files app visible)
+// Copy a local file into iCloud (Files app visible)
 await ICloudStorage.uploadFile(
   containerId: 'iCloud.com.yourapp.container',
   localPath: localPath,
   cloudRelativePath: 'Documents/notes.txt',
 );
 
-// Download from iCloud to a local path
+// Download from iCloud and copy out to a local path
 final downloadPath = '${Directory.systemTemp.path}/notes-downloaded.txt';
 await ICloudStorage.downloadFile(
   containerId: 'iCloud.com.yourapp.container',
@@ -66,6 +71,26 @@ await ICloudStorage.downloadFile(
 );
 
 final content = await File(downloadPath).readAsString();
+```
+
+### In-Place Access (Recommended for Transparent Sync)
+
+Use coordinated in-place access for small text/JSON files stored in the
+ubiquity container. These APIs load/write the full file contents in memory.
+
+```dart
+// Read directly inside the container with coordination.
+final contents = await ICloudStorage.readInPlace(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/notes.txt',
+);
+
+// Write directly inside the container with coordination.
+await ICloudStorage.writeInPlace(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/notes.txt',
+  contents: 'Updated text',
+);
 ```
 
 ### File Operations
@@ -113,6 +138,36 @@ final result = await ICloudStorage.gather(
 );
 final files = result.files;
 ```
+
+## Method Semantics (Copy-In / Copy-Out)
+
+### uploadFile
+Copies a local file into the iCloud ubiquity container. After the copy
+completes, iCloud uploads the file automatically in the background.
+
+Semantics: local path -> iCloud container (copy-in).
+This is NOT in-place access.
+
+### downloadFile
+Triggers iCloud to download the container file if needed, then copies the
+fully downloaded file to the provided local destination path.
+
+Semantics: iCloud container -> local path (download-then-copy-out).
+This is NOT in-place access.
+
+### In-Place Access
+To work like iCloud Drive, use the coordinated in-place APIs:
+`readInPlace` / `writeInPlace`, which coordinate access inside the
+ubiquity container. No copy-out/copy-in is required for in-place reads
+and writes.
+
+## Terminology
+
+- **In-place access**: Coordinated read/write directly inside the iCloud
+  ubiquity container path (no copying).
+- **Copy-in**: Copy a local file into the iCloud container (`uploadFile`).
+- **Copy-out**: Download-then-copy a file from the iCloud container to a local
+  destination (`downloadFile`).
 
 ## Migration from 2.x
 

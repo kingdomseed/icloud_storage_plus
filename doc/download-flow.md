@@ -31,6 +31,17 @@ metadata queries. iCloud placeholders are local entries, so `fileExists`
 returns true once the directory metadata syncs, even if the file is not
 downloaded.
 
+## In-place access
+
+Coordinated in-place reads (`readInPlace`) do not pre-check file existence.
+Instead, they:
+- Trigger download with `startDownloadingUbiquitousItem` when needed.
+- Attempt a coordinated document open/read.
+
+A file-not-found error from the coordinated open/read is mapped to `null`.
+This avoids false negatives from `fileExists` and treats UIDocument/NSDocument
+as the source of truth for read availability.
+
 ## Error codes
 
 We map Cocoa file-not-found errors to distinct codes:

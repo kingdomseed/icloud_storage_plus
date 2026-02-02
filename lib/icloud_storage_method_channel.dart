@@ -129,6 +129,31 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   }
 
   @override
+  Future<String?> readInPlace({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final result = await methodChannel.invokeMethod<String>('readInPlace', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+    });
+    return result;
+  }
+
+  @override
+  Future<void> writeInPlace({
+    required String containerId,
+    required String relativePath,
+    required String contents,
+  }) async {
+    await methodChannel.invokeMethod('writeInPlace', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+      'contents': contents,
+    });
+  }
+
+  @override
   Future<void> delete({
     required String containerId,
     required String relativePath,

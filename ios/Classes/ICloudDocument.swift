@@ -213,6 +213,70 @@ class ICloudDocument: UIDocument {
     }
 }
 
+/// UIDocument subclass for coordinated in-place text access.
+final class ICloudInPlaceDocument: UIDocument {
+    /// Text contents for in-place reads/writes.
+    var textContents: String = ""
+
+    /// Error occurred during the last operation (if any).
+    var lastError: Error?
+
+    override func contents(forType typeName: String) throws -> Any {
+        return textContents.data(using: .utf8) ?? Data()
+    }
+
+    override func load(fromContents contents: Any, ofType typeName: String?) throws {
+        if let data = contents as? Data {
+            if data.isEmpty {
+                textContents = ""
+                return
+            }
+            guard let text = String(data: data, encoding: .utf8) else {
+                throw NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileReadUnknownError,
+                    userInfo: [NSLocalizedDescriptionKey: "Unsupported text encoding"]
+                )
+            }
+            textContents = text
+            return
+        }
+
+        if let fileWrapper = contents as? FileWrapper,
+           let data = fileWrapper.regularFileContents {
+            if data.isEmpty {
+                textContents = ""
+                return
+            }
+            guard let text = String(data: data, encoding: .utf8) else {
+                throw NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileReadUnknownError,
+                    userInfo: [NSLocalizedDescriptionKey: "Unsupported text encoding"]
+                )
+            }
+            textContents = text
+            return
+        }
+
+        if let text = contents as? String {
+            textContents = text
+            return
+        }
+
+        throw NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileReadUnknownError,
+            userInfo: [NSLocalizedDescriptionKey: "Unsupported document contents"]
+        )
+    }
+
+    override func handleError(_ error: Error, userInteractionPermitted: Bool) {
+        lastError = error
+        super.handleError(error, userInteractionPermitted: userInteractionPermitted)
+    }
+}
+
 // MARK: - Extension for Document Operations
 
 extension SwiftICloudStoragePlugin {
@@ -317,6 +381,60 @@ extension SwiftICloudStoragePlugin {
                     userInfo: [NSLocalizedDescriptionKey: "Failed to open document"]
                 )
                 completion(nil, error)
+            }
+        }
+    }
+
+    /// Read a document in place using UIDocument coordination.
+    func readInPlaceDocument(
+        at url: URL,
+        completion: @escaping (String?, Error?) -> Void
+    ) {
+        let document = ICloudInPlaceDocument(fileURL: url)
+
+        document.open { success in
+            if success {
+                let contents = document.textContents
+                document.close { _ in
+                    completion(contents, nil)
+                }
+            } else {
+                let error = document.lastError ?? NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileReadUnknownError,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to open document"]
+                )
+                completion(nil, error)
+            }
+        }
+    }
+
+    /// Write a document in place using UIDocument coordination.
+    func writeInPlaceDocument(
+        at url: URL,
+        contents: String,
+        completion: @escaping (Error?) -> Void
+    ) {
+        let document = ICloudInPlaceDocument(fileURL: url)
+        document.textContents = contents
+
+        let saveOperation: UIDocument.SaveOperation =
+            FileManager.default.fileExists(atPath: url.path)
+            ? .forOverwriting
+            : .forCreating
+
+        document.save(to: url, for: saveOperation) { success in
+            if success {
+                document.close { _ in
+                    completion(nil)
+                }
+            } else {
+                let error = document.lastError ?? NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileWriteUnknownError,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
+                )
+                completion(error)
             }
         }
     }

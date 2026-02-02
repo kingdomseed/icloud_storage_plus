@@ -39,6 +39,10 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       uploadFile(call, result)
     case "downloadFile":
       downloadFile(call, result)
+    case "readInPlace":
+      readInPlace(call, result)
+    case "writeInPlace":
+      writeInPlace(call, result)
     case "delete":
       delete(call, result)
     case "move":
@@ -223,7 +227,8 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     return relative
   }
   
-  /// Uploads a local file into the iCloud container.
+  /// Copies a local file into the iCloud container (copy-in).
+  /// iCloud uploads the container file automatically in the background.
   private func uploadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -365,7 +370,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
-  /// Downloads a remote item to a local file, optionally reporting progress.
+  /// Downloads an iCloud item if needed, then copies it out to a local path.
   private func downloadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -469,6 +474,92 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       }
       removeStreamHandler(eventChannelName)
       completeOnce(nil)
+    }
+  }
+
+  /// Read a file in place from the iCloud container using coordinated access.
+  private func readInPlace(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+    } catch {
+      if mapFileNotFoundError(error) != nil {
+        result(nil)
+        return
+      }
+      result(nativeCodeError(error))
+      return
+    }
+
+    readInPlaceDocument(at: fileURL) { [self] contents, error in
+      if let error = error {
+        if mapFileNotFoundError(error) != nil {
+          result(nil)
+          return
+        }
+        result(nativeCodeError(error))
+        return
+      }
+
+      result(contents)
+    }
+  }
+
+  /// Write a file in place inside the iCloud container using coordinated access.
+  private func writeInPlace(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String,
+          let contents = args["contents"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      let dirURL = fileURL.deletingLastPathComponent()
+      if !FileManager.default.fileExists(atPath: dirURL.path) {
+        try FileManager.default.createDirectory(
+          at: dirURL,
+          withIntermediateDirectories: true,
+          attributes: nil
+        )
+      }
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+
+    writeInPlaceDocument(at: fileURL, contents: contents) { [self] error in
+      if let error = error {
+        let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+        result(mapped)
+        return
+      }
+      result(nil)
     }
   }
   

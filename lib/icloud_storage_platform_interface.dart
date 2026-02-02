@@ -64,13 +64,13 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('getContainerPath() has not been implemented.');
   }
 
-  /// Upload a local file to iCloud from a local path.
+  /// Copy a local file into the iCloud container (copy-in).
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [localPath] is the full path of the local file.
+  /// [localPath] is the full path of the local file to copy.
   ///
-  /// [cloudRelativePath] is the relative path of the file in iCloud.
+  /// [cloudRelativePath] is the relative path inside the iCloud container.
   ///
   /// Trailing slashes are rejected here because transfers are file-centric and
   /// coordinated through UIDocument/NSDocument (directories are not supported).
@@ -81,8 +81,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// - terminal `done` events
   /// - terminal `error` events (data events, not stream `onError`)
   ///
-  /// The returned future completes without waiting for the file to be uploaded
-  /// to iCloud.
+  /// The returned future completes once the copy finishes; iCloud uploads the
+  /// file automatically in the background. The local file is not kept in sync.
   Future<void> uploadFile({
     required String containerId,
     required String localPath,
@@ -92,13 +92,13 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     throw UnimplementedError('uploadFile() has not been implemented.');
   }
 
-  /// Download a file from iCloud to a local path.
+  /// Download a file from iCloud, then copy it out to a local path.
   ///
   /// [containerId] is the iCloud Container Id.
   ///
-  /// [cloudRelativePath] is the relative path of the file on iCloud.
+  /// [cloudRelativePath] is the relative path of the file in the container.
 
-  /// [localPath] is the full path where the file should be written locally.
+  /// [localPath] is the full path where the local copy should be written.
   ///
   /// Trailing slashes are rejected here because transfers are file-centric and
   /// coordinated through UIDocument/NSDocument (directories are not supported).
@@ -109,8 +109,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// - terminal `done` events
   /// - terminal `error` events (data events, not stream `onError`)
   ///
-  /// The returned future completes without waiting for the file to be
-  /// downloaded.
+  /// The returned future completes once the copy-out finishes (not when iCloud
+  /// completes any background sync). This is not in-place access.
   Future<void> downloadFile({
     required String containerId,
     required String cloudRelativePath,
@@ -118,6 +118,41 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     StreamHandler<ICloudTransferProgress>? onProgress,
   }) async {
     throw UnimplementedError('downloadFile() has not been implemented.');
+  }
+
+  /// Read a file in place from the iCloud container using coordinated access.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  /// [relativePath] is the relative path to the file inside the container.
+  ///
+  /// Trailing slashes are rejected here because reads are file-centric.
+  ///
+  /// Returns the file contents as a String, or null if the file does not exist.
+  /// Coordinated access uses UIDocument/NSDocument and loads the full contents
+  /// into memory. Use for small text/JSON files.
+  Future<String?> readInPlace({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    throw UnimplementedError('readInPlace() has not been implemented.');
+  }
+
+  /// Write a file in place inside the iCloud container using coordinated
+  /// access.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  /// [relativePath] is the relative path to the file inside the container.
+  /// [contents] is the full contents to write.
+  ///
+  /// Trailing slashes are rejected here because writes are file-centric.
+  /// Coordinated access uses UIDocument/NSDocument and writes the full contents
+  /// as a single operation. Use for small text/JSON files.
+  Future<void> writeInPlace({
+    required String containerId,
+    required String relativePath,
+    required String contents,
+  }) async {
+    throw UnimplementedError('writeInPlace() has not been implemented.');
   }
 
   /// Delete a file from iCloud container directory, whether it is been

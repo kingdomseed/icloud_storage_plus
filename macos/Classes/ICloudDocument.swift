@@ -196,6 +196,43 @@ class ICloudDocument: NSDocument {
     }
 }
 
+/// NSDocument subclass for coordinated in-place text access.
+final class ICloudInPlaceDocument: NSDocument {
+    /// Text contents for in-place reads/writes.
+    var textContents: String = ""
+
+    /// Error occurred during the last operation (if any).
+    var lastError: Error?
+
+    override class var autosavesInPlace: Bool {
+        return true
+    }
+
+    override func data(ofType typeName: String) throws -> Data {
+        return textContents.data(using: .utf8) ?? Data()
+    }
+
+    override func read(from data: Data, ofType typeName: String) throws {
+        if data.isEmpty {
+            textContents = ""
+            return
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw NSError(
+                domain: NSCocoaErrorDomain,
+                code: NSFileReadUnknownError,
+                userInfo: [NSLocalizedDescriptionKey: "Unsupported text encoding"]
+            )
+        }
+        textContents = text
+    }
+
+    override func handleError(_ error: Error, userInteractionPermitted: Bool) {
+        lastError = error
+        super.handleError(error, userInteractionPermitted: userInteractionPermitted)
+    }
+}
+
 // MARK: - Extension for Document Operations
 
 extension ICloudStoragePlugin {
@@ -296,6 +333,62 @@ extension ICloudStoragePlugin {
 
             DispatchQueue.main.async {
                 completion(stateInfo, nil)
+            }
+        }
+    }
+
+    /// Read a document in place using NSDocument coordination.
+    func readInPlaceDocument(
+        at url: URL,
+        completion: @escaping (String?, Error?) -> Void
+    ) {
+        let document = ICloudInPlaceDocument()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try document.read(from: url, ofType: "public.data")
+                let contents = document.textContents
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(contents, nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(nil, error)
+                }
+            }
+        }
+    }
+
+    /// Write a document in place using NSDocument coordination.
+    func writeInPlaceDocument(
+        at url: URL,
+        contents: String,
+        completion: @escaping (Error?) -> Void
+    ) {
+        let document = ICloudInPlaceDocument()
+        document.textContents = contents
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try document.write(
+                    to: url,
+                    ofType: "public.data",
+                    for: FileManager.default.fileExists(atPath: url.path)
+                        ? .saveOperation
+                        : .saveAsOperation,
+                    originalContentsURL: nil
+                )
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(error)
+                }
             }
         }
     }

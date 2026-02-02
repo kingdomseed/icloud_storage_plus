@@ -57,6 +57,10 @@ void main() {
           };
         case 'getContainerPath':
           return '/container/path';
+        case 'readInPlace':
+          return 'contents';
+        case 'writeInPlace':
+          return null;
         default:
           return null;
       }
@@ -190,6 +194,33 @@ void main() {
       final eventChannelName = args['eventChannelName'] as String?;
       expect(eventChannelName, isNotNull);
       expect(eventChannelName, isNotEmpty);
+    });
+  });
+
+  group('readInPlace tests:', () {
+    test('readInPlace', () async {
+      final result = await platform.readInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/test.json');
+      expect(result, 'contents');
+    });
+  });
+
+  group('writeInPlace tests:', () {
+    test('writeInPlace', () async {
+      await platform.writeInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+        contents: '{"ok":true}',
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/test.json');
+      expect(args['contents'], '{"ok":true}');
     });
   });
 
