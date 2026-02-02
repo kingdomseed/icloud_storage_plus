@@ -654,7 +654,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
-      let evaluation = evaluateDownloadStatus(query: query)
+      let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
       if evaluation.completed {
         removeObservers(query)
         query.stop()
@@ -666,7 +666,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidUpdate
     ) { [self] _ in
-      let evaluation = evaluateDownloadStatus(query: query)
+      let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
       if evaluation.completed {
         removeObservers(query)
         query.stop()
@@ -679,14 +679,13 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
 
   /// Evaluates download status for a metadata query result.
   private func evaluateDownloadStatus(
-    query: NSMetadataQuery
+    query: NSMetadataQuery,
+    fileURL: URL
   ) -> (completed: Bool, error: Error?) {
-    guard let fileItem = query.results.first as? NSMetadataItem else {
-      return (false, nil)
-    }
-    guard let resolvedURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else {
-      return (false, nil)
-    }
+    let resolvedURL = (query.results.first as? NSMetadataItem)
+      .flatMap { $0.value(forAttribute: NSMetadataItemURLKey) as? URL }
+      ?? fileURL
+
     guard let values = try? resolvedURL.resourceValues(
       forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
     ) else {
