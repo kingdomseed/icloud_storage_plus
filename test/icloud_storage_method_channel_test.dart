@@ -18,7 +18,7 @@ void main() {
 
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        .setMockMethodCallHandler(channel, (methodCall) async {
       mockMethodCall = methodCall;
       switch (methodCall.method) {
         case 'createEventChannel':
@@ -99,7 +99,7 @@ void main() {
 
     test('directory paths preserve trailing slashes', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+          .setMockMethodCallHandler(channel, (methodCall) async {
         if (methodCall.method == 'gather') {
           return [
             {
@@ -196,7 +196,7 @@ void main() {
   group('transfer progress stream tests:', () {
     test('maps numeric events and completion', () async {
       mockStreamHandler = MockStreamHandler.inline(
-        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+        onListen: (arguments, events) {
           events
             ..success(0.25)
             ..success(1.0)
@@ -226,7 +226,7 @@ void main() {
 
     test('maps error events to error progress', () async {
       mockStreamHandler = MockStreamHandler.inline(
-        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+        onListen: (arguments, events) {
           events.error(
             code: 'E_TEST',
             message: 'Boom',
@@ -257,7 +257,7 @@ void main() {
 
     test('delivers events after listener attaches', () async {
       mockStreamHandler = MockStreamHandler.inline(
-        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+        onListen: (arguments, events) {
           events
             ..success(0.1)
             ..endOfStream();

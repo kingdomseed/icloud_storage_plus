@@ -225,7 +225,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
           ..add(ICloudTransferProgress.error(exception))
           ..close();
       },
-      handleError: (Object error, StackTrace stackTrace, sink) {
+      handleError: (error, stackTrace, sink) {
         final exception = error is PlatformException
             ? error
             : () {
