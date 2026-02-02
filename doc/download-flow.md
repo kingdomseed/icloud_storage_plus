@@ -36,6 +36,7 @@ downloaded.
 Coordinated in-place reads (`readInPlace`) do not pre-check file existence.
 Instead, they:
 - Trigger download with `startDownloadingUbiquitousItem` when needed.
+- Wait for metadata to report download status `current`.
 - Attempt a coordinated document open/read.
 
 A file-not-found error from the coordinated open/read is mapped to `null`.

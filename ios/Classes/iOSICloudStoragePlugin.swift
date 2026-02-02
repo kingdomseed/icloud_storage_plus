@@ -506,8 +506,8 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    readInPlaceDocument(at: fileURL) { [self] contents, error in
-      if let error = error {
+    waitForDownloadCompletion(fileURL: fileURL) { [self] error in
+      if let error {
         if mapFileNotFoundError(error) != nil {
           result(nil)
           return
@@ -516,7 +516,18 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
         return
       }
 
-      result(contents)
+      readInPlaceDocument(at: fileURL) { [self] contents, error in
+        if let error = error {
+          if mapFileNotFoundError(error) != nil {
+            result(nil)
+            return
+          }
+          result(nativeCodeError(error))
+          return
+        }
+
+        result(contents)
+      }
     }
   }
 
@@ -597,11 +608,99 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     if !query.isStarted {
       return
     }
-    let streamHandler = self.streamHandlers[eventChannelName]
     guard let fileItem = query.results.first as? NSMetadataItem else { return }
     if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey) as? Double {
       emitProgress(progress, eventChannelName: eventChannelName)
     }
+  }
+
+  /// Waits until an iCloud item reports download status "current".
+  private func waitForDownloadCompletion(
+    fileURL: URL,
+    completion: @escaping (Error?) -> Void
+  ) {
+    if let values = try? fileURL.resourceValues(
+      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
+    ) {
+      if let error = values.ubiquitousItemDownloadingError {
+        completion(error)
+        return
+      }
+      if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+        completion(nil)
+        return
+      }
+    }
+
+    var didComplete = false
+    let completeOnce: (Error?) -> Void = { error in
+      if didComplete {
+        return
+      }
+      didComplete = true
+      completion(error)
+    }
+
+    let query = NSMetadataQuery()
+    query.operationQueue = .main
+    query.searchScopes = querySearchScopes
+    query.predicate = NSPredicate(
+      format: "%K == %@",
+      NSMetadataItemPathKey,
+      fileURL.path
+    )
+
+    addObserver(
+      for: query,
+      name: NSNotification.Name.NSMetadataQueryDidFinishGathering
+    ) { [self] _ in
+      let evaluation = evaluateDownloadStatus(query: query)
+      if evaluation.completed {
+        removeObservers(query)
+        query.stop()
+        completeOnce(evaluation.error)
+      }
+    }
+
+    addObserver(
+      for: query,
+      name: NSNotification.Name.NSMetadataQueryDidUpdate
+    ) { [self] _ in
+      let evaluation = evaluateDownloadStatus(query: query)
+      if evaluation.completed {
+        removeObservers(query)
+        query.stop()
+        completeOnce(evaluation.error)
+      }
+    }
+
+    query.start()
+  }
+
+  /// Evaluates download status for a metadata query result.
+  private func evaluateDownloadStatus(
+    query: NSMetadataQuery
+  ) -> (completed: Bool, error: Error?) {
+    guard let fileItem = query.results.first as? NSMetadataItem else {
+      return (false, nil)
+    }
+    guard let resolvedURL = fileItem.value(forAttribute: NSMetadataItemURLKey) as? URL else {
+      return (false, nil)
+    }
+    guard let values = try? resolvedURL.resourceValues(
+      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
+    ) else {
+      return (false, nil)
+    }
+
+    if let error = values.ubiquitousItemDownloadingError {
+      return (true, error)
+    }
+
+    if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+      return (true, nil)
+    }
+    return (false, nil)
   }
   
   /// Check if an item exists without downloading.

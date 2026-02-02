@@ -344,6 +344,8 @@ extension ICloudStoragePlugin {
     ) {
         let document = ICloudInPlaceDocument()
 
+        // NSDocument reads synchronously; run off the main thread and rely on
+        // its default URL->data read chain (read(from:ofType:) -> read(from:Data:)).
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 try document.read(from: url, ofType: "public.data")
