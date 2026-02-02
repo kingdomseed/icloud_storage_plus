@@ -139,13 +139,9 @@ class _GatherState extends State<Gather> {
                           ),
                         );
                       }
-                      final file = _files[index - 1];
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SelectableText(file),
-                      );
                     }
-                    final file = _files[index];
+                    final fileIndex = _error != null ? index - 1 : index;
+                    final file = _files[fileIndex];
                     return Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: SelectableText(file),
