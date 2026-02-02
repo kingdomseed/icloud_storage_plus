@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:icloud_storage_example/utils.dart';
 import 'package:icloud_storage_plus/icloud_storage.dart';
-import 'utils.dart';
 
+/// Gather example widget.
 class Gather extends StatefulWidget {
+  /// Create a new [Gather] widget.
   const Gather({super.key});
 
   @override
@@ -40,7 +42,7 @@ class _GatherState extends State<Gather> {
         _error = null;
         _files = results.files.map((e) => e.relativePath).toList();
       });
-    } catch (ex) {
+    } on Exception catch (ex) {
       setState(() {
         _error = getErrorMessage(ex);
         _status = '';
@@ -57,6 +59,7 @@ class _GatherState extends State<Gather> {
 
   @override
   void dispose() {
+    // ignore: discarded_futures, cancel returns a Future but we can't await it in dispose
     _updateListener?.cancel();
     _containerIdController.dispose();
     super.dispose();
@@ -69,7 +72,7 @@ class _GatherState extends State<Gather> {
         title: const Text('icloud_storage example'),
         actions: [
           PopupMenuButton(
-            itemBuilder: (BuildContext context) => const [
+            itemBuilder: (context) => const [
               PopupMenuItem(
                 value: '/upload',
                 child: Text('Upload'),
@@ -143,7 +146,7 @@ class _GatherState extends State<Gather> {
                     final fileIndex = _error != null ? index - 1 : index;
                     final file = _files[fileIndex];
                     return Padding(
-                      padding: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.all(8),
                       child: SelectableText(file),
                     );
                   },
