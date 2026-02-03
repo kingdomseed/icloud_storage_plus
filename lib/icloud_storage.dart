@@ -175,6 +175,9 @@ class ICloudStorage {
   /// Returns the file contents as a String.
   ///
   /// Throws on file-not-found and other failures.
+  /// Note: the return type is nullable to match the platform interface, but
+  /// the native implementations only return `null` if a platform explicitly
+  /// chooses to.
   static Future<String?> readInPlace({
     required String containerId,
     required String relativePath,

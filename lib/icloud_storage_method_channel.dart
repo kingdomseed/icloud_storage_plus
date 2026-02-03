@@ -140,6 +140,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       {
         'containerId': containerId,
         'relativePath': relativePath,
+        // Send integer seconds; sub-second precision is intentionally ignored.
         if (idleTimeouts != null)
           'idleTimeoutSeconds': idleTimeouts
               .map((duration) => duration.inSeconds)
