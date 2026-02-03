@@ -18,7 +18,7 @@ void main() {
 
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+        .setMockMethodCallHandler(channel, (methodCall) async {
       mockMethodCall = methodCall;
       switch (methodCall.method) {
         case 'createEventChannel':
@@ -57,6 +57,14 @@ void main() {
           };
         case 'getContainerPath':
           return '/container/path';
+        case 'readInPlace':
+          return 'contents';
+        case 'readInPlaceBytes':
+          return Uint8List.fromList([1, 2, 3]);
+        case 'writeInPlace':
+          return null;
+        case 'writeInPlaceBytes':
+          return null;
         default:
           return null;
       }
@@ -99,7 +107,7 @@ void main() {
 
     test('directory paths preserve trailing slashes', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+          .setMockMethodCallHandler(channel, (methodCall) async {
         if (methodCall.method == 'gather') {
           return [
             {
@@ -193,10 +201,102 @@ void main() {
     });
   });
 
+  group('readInPlace tests:', () {
+    test('readInPlace', () async {
+      final result = await platform.readInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/test.json');
+      expect(result, 'contents');
+    });
+
+    test('passes idle timeout and retry backoff settings', () async {
+      await platform.readInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+        idleTimeouts: const [
+          Duration(seconds: 60),
+          Duration(seconds: 90),
+          Duration(seconds: 180),
+        ],
+        retryBackoff: const [
+          Duration(seconds: 2),
+          Duration(seconds: 4),
+        ],
+      );
+      final args = mockArguments();
+      expect(args['idleTimeoutSeconds'], [60, 90, 180]);
+      expect(args['retryBackoffSeconds'], [2, 4]);
+    });
+  });
+
+  group('readInPlaceBytes tests:', () {
+    test('readInPlaceBytes', () async {
+      final result = await platform.readInPlaceBytes(
+        containerId: containerId,
+        relativePath: 'Documents/data.bin',
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/data.bin');
+      expect(result, Uint8List.fromList([1, 2, 3]));
+    });
+
+    test('passes idle timeout and retry backoff settings', () async {
+      await platform.readInPlaceBytes(
+        containerId: containerId,
+        relativePath: 'Documents/data.bin',
+        idleTimeouts: const [
+          Duration(seconds: 60),
+          Duration(seconds: 90),
+          Duration(seconds: 180),
+        ],
+        retryBackoff: const [
+          Duration(seconds: 2),
+          Duration(seconds: 4),
+        ],
+      );
+      final args = mockArguments();
+      expect(args['idleTimeoutSeconds'], [60, 90, 180]);
+      expect(args['retryBackoffSeconds'], [2, 4]);
+    });
+  });
+
+  group('writeInPlace tests:', () {
+    test('writeInPlace', () async {
+      await platform.writeInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+        contents: '{"ok":true}',
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/test.json');
+      expect(args['contents'], '{"ok":true}');
+    });
+  });
+
+  group('writeInPlaceBytes tests:', () {
+    test('writeInPlaceBytes', () async {
+      await platform.writeInPlaceBytes(
+        containerId: containerId,
+        relativePath: 'Documents/data.bin',
+        contents: Uint8List.fromList([4, 5, 6]),
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/data.bin');
+      expect(args['contents'], Uint8List.fromList([4, 5, 6]));
+    });
+  });
+
   group('transfer progress stream tests:', () {
     test('maps numeric events and completion', () async {
       mockStreamHandler = MockStreamHandler.inline(
-        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+        onListen: (arguments, events) {
           events
             ..success(0.25)
             ..success(1.0)
@@ -226,7 +326,7 @@ void main() {
 
     test('maps error events to error progress', () async {
       mockStreamHandler = MockStreamHandler.inline(
-        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+        onListen: (arguments, events) {
           events.error(
             code: 'E_TEST',
             message: 'Boom',
@@ -257,7 +357,7 @@ void main() {
 
     test('delivers events after listener attaches', () async {
       mockStreamHandler = MockStreamHandler.inline(
-        onListen: (Object? arguments, MockStreamHandlerEventSink events) {
+        onListen: (arguments, events) {
           events
             ..success(0.1)
             ..endOfStream();

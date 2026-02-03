@@ -77,6 +77,12 @@ The native method channel name has been renamed from `icloud_storage` to
 `invalidEntries` rather than a raw list, so malformed metadata is visible to
 callers.
 
+#### New Coordinated In-Place APIs
+Added coordinated in-place access for text and bytes:
+`readInPlace` / `writeInPlace` and `readInPlaceBytes` / `writeInPlaceBytes`.
+In-place reads use an idle watchdog with retry backoff and surface `E_TIMEOUT`
+if the download stalls.
+
 **Migration:**
 ```dart
 final result = await ICloudStorage.gather(...);
@@ -94,6 +100,8 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 ### Added
 
 - Directory support via `ICloudFile.isDirectory`.
+- Coordinated in-place text APIs: `readInPlace` and `writeInPlace` for small
+  JSON/text files using UIDocument/NSDocument.
 - Error code `E_PLUGIN_INTERNAL` for unexpected Dart-side stream errors.
 - Error code `E_INVALID_EVENT` for invalid event types from native layer.
 - `PlatformExceptionCode` constants for all error codes (`argumentError`,
@@ -107,6 +115,9 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 - Updated iOS/macOS podspec metadata (name, version, summary, description,
   homepage, author) to match the package.
+- Clarified `uploadFile` and `downloadFile` semantics in documentation:
+  - `uploadFile` = copy-in (local -> iCloud container); OS uploads afterward.
+  - `downloadFile` = download-then-copy-out (iCloud container -> local).
 - Native implementation and metadata extraction updated to support the new API
   surface (file-path transfers + richer metadata).
 - Structural operations (`delete`, `move`, `copy`, `documentExists`,

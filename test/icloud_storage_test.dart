@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icloud_storage_plus/icloud_storage.dart';
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
@@ -21,6 +23,17 @@ class MockICloudStoragePlatform
 
   String _downloadLocalPath = '';
   String get downloadLocalPath => _downloadLocalPath;
+
+  String _readInPlaceRelativePath = '';
+  String get readInPlaceRelativePath => _readInPlaceRelativePath;
+
+  String? readInPlaceResult = 'contents';
+
+  String _writeInPlaceRelativePath = '';
+  String get writeInPlaceRelativePath => _writeInPlaceRelativePath;
+
+  String _writeInPlaceContents = '';
+  String get writeInPlaceContents => _writeInPlaceContents;
 
   bool documentExistsResult = true;
   Map<String, dynamic>? documentMetadataResult = {
@@ -75,6 +88,51 @@ class MockICloudStoragePlatform
     _downloadCloudRelativePath = cloudRelativePath;
     _downloadLocalPath = localPath;
     _calls.add('downloadFile');
+  }
+
+  @override
+  Future<String?> readInPlace({
+    required String containerId,
+    required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
+  }) async {
+    _readInPlaceRelativePath = relativePath;
+    _calls.add('readInPlace');
+    return readInPlaceResult;
+  }
+
+  @override
+  Future<Uint8List?> readInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
+  }) async {
+    _readInPlaceRelativePath = relativePath;
+    _calls.add('readInPlaceBytes');
+    return Uint8List.fromList([1, 2, 3]);
+  }
+
+  @override
+  Future<void> writeInPlace({
+    required String containerId,
+    required String relativePath,
+    required String contents,
+  }) async {
+    _writeInPlaceRelativePath = relativePath;
+    _writeInPlaceContents = contents;
+    _calls.add('writeInPlace');
+  }
+
+  @override
+  Future<void> writeInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    required Uint8List contents,
+  }) async {
+    _writeInPlaceRelativePath = relativePath;
+    _calls.add('writeInPlaceBytes');
   }
 
   @override
@@ -146,7 +204,8 @@ void main() {
           'contentChangeDate': 1638374400.0,
           'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
           'hasUnresolvedConflicts': false,
-        };
+        }
+        ..readInPlaceResult = 'contents';
     });
 
     test('gather', () async {
@@ -240,6 +299,114 @@ void main() {
             containerId: containerId,
             cloudRelativePath: 'dir//file',
             localPath: '/tmp/file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+    });
+
+    group('readInPlace tests:', () {
+      test('readInPlace', () async {
+        final result = await ICloudStorage.readInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/test.json',
+        );
+        expect(result, 'contents');
+        expect(fakePlatform.readInPlaceRelativePath, 'Documents/test.json');
+        expect(fakePlatform.calls.last, 'readInPlace');
+      });
+
+      test('readInPlaceBytes', () async {
+        final result = await ICloudStorage.readInPlaceBytes(
+          containerId: containerId,
+          relativePath: 'Documents/data.bin',
+        );
+        expect(result, isNotNull);
+        expect(result, Uint8List.fromList([1, 2, 3]));
+        expect(fakePlatform.readInPlaceRelativePath, 'Documents/data.bin');
+        expect(fakePlatform.calls.last, 'readInPlaceBytes');
+      });
+
+      test('readInPlace rejects trailing slash relativePath', () async {
+        expect(
+          () async => ICloudStorage.readInPlace(
+            containerId: containerId,
+            relativePath: 'Documents/folder/',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('readInPlace with invalid relativePath', () async {
+        expect(
+          () async => ICloudStorage.readInPlace(
+            containerId: containerId,
+            relativePath: 'dir//file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('readInPlaceBytes rejects trailing slash relativePath', () async {
+        expect(
+          () async => ICloudStorage.readInPlaceBytes(
+            containerId: containerId,
+            relativePath: 'Documents/folder/',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('readInPlaceBytes with invalid relativePath', () async {
+        expect(
+          () async => ICloudStorage.readInPlaceBytes(
+            containerId: containerId,
+            relativePath: 'dir//file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+    });
+
+    group('writeInPlace tests:', () {
+      test('writeInPlace', () async {
+        await ICloudStorage.writeInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/test.json',
+          contents: '{"ok":true}',
+        );
+        expect(fakePlatform.writeInPlaceRelativePath, 'Documents/test.json');
+        expect(fakePlatform.writeInPlaceContents, '{"ok":true}');
+        expect(fakePlatform.calls.last, 'writeInPlace');
+      });
+
+      test('writeInPlaceBytes', () async {
+        await ICloudStorage.writeInPlaceBytes(
+          containerId: containerId,
+          relativePath: 'Documents/data.bin',
+          contents: Uint8List.fromList([4, 5, 6]),
+        );
+        expect(fakePlatform.writeInPlaceRelativePath, 'Documents/data.bin');
+        expect(fakePlatform.calls.last, 'writeInPlaceBytes');
+      });
+
+      test('writeInPlace rejects trailing slash relativePath', () async {
+        expect(
+          () async => ICloudStorage.writeInPlace(
+            containerId: containerId,
+            relativePath: 'Documents/folder/',
+            contents: 'data',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('writeInPlace with invalid relativePath', () async {
+        expect(
+          () async => ICloudStorage.writeInPlace(
+            containerId: containerId,
+            relativePath: 'dir//file',
+            contents: 'data',
           ),
           throwsA(isA<InvalidArgumentException>()),
         );

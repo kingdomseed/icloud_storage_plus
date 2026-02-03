@@ -38,6 +38,14 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       uploadFile(call, result)
     case "downloadFile":
       downloadFile(call, result)
+    case "readInPlace":
+      readInPlace(call, result)
+    case "readInPlaceBytes":
+      readInPlaceBytes(call, result)
+    case "writeInPlace":
+      writeInPlace(call, result)
+    case "writeInPlaceBytes":
+      writeInPlaceBytes(call, result)
     case "delete":
       delete(call, result)
     case "move":
@@ -223,7 +231,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     return relative
   }
   
-  /// Uploads a local file into the iCloud container.
+  /// Copies a local file into the iCloud container (copy-in).
+  /// iCloud uploads the container file automatically in the background.
   private func uploadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -365,7 +374,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
-  /// Downloads a remote item to a local file, optionally reporting progress.
+  /// Downloads an iCloud item if needed, then copies it out to a local path.
   private func downloadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     guard let args = call.arguments as? Dictionary<String, Any>,
           let containerId = args["containerId"] as? String,
@@ -471,6 +480,210 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       completeOnce(nil)
     }
   }
+
+  /// Read a file in place from the iCloud container using coordinated access.
+  private func readInPlace(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    let idleTimeouts = (args["idleTimeoutSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+    let retryBackoff = (args["retryBackoffSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+    } catch {
+      let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+      result(mapped)
+      return
+    }
+
+    waitForDownloadCompletion(
+      fileURL: fileURL,
+      idleTimeouts: idleTimeouts,
+      retryBackoff: retryBackoff
+    ) { [self] error in
+      if let error {
+        if let timeoutError = mapTimeoutError(error) {
+          result(timeoutError)
+          return
+        }
+        result(nativeCodeError(error))
+        return
+      }
+
+      readInPlaceDocument(at: fileURL) { [self] contents, error in
+        if let error = error {
+          let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+          result(mapped)
+          return
+        }
+
+        result(contents)
+      }
+    }
+  }
+
+  /// Write a file in place inside the iCloud container using coordinated access.
+  private func writeInPlace(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String,
+          let contents = args["contents"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      let dirURL = fileURL.deletingLastPathComponent()
+      if !FileManager.default.fileExists(atPath: dirURL.path) {
+        try FileManager.default.createDirectory(
+          at: dirURL,
+          withIntermediateDirectories: true,
+          attributes: nil
+        )
+      }
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+
+    writeInPlaceDocument(at: fileURL, contents: contents) { [self] error in
+      if let error = error {
+        let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+        result(mapped)
+        return
+      }
+      result(nil)
+    }
+  }
+
+  /// Read a file in place as bytes from the iCloud container using coordinated access.
+  private func readInPlaceBytes(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    let idleTimeouts = (args["idleTimeoutSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+    let retryBackoff = (args["retryBackoffSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+    } catch {
+      let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+      result(mapped)
+      return
+    }
+
+    waitForDownloadCompletion(
+      fileURL: fileURL,
+      idleTimeouts: idleTimeouts,
+      retryBackoff: retryBackoff
+    ) { [self] error in
+      if let error {
+        if let timeoutError = mapTimeoutError(error) {
+          result(timeoutError)
+          return
+        }
+        result(nativeCodeError(error))
+        return
+      }
+
+      readInPlaceBinaryDocument(at: fileURL) { [self] contents, error in
+        if let error = error {
+          let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+          result(mapped)
+          return
+        }
+
+        if let contents {
+          result(FlutterStandardTypedData(bytes: contents))
+        } else {
+          result(nil)
+        }
+      }
+    }
+  }
+
+  /// Write a file in place as bytes inside the iCloud container using coordinated access.
+  private func writeInPlaceBytes(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String,
+          let contents = args["contents"] as? FlutterStandardTypedData
+    else {
+      result(argumentError)
+      return
+    }
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      let dirURL = fileURL.deletingLastPathComponent()
+      if !FileManager.default.fileExists(atPath: dirURL.path) {
+        try FileManager.default.createDirectory(
+          at: dirURL,
+          withIntermediateDirectories: true,
+          attributes: nil
+        )
+      }
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+
+    writeInPlaceBinaryDocument(at: fileURL, contents: contents.data) { [self] error in
+      if let error = error {
+        let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+        result(mapped)
+        return
+      }
+      result(nil)
+    }
+  }
   
   /// Adds observers for download progress updates.
   private func addDownloadObservers(
@@ -506,11 +719,150 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     if !query.isStarted {
       return
     }
-    let streamHandler = self.streamHandlers[eventChannelName]
     guard let fileItem = query.results.first as? NSMetadataItem else { return }
     if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey) as? Double {
       emitProgress(progress, eventChannelName: eventChannelName)
     }
+  }
+
+  /// Waits for an iCloud download to reach "current" or fail.
+  ///
+  /// Uses an idle watchdog timer that resets only when download progress
+  /// advances. This avoids hard timeouts while still escaping stalled
+  /// downloads.
+  private func waitForDownloadCompletion(
+    fileURL: URL,
+    idleTimeouts: [TimeInterval],
+    retryBackoff: [TimeInterval],
+    completion: @escaping (Error?) -> Void
+  ) {
+    if let values = try? fileURL.resourceValues(
+      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
+    ) {
+      if let error = values.ubiquitousItemDownloadingError {
+        completion(error)
+        return
+      }
+      if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+        completion(nil)
+        return
+      }
+    }
+
+    let idleSchedule = idleTimeouts.isEmpty ? [60, 90, 180] : idleTimeouts
+    let backoffSchedule = retryBackoff.isEmpty ? [2, 4] : retryBackoff
+
+    var didComplete = false
+    let completeOnce: (Error?) -> Void = { error in
+      if didComplete {
+        return
+      }
+      didComplete = true
+      completion(error)
+    }
+
+    func startAttempt(index: Int) {
+      if didComplete { return }
+      let query = NSMetadataQuery()
+      query.operationQueue = .main
+      query.searchScopes = querySearchScopes
+      query.predicate = NSPredicate(
+        format: "%K == %@",
+        NSMetadataItemPathKey,
+        fileURL.path
+      )
+
+      var watchdogTimer: Timer?
+      var lastProgress = -1.0
+
+      let resetWatchdog: () -> Void = {
+        watchdogTimer?.invalidate()
+        watchdogTimer = Timer.scheduledTimer(
+          withTimeInterval: idleSchedule[index],
+          repeats: false
+        ) { [self] _ in
+          removeObservers(query)
+          query.stop()
+          if index < idleSchedule.count - 1 {
+            let delayIndex = min(index, backoffSchedule.count - 1)
+            let delay = backoffSchedule[delayIndex]
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+              startAttempt(index: index + 1)
+            }
+            return
+          }
+          completeOnce(timeoutNativeError())
+        }
+      }
+
+      let handleEvaluation: () -> Void = { [self] in
+        let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
+        if evaluation.completed {
+          watchdogTimer?.invalidate()
+          removeObservers(query)
+          query.stop()
+          completeOnce(evaluation.error)
+          return
+        }
+
+        if let item = query.results.first as? NSMetadataItem,
+           let progress = item.value(
+             forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey
+           ) as? Double,
+           progress > lastProgress {
+          lastProgress = progress
+          resetWatchdog()
+        }
+      }
+
+      addObserver(
+        for: query,
+        name: NSNotification.Name.NSMetadataQueryDidFinishGathering
+      ) { _ in
+        handleEvaluation()
+      }
+
+      addObserver(
+        for: query,
+        name: NSNotification.Name.NSMetadataQueryDidUpdate
+      ) { _ in
+        handleEvaluation()
+      }
+
+      resetWatchdog()
+      query.start()
+    }
+
+    startAttempt(index: 0)
+  }
+
+  /// Checks if the file is fully downloaded and available for access.
+  ///
+  /// Strategy:
+  /// 1) Index check: resolve via `NSMetadataQuery` results (handles recent moves/renames).
+  /// 2) Filesystem fallback: if query returns no results, use the original `fileURL`
+  ///    to avoid hanging on metadata indexing latency.
+  private func evaluateDownloadStatus(
+    query: NSMetadataQuery,
+    fileURL: URL
+  ) -> (completed: Bool, error: Error?) {
+    let resolvedURL = (query.results.first as? NSMetadataItem)
+      .flatMap { $0.value(forAttribute: NSMetadataItemURLKey) as? URL }
+      ?? fileURL
+    guard let values = try? resolvedURL.resourceValues(
+      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
+    ) else {
+      return (false, nil)
+    }
+
+    if let error = values.ubiquitousItemDownloadingError {
+      return (true, error)
+    }
+
+    if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+      return (true, nil)
+    }
+    return (false, nil)
   }
   
   /// Check if an item exists without downloading.
@@ -811,6 +1163,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   let containerError = FlutterError(code: "E_CTR", message: "Invalid containerId, or user is not signed in, or user disabled iCloud permission", details: nil)
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
   let initializationError = FlutterError(code: "E_INIT", message: "Plugin not properly initialized", details: nil)
+  let timeoutError = FlutterError(
+    code: "E_TIMEOUT",
+    message: "The download did not make progress before timing out",
+    details: nil
+  )
 
   /// Maps file-not-found errors to specific Flutter error codes.
   private func mapFileNotFoundError(_ error: Error) -> FlutterError? {
@@ -832,6 +1189,20 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Wraps a native Error into a FlutterError.
   private func nativeCodeError(_ error: Error) -> FlutterError {
     return FlutterError(code: "E_NAT", message: "Native Code Error", details: "\(error)")
+  }
+
+  private func timeoutNativeError() -> NSError {
+    return NSError(
+      domain: "ICloudStorageTimeout",
+      code: 1,
+      userInfo: [NSLocalizedDescriptionKey: "Download idle timeout"]
+    )
+  }
+
+  private func mapTimeoutError(_ error: Error) -> FlutterError? {
+    let nsError = error as NSError
+    guard nsError.domain == "ICloudStorageTimeout" else { return nil }
+    return timeoutError
   }
 }
 
