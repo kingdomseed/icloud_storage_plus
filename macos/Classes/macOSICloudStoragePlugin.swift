@@ -507,7 +507,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     do {
       try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
     } catch {
-      result(nativeCodeError(error))
+      let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+      result(mapped)
       return
     }
 
@@ -527,7 +528,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
       readInPlaceDocument(at: fileURL) { [self] contents, error in
         if let error = error {
-          result(nativeCodeError(error))
+          let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+          result(mapped)
           return
         }
 
@@ -605,7 +607,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     do {
       try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
     } catch {
-      result(nativeCodeError(error))
+      let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+      result(mapped)
       return
     }
 
@@ -625,7 +628,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
       readInPlaceBinaryDocument(at: fileURL) { [self] contents, error in
         if let error = error {
-          result(nativeCodeError(error))
+          let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+          result(mapped)
           return
         }
 
