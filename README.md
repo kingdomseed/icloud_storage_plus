@@ -81,6 +81,7 @@ Reads wait for iCloud downloads to complete, using metadata when available and
 falling back to the requested file URL if the index is still catching up. You
 can optionally configure idle watchdog timeouts and retry backoff in Dart
 (defaults to 60/90/180s with 2/4s backoff).
+File-not-found and other failures surface as errors.
 
 ```dart
 // Read directly inside the container with coordination.

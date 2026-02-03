@@ -36,12 +36,11 @@ downloaded.
 Coordinated in-place reads (`readInPlace`) do not pre-check file existence.
 Instead, they:
 - Trigger download with `startDownloadingUbiquitousItem` when needed.
-- Wait for metadata to report download status `current`.
+- Wait for metadata to report download status `current` (with idle watchdog retries).
 - Attempt a coordinated document open/read.
 
-A file-not-found error from the coordinated open/read is mapped to `null`.
-This avoids false negatives from `fileExists` and treats UIDocument/NSDocument
-as the source of truth for read availability.
+File-not-found and other failures surface as errors (not null). `readInPlace`
+treats UIDocument/NSDocument as the source of truth for read availability.
 
 ## Error codes
 
@@ -49,5 +48,6 @@ We map Cocoa file-not-found errors to distinct codes:
 - `E_FNF` for `NSFileNoSuchFileError`
 - `E_FNF_READ` for `NSFileReadNoSuchFileError`
 - `E_FNF_WRITE` for `NSFileWriteNoSuchFileError`
+Idle watchdog timeouts return `E_TIMEOUT`.
 
 All other errors are reported as native errors.

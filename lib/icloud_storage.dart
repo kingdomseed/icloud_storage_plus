@@ -173,6 +173,8 @@ class ICloudStorage {
   /// backoff by default).
   ///
   /// Returns the file contents as a String.
+  ///
+  /// Throws on file-not-found and other failures.
   static Future<String?> readInPlace({
     required String containerId,
     required String relativePath,

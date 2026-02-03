@@ -131,6 +131,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// UIDocument/NSDocument and loads the full contents into memory. Use for
   /// small text/JSON files.
   ///
+  /// Throws on file-not-found and other failures.
+  ///
   /// [idleTimeouts] controls idle watchdog timeouts between retries.
   /// [retryBackoff] controls retry delays between attempts.
   Future<String?> readInPlace({
