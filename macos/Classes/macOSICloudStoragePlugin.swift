@@ -677,7 +677,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.start()
   }
 
-  /// Evaluates download status for a metadata query result.
+  /// Checks if the file is fully downloaded and available for access.
+  ///
+  /// Strategy:
+  /// 1) Index check: resolve via `NSMetadataQuery` results (handles recent moves/renames).
+  /// 2) Filesystem fallback: if query returns no results, use the original `fileURL`
+  ///    to avoid hanging on metadata indexing latency.
   private func evaluateDownloadStatus(
     query: NSMetadataQuery,
     fileURL: URL
