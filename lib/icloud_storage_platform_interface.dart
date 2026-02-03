@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
 import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
@@ -128,8 +130,8 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// Trailing slashes are rejected here because reads are file-centric.
   ///
   /// Returns the file contents as a String. Coordinated access uses
-  /// UIDocument/NSDocument and loads the full contents into memory. Use for
-  /// small text/JSON files.
+  /// UIDocument/NSDocument and loads the full contents into memory. Text is
+  /// decoded as UTF-8; use [readInPlaceBytes] for binary formats.
   ///
   /// Throws on file-not-found and other failures.
   ///
@@ -142,6 +144,31 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     List<Duration>? retryBackoff,
   }) async {
     throw UnimplementedError('readInPlace() has not been implemented.');
+  }
+
+  /// Read a file in place as bytes from the iCloud container using coordinated
+  /// access.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  /// [relativePath] is the relative path to the file inside the container.
+  ///
+  /// Trailing slashes are rejected here because reads are file-centric.
+  ///
+  /// Returns the file contents as bytes. Coordinated access uses
+  /// UIDocument/NSDocument and loads the full contents into memory. Use for
+  /// small files.
+  ///
+  /// [idleTimeouts] controls idle watchdog timeouts between retries.
+  /// [retryBackoff] controls retry delays between attempts.
+  ///
+  /// Throws on file-not-found and other failures.
+  Future<Uint8List?> readInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
+  }) async {
+    throw UnimplementedError('readInPlaceBytes() has not been implemented.');
   }
 
   /// Write a file in place inside the iCloud container using coordinated
@@ -160,6 +187,24 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     required String contents,
   }) async {
     throw UnimplementedError('writeInPlace() has not been implemented.');
+  }
+
+  /// Write a file in place as bytes inside the iCloud container using
+  /// coordinated access.
+  ///
+  /// [containerId] is the iCloud Container Id.
+  /// [relativePath] is the relative path to the file inside the container.
+  /// [contents] is the full contents to write.
+  ///
+  /// Trailing slashes are rejected here because writes are file-centric.
+  /// Coordinated access uses UIDocument/NSDocument and writes the full contents
+  /// as a single operation. Use for small files.
+  Future<void> writeInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    required Uint8List contents,
+  }) async {
+    throw UnimplementedError('writeInPlaceBytes() has not been implemented.');
   }
 
   /// Delete a file from iCloud container directory, whether it is been

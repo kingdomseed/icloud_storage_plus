@@ -155,12 +155,51 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   }
 
   @override
+  Future<Uint8List?> readInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
+  }) async {
+    final result = await methodChannel.invokeMethod<Uint8List>(
+      'readInPlaceBytes',
+      {
+        'containerId': containerId,
+        'relativePath': relativePath,
+        // Send integer seconds; sub-second precision is intentionally ignored.
+        if (idleTimeouts != null)
+          'idleTimeoutSeconds': idleTimeouts
+              .map((duration) => duration.inSeconds)
+              .toList(growable: false),
+        if (retryBackoff != null)
+          'retryBackoffSeconds': retryBackoff
+              .map((duration) => duration.inSeconds)
+              .toList(growable: false),
+      },
+    );
+    return result;
+  }
+
+  @override
   Future<void> writeInPlace({
     required String containerId,
     required String relativePath,
     required String contents,
   }) async {
     await methodChannel.invokeMethod('writeInPlace', {
+      'containerId': containerId,
+      'relativePath': relativePath,
+      'contents': contents,
+    });
+  }
+
+  @override
+  Future<void> writeInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    required Uint8List contents,
+  }) async {
+    await methodChannel.invokeMethod('writeInPlaceBytes', {
       'containerId': containerId,
       'relativePath': relativePath,
       'contents': contents,

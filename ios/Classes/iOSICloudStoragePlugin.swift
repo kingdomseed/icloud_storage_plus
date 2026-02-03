@@ -41,8 +41,12 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       downloadFile(call, result)
     case "readInPlace":
       readInPlace(call, result)
+    case "readInPlaceBytes":
+      readInPlaceBytes(call, result)
     case "writeInPlace":
       writeInPlace(call, result)
+    case "writeInPlaceBytes":
+      writeInPlaceBytes(call, result)
     case "delete":
       delete(call, result)
     case "move":
@@ -566,6 +570,108 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     writeInPlaceDocument(at: fileURL, contents: contents) { [self] error in
+      if let error = error {
+        let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
+        result(mapped)
+        return
+      }
+      result(nil)
+    }
+  }
+
+  /// Read a file in place as bytes from the iCloud container using coordinated access.
+  private func readInPlaceBytes(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    let idleTimeouts = (args["idleTimeoutSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+    let retryBackoff = (args["retryBackoffSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+
+    waitForDownloadCompletion(
+      fileURL: fileURL,
+      idleTimeouts: idleTimeouts,
+      retryBackoff: retryBackoff
+    ) { [self] error in
+      if let error {
+        if let timeoutError = mapTimeoutError(error) {
+          result(timeoutError)
+          return
+        }
+        result(nativeCodeError(error))
+        return
+      }
+
+      readInPlaceBinaryDocument(at: fileURL) { [self] contents, error in
+        if let error = error {
+          result(nativeCodeError(error))
+          return
+        }
+
+        if let contents {
+          result(FlutterStandardTypedData(bytes: contents))
+        } else {
+          result(nil)
+        }
+      }
+    }
+  }
+
+  /// Write a file in place as bytes inside the iCloud container using coordinated access.
+  private func writeInPlaceBytes(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String,
+          let relativePath = args["relativePath"] as? String,
+          let contents = args["contents"] as? FlutterStandardTypedData
+    else {
+      result(argumentError)
+      return
+    }
+
+    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let fileURL = containerURL.appendingPathComponent(relativePath)
+
+    do {
+      let dirURL = fileURL.deletingLastPathComponent()
+      if !FileManager.default.fileExists(atPath: dirURL.path) {
+        try FileManager.default.createDirectory(
+          at: dirURL,
+          withIntermediateDirectories: true,
+          attributes: nil
+        )
+      }
+    } catch {
+      result(nativeCodeError(error))
+      return
+    }
+
+    writeInPlaceBinaryDocument(at: fileURL, contents: contents.data) { [self] error in
       if let error = error {
         let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
         result(mapped)

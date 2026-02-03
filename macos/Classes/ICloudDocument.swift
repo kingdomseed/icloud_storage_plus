@@ -233,6 +233,32 @@ final class ICloudInPlaceDocument: NSDocument {
     }
 }
 
+/// NSDocument subclass for coordinated in-place binary access.
+final class ICloudInPlaceBinaryDocument: NSDocument {
+    /// Binary contents for in-place reads/writes.
+    var dataContents: Data = Data()
+
+    /// Error occurred during the last operation (if any).
+    var lastError: Error?
+
+    override class var autosavesInPlace: Bool {
+        return true
+    }
+
+    override func data(ofType typeName: String) throws -> Data {
+        return dataContents
+    }
+
+    override func read(from data: Data, ofType typeName: String) throws {
+        dataContents = data
+    }
+
+    override func handleError(_ error: Error, userInteractionPermitted: Bool) {
+        lastError = error
+        super.handleError(error, userInteractionPermitted: userInteractionPermitted)
+    }
+}
+
 // MARK: - Extension for Document Operations
 
 extension ICloudStoragePlugin {
@@ -371,6 +397,62 @@ extension ICloudStoragePlugin {
     ) {
         let document = ICloudInPlaceDocument()
         document.textContents = contents
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try document.write(
+                    to: url,
+                    ofType: "public.data",
+                    for: FileManager.default.fileExists(atPath: url.path)
+                        ? .saveOperation
+                        : .saveAsOperation,
+                    originalContentsURL: nil
+                )
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(error)
+                }
+            }
+        }
+    }
+
+    /// Read a binary document in place using NSDocument coordination.
+    func readInPlaceBinaryDocument(
+        at url: URL,
+        completion: @escaping (Data?, Error?) -> Void
+    ) {
+        let document = ICloudInPlaceBinaryDocument()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try document.read(from: url, ofType: "public.data")
+                let contents = document.dataContents
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(contents, nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    document.close()
+                    completion(nil, error)
+                }
+            }
+        }
+    }
+
+    /// Write a binary document in place using NSDocument coordination.
+    func writeInPlaceBinaryDocument(
+        at url: URL,
+        contents: Data,
+        completion: @escaping (Error?) -> Void
+    ) {
+        let document = ICloudInPlaceBinaryDocument()
+        document.dataContents = contents
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {

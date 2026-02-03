@@ -39,8 +39,8 @@ Instead, they:
 - Wait for metadata to report download status `current` (with idle watchdog retries).
 - Attempt a coordinated document open/read.
 
-File-not-found and other failures surface as errors (not null). `readInPlace`
-treats UIDocument/NSDocument as the source of truth for read availability.
+File-not-found and other failures surface as errors (not null). Text reads use
+UTF-8 decoding; use `readInPlaceBytes` for binary formats.
 
 ## Error codes
 

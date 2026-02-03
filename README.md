@@ -81,8 +81,8 @@ Reads wait for iCloud downloads to complete, using metadata when available and
 falling back to the requested file URL if the index is still catching up. You
 can optionally configure idle watchdog timeouts and retry backoff in Dart
 (defaults to 60/90/180s with 2/4s backoff).
-File-not-found and other failures surface as errors.
-In-place access only supports UTF-8 text/JSON files.
+File-not-found and other failures surface as errors. Text reads use UTF-8; use
+the bytes APIs for binary files.
 
 ```dart
 // Read directly inside the container with coordination.
@@ -96,6 +96,21 @@ await ICloudStorage.writeInPlace(
   containerId: 'iCloud.com.yourapp.container',
   relativePath: 'Documents/notes.txt',
   contents: 'Updated text',
+);
+```
+
+For binary files (images, PDFs), use the bytes APIs:
+
+```dart
+final bytes = await ICloudStorage.readInPlaceBytes(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/image.png',
+);
+
+await ICloudStorage.writeInPlaceBytes(
+  containerId: 'iCloud.com.yourapp.container',
+  relativePath: 'Documents/image.png',
+  contents: bytes!,
 );
 ```
 

@@ -59,7 +59,11 @@ void main() {
           return '/container/path';
         case 'readInPlace':
           return 'contents';
+        case 'readInPlaceBytes':
+          return Uint8List.fromList([1, 2, 3]);
         case 'writeInPlace':
+          return null;
+        case 'writeInPlaceBytes':
           return null;
         default:
           return null;
@@ -229,6 +233,38 @@ void main() {
     });
   });
 
+  group('readInPlaceBytes tests:', () {
+    test('readInPlaceBytes', () async {
+      final result = await platform.readInPlaceBytes(
+        containerId: containerId,
+        relativePath: 'Documents/data.bin',
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/data.bin');
+      expect(result, Uint8List.fromList([1, 2, 3]));
+    });
+
+    test('passes idle timeout and retry backoff settings', () async {
+      await platform.readInPlaceBytes(
+        containerId: containerId,
+        relativePath: 'Documents/data.bin',
+        idleTimeouts: const [
+          Duration(seconds: 60),
+          Duration(seconds: 90),
+          Duration(seconds: 180),
+        ],
+        retryBackoff: const [
+          Duration(seconds: 2),
+          Duration(seconds: 4),
+        ],
+      );
+      final args = mockArguments();
+      expect(args['idleTimeoutSeconds'], [60, 90, 180]);
+      expect(args['retryBackoffSeconds'], [2, 4]);
+    });
+  });
+
   group('writeInPlace tests:', () {
     test('writeInPlace', () async {
       await platform.writeInPlace(
@@ -240,6 +276,20 @@ void main() {
       expect(args['containerId'], containerId);
       expect(args['relativePath'], 'Documents/test.json');
       expect(args['contents'], '{"ok":true}');
+    });
+  });
+
+  group('writeInPlaceBytes tests:', () {
+    test('writeInPlaceBytes', () async {
+      await platform.writeInPlaceBytes(
+        containerId: containerId,
+        relativePath: 'Documents/data.bin',
+        contents: Uint8List.fromList([4, 5, 6]),
+      );
+      final args = mockArguments();
+      expect(args['containerId'], containerId);
+      expect(args['relativePath'], 'Documents/data.bin');
+      expect(args['contents'], Uint8List.fromList([4, 5, 6]));
     });
   });
 

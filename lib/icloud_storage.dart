@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/gather_result.dart';
@@ -164,8 +166,8 @@ class ICloudStorage {
   /// Trailing slashes are rejected here because reads are file-centric and
   /// coordinated through UIDocument/NSDocument.
   ///
-  /// Coordinated access loads the full contents into memory. Use for small
-  /// text/JSON files.
+  /// Coordinated access loads the full contents into memory. Text is decoded
+  /// as UTF-8; use [readInPlaceBytes] for binary formats.
   ///
   /// [idleTimeouts] configures the idle watchdog for downloads (defaults to
   /// 60s, 90s, 180s).
@@ -205,6 +207,51 @@ class ICloudStorage {
     );
   }
 
+  /// Read a file in place as bytes from the iCloud container using coordinated
+  /// access.
+  ///
+  /// [relativePath] is the path within the iCloud container.
+  ///
+  /// Trailing slashes are rejected here because reads are file-centric and
+  /// coordinated through UIDocument/NSDocument.
+  ///
+  /// Coordinated access loads the full contents into memory. Use for small
+  /// files.
+  ///
+  /// [idleTimeouts] configures the idle watchdog for downloads (defaults to
+  /// 60s, 90s, 180s).
+  /// [retryBackoff] configures the retry delay between attempts (exponential
+  /// backoff by default).
+  ///
+  /// Returns the file contents as bytes.
+  ///
+  /// Throws on file-not-found and other failures.
+  static Future<Uint8List?> readInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
+  }) async {
+    if (relativePath.endsWith('/')) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (relativePath.trim().isEmpty) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    return ICloudStoragePlatform.instance.readInPlaceBytes(
+      containerId: containerId,
+      relativePath: relativePath,
+      idleTimeouts: idleTimeouts,
+      retryBackoff: retryBackoff,
+    );
+  }
+
   /// Write a file in place inside the iCloud container using coordinated
   /// access.
   ///
@@ -235,6 +282,41 @@ class ICloudStorage {
     }
 
     await ICloudStoragePlatform.instance.writeInPlace(
+      containerId: containerId,
+      relativePath: relativePath,
+      contents: contents,
+    );
+  }
+
+  /// Write a file in place as bytes inside the iCloud container using
+  /// coordinated access.
+  ///
+  /// [relativePath] is the path within the iCloud container.
+  /// [contents] is the full contents to write.
+  ///
+  /// Trailing slashes are rejected here because writes are file-centric and
+  /// coordinated through UIDocument/NSDocument.
+  ///
+  /// Coordinated access writes the full contents as a single operation. Use
+  /// for small files.
+  static Future<void> writeInPlaceBytes({
+    required String containerId,
+    required String relativePath,
+    required Uint8List contents,
+  }) async {
+    if (relativePath.endsWith('/')) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (relativePath.trim().isEmpty) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (!_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    await ICloudStoragePlatform.instance.writeInPlaceBytes(
       containerId: containerId,
       relativePath: relativePath,
       contents: contents,

@@ -277,6 +277,43 @@ final class ICloudInPlaceDocument: UIDocument {
     }
 }
 
+/// UIDocument subclass for coordinated in-place binary access.
+final class ICloudInPlaceBinaryDocument: UIDocument {
+    /// Binary contents for in-place reads/writes.
+    var dataContents: Data = Data()
+
+    /// Error occurred during the last operation (if any).
+    var lastError: Error?
+
+    override func contents(forType typeName: String) throws -> Any {
+        return dataContents
+    }
+
+    override func load(fromContents contents: Any, ofType typeName: String?) throws {
+        if let data = contents as? Data {
+            dataContents = data
+            return
+        }
+
+        if let fileWrapper = contents as? FileWrapper,
+           let data = fileWrapper.regularFileContents {
+            dataContents = data
+            return
+        }
+
+        throw NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileReadUnknownError,
+            userInfo: [NSLocalizedDescriptionKey: "Unsupported document contents"]
+        )
+    }
+
+    override func handleError(_ error: Error, userInteractionPermitted: Bool) {
+        lastError = error
+        super.handleError(error, userInteractionPermitted: userInteractionPermitted)
+    }
+}
+
 // MARK: - Extension for Document Operations
 
 extension SwiftICloudStoragePlugin {
@@ -409,6 +446,30 @@ extension SwiftICloudStoragePlugin {
         }
     }
 
+    /// Read a binary document in place using UIDocument coordination.
+    func readInPlaceBinaryDocument(
+        at url: URL,
+        completion: @escaping (Data?, Error?) -> Void
+    ) {
+        let document = ICloudInPlaceBinaryDocument(fileURL: url)
+
+        document.open { success in
+            if success {
+                let contents = document.dataContents
+                document.close { _ in
+                    completion(contents, nil)
+                }
+            } else {
+                let error = document.lastError ?? NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileReadUnknownError,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to open document"]
+                )
+                completion(nil, error)
+            }
+        }
+    }
+
     /// Write a document in place using UIDocument coordination.
     func writeInPlaceDocument(
         at url: URL,
@@ -417,6 +478,36 @@ extension SwiftICloudStoragePlugin {
     ) {
         let document = ICloudInPlaceDocument(fileURL: url)
         document.textContents = contents
+
+        let saveOperation: UIDocument.SaveOperation =
+            FileManager.default.fileExists(atPath: url.path)
+            ? .forOverwriting
+            : .forCreating
+
+        document.save(to: url, for: saveOperation) { success in
+            if success {
+                document.close { _ in
+                    completion(nil)
+                }
+            } else {
+                let error = document.lastError ?? NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileWriteUnknownError,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
+                )
+                completion(error)
+            }
+        }
+    }
+
+    /// Write a binary document in place using UIDocument coordination.
+    func writeInPlaceBinaryDocument(
+        at url: URL,
+        contents: Data,
+        completion: @escaping (Error?) -> Void
+    ) {
+        let document = ICloudInPlaceBinaryDocument(fileURL: url)
+        document.dataContents = contents
 
         let saveOperation: UIDocument.SaveOperation =
             FileManager.default.fileExists(atPath: url.path)
