@@ -127,12 +127,17 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   ///
   /// Trailing slashes are rejected here because reads are file-centric.
   ///
-  /// Returns the file contents as a String, or null if the file does not exist.
-  /// Coordinated access uses UIDocument/NSDocument and loads the full contents
-  /// into memory. Use for small text/JSON files.
+  /// Returns the file contents as a String. Coordinated access uses
+  /// UIDocument/NSDocument and loads the full contents into memory. Use for
+  /// small text/JSON files.
+  ///
+  /// [idleTimeouts] controls idle watchdog timeouts between retries.
+  /// [retryBackoff] controls retry delays between attempts.
   Future<String?> readInPlace({
     required String containerId,
     required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
   }) async {
     throw UnimplementedError('readInPlace() has not been implemented.');
   }

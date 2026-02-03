@@ -487,6 +487,11 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
+    let idleTimeouts = (args["idleTimeoutSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+    let retryBackoff = (args["retryBackoffSeconds"] as? [NSNumber])?
+      .map { $0.doubleValue } ?? []
+
     guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
     else {
       result(containerError)
@@ -498,18 +503,18 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     do {
       try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
     } catch {
-      if mapFileNotFoundError(error) != nil {
-        result(nil)
-        return
-      }
       result(nativeCodeError(error))
       return
     }
 
-    waitForDownloadCompletion(fileURL: fileURL) { [self] error in
+    waitForDownloadCompletion(
+      fileURL: fileURL,
+      idleTimeouts: idleTimeouts,
+      retryBackoff: retryBackoff
+    ) { [self] error in
       if let error {
-        if mapFileNotFoundError(error) != nil {
-          result(nil)
+        if let timeoutError = mapTimeoutError(error) {
+          result(timeoutError)
           return
         }
         result(nativeCodeError(error))
@@ -518,10 +523,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
 
       readInPlaceDocument(at: fileURL) { [self] contents, error in
         if let error = error {
-          if mapFileNotFoundError(error) != nil {
-            result(nil)
-            return
-          }
           result(nativeCodeError(error))
           return
         }
@@ -614,13 +615,15 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
 
-  /// Waits until an iCloud item reports download status "current".
   /// Waits for an iCloud download to reach "current" or fail.
   ///
-  /// Note: there is intentionally no timeout; this waits indefinitely unless
-  /// the download completes or an error is detected.
+  /// Uses an idle watchdog timer that resets only when download progress
+  /// advances. This avoids hard timeouts while still escaping stalled
+  /// downloads.
   private func waitForDownloadCompletion(
     fileURL: URL,
+    idleTimeouts: [TimeInterval],
+    retryBackoff: [TimeInterval],
     completion: @escaping (Error?) -> Void
   ) {
     if let values = try? fileURL.resourceValues(
@@ -636,6 +639,9 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       }
     }
 
+    let idleSchedule = idleTimeouts.isEmpty ? [60, 90, 180] : idleTimeouts
+    let backoffSchedule = retryBackoff.isEmpty ? [2, 4] : retryBackoff
+
     var didComplete = false
     let completeOnce: (Error?) -> Void = { error in
       if didComplete {
@@ -645,40 +651,79 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       completion(error)
     }
 
-    let query = NSMetadataQuery()
-    query.operationQueue = .main
-    query.searchScopes = querySearchScopes
-    query.predicate = NSPredicate(
-      format: "%K == %@",
-      NSMetadataItemPathKey,
-      fileURL.path
-    )
+    func startAttempt(index: Int) {
+      if didComplete { return }
+      let query = NSMetadataQuery()
+      query.operationQueue = .main
+      query.searchScopes = querySearchScopes
+      query.predicate = NSPredicate(
+        format: "%K == %@",
+        NSMetadataItemPathKey,
+        fileURL.path
+      )
 
-    addObserver(
-      for: query,
-      name: NSNotification.Name.NSMetadataQueryDidFinishGathering
-    ) { [self] _ in
-      let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
-      if evaluation.completed {
-        removeObservers(query)
-        query.stop()
-        completeOnce(evaluation.error)
+      var watchdogTimer: Timer?
+      var lastProgress = -1.0
+
+      let resetWatchdog: () -> Void = {
+        watchdogTimer?.invalidate()
+        watchdogTimer = Timer.scheduledTimer(
+          withTimeInterval: idleSchedule[index],
+          repeats: false
+        ) { [self] _ in
+          removeObservers(query)
+          query.stop()
+          if index < idleSchedule.count - 1 {
+            let delayIndex = min(index, backoffSchedule.count - 1)
+            let delay = backoffSchedule[delayIndex]
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+              startAttempt(index: index + 1)
+            }
+            return
+          }
+          completeOnce(timeoutNativeError())
+        }
       }
+
+      let handleEvaluation: () -> Void = { [self] in
+        let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
+        if evaluation.completed {
+          watchdogTimer?.invalidate()
+          removeObservers(query)
+          query.stop()
+          completeOnce(evaluation.error)
+          return
+        }
+
+        if let item = query.results.first as? NSMetadataItem,
+           let progress = item.value(
+             forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey
+           ) as? Double,
+           progress > lastProgress {
+          lastProgress = progress
+          resetWatchdog()
+        }
+      }
+
+      addObserver(
+        for: query,
+        name: NSNotification.Name.NSMetadataQueryDidFinishGathering
+      ) { _ in
+        handleEvaluation()
+      }
+
+      addObserver(
+        for: query,
+        name: NSNotification.Name.NSMetadataQueryDidUpdate
+      ) { _ in
+        handleEvaluation()
+      }
+
+      resetWatchdog()
+      query.start()
     }
 
-    addObserver(
-      for: query,
-      name: NSNotification.Name.NSMetadataQueryDidUpdate
-    ) { [self] _ in
-      let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
-      if evaluation.completed {
-        removeObservers(query)
-        query.stop()
-        completeOnce(evaluation.error)
-      }
-    }
-
-    query.start()
+    startAttempt(index: 0)
   }
 
   /// Checks if the file is fully downloaded and available for access.
@@ -695,26 +740,20 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       .flatMap { $0.value(forAttribute: NSMetadataItemURLKey) as? URL }
       ?? fileURL
 
-    do {
-      let values = try resolvedURL.resourceValues(
-        forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
-      )
-
-      if let error = values.ubiquitousItemDownloadingError {
-        return (true, error)
-      }
-
-      if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-        return (true, nil)
-      }
-      return (false, nil)
-    } catch {
-      let nsError = error as NSError
-      if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
-        return (true, fileNotFoundError)
-      }
+    guard let values = try? resolvedURL.resourceValues(
+      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
+    ) else {
       return (false, nil)
     }
+
+    if let error = values.ubiquitousItemDownloadingError {
+      return (true, error)
+    }
+
+    if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+      return (true, nil)
+    }
+    return (false, nil)
   }
   
   /// Check if an item exists without downloading.
@@ -1015,6 +1054,11 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   let containerError = FlutterError(code: "E_CTR", message: "Invalid containerId, or user is not signed in, or user disabled iCloud permission", details: nil)
   let fileNotFoundError = FlutterError(code: "E_FNF", message: "The file does not exist", details: nil)
   let initializationError = FlutterError(code: "E_INIT", message: "Plugin not properly initialized", details: nil)
+  let timeoutError = FlutterError(
+    code: "E_TIMEOUT",
+    message: "The download did not make progress before timing out",
+    details: nil
+  )
 
   /// Maps file-not-found errors to specific Flutter error codes.
   private func mapFileNotFoundError(_ error: Error) -> FlutterError? {
@@ -1036,6 +1080,20 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Wraps a native Error into a FlutterError.
   private func nativeCodeError(_ error: Error) -> FlutterError {
     return FlutterError(code: "E_NAT", message: "Native Code Error", details: "\(error)")
+  }
+
+  private func timeoutNativeError() -> NSError {
+    return NSError(
+      domain: "ICloudStorageTimeout",
+      code: 1,
+      userInfo: [NSLocalizedDescriptionKey: "Download idle timeout"]
+    )
+  }
+
+  private func mapTimeoutError(_ error: Error) -> FlutterError? {
+    let nsError = error as NSError
+    guard nsError.domain == "ICloudStorageTimeout" else { return nil }
+    return timeoutError
   }
 }
 

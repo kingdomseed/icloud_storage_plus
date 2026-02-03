@@ -132,11 +132,24 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
   Future<String?> readInPlace({
     required String containerId,
     required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
   }) async {
-    final result = await methodChannel.invokeMethod<String>('readInPlace', {
-      'containerId': containerId,
-      'relativePath': relativePath,
-    });
+    final result = await methodChannel.invokeMethod<String>(
+      'readInPlace',
+      {
+        'containerId': containerId,
+        'relativePath': relativePath,
+        if (idleTimeouts != null)
+          'idleTimeoutSeconds': idleTimeouts
+              .map((duration) => duration.inSeconds)
+              .toList(growable: false),
+        if (retryBackoff != null)
+          'retryBackoffSeconds': retryBackoff
+              .map((duration) => duration.inSeconds)
+              .toList(growable: false),
+      },
+    );
     return result;
   }
 

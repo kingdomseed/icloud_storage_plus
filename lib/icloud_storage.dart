@@ -167,10 +167,17 @@ class ICloudStorage {
   /// Coordinated access loads the full contents into memory. Use for small
   /// text/JSON files.
   ///
-  /// Returns the file contents as a String, or null if the file does not exist.
+  /// [idleTimeouts] configures the idle watchdog for downloads (defaults to
+  /// 60s, 90s, 180s).
+  /// [retryBackoff] configures the retry delay between attempts (exponential
+  /// backoff by default).
+  ///
+  /// Returns the file contents as a String.
   static Future<String?> readInPlace({
     required String containerId,
     required String relativePath,
+    List<Duration>? idleTimeouts,
+    List<Duration>? retryBackoff,
   }) async {
     // Reads are file-centric; reject directory paths.
     if (relativePath.endsWith('/')) {
@@ -184,6 +191,8 @@ class ICloudStorage {
     return ICloudStoragePlatform.instance.readInPlace(
       containerId: containerId,
       relativePath: relativePath,
+      idleTimeouts: idleTimeouts,
+      retryBackoff: retryBackoff,
     );
   }
 

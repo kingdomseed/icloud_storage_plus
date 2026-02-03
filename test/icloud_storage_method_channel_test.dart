@@ -208,6 +208,25 @@ void main() {
       expect(args['relativePath'], 'Documents/test.json');
       expect(result, 'contents');
     });
+
+    test('passes idle timeout and retry backoff settings', () async {
+      await platform.readInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+        idleTimeouts: const [
+          Duration(seconds: 60),
+          Duration(seconds: 90),
+          Duration(seconds: 180),
+        ],
+        retryBackoff: const [
+          Duration(seconds: 2),
+          Duration(seconds: 4),
+        ],
+      );
+      final args = mockArguments();
+      expect(args['idleTimeoutSeconds'], [60, 90, 180]);
+      expect(args['retryBackoffSeconds'], [2, 4]);
+    });
   });
 
   group('writeInPlace tests:', () {
