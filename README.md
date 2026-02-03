@@ -77,6 +77,8 @@ final content = await File(downloadPath).readAsString();
 
 Use coordinated in-place access for small text/JSON files stored in the
 ubiquity container. These APIs load/write the full file contents in memory.
+Reads wait for iCloud downloads to complete, using metadata when available and
+falling back to the requested file URL if the index is still catching up.
 
 ```dart
 // Read directly inside the container with coordination.
