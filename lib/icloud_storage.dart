@@ -184,6 +184,10 @@ class ICloudStorage {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
+    if (relativePath.trim().isEmpty) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
     if (!_validateRelativePath(relativePath)) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
@@ -214,6 +218,10 @@ class ICloudStorage {
   }) async {
     // Writes are file-centric; reject directory paths.
     if (relativePath.endsWith('/')) {
+      throw InvalidArgumentException('invalid relativePath: $relativePath');
+    }
+
+    if (relativePath.trim().isEmpty) {
       throw InvalidArgumentException('invalid relativePath: $relativePath');
     }
 
