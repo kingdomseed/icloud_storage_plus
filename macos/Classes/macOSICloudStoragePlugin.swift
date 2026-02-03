@@ -615,6 +615,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
 
   /// Waits until an iCloud item reports download status "current".
+  /// Waits for an iCloud download to reach "current" or fail.
+  ///
+  /// Note: there is intentionally no timeout; this waits indefinitely unless
+  /// the download completes or an error is detected.
   private func waitForDownloadCompletion(
     fileURL: URL,
     completion: @escaping (Error?) -> Void
@@ -690,20 +694,26 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let resolvedURL = (query.results.first as? NSMetadataItem)
       .flatMap { $0.value(forAttribute: NSMetadataItemURLKey) as? URL }
       ?? fileURL
-    guard let values = try? resolvedURL.resourceValues(
-      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
-    ) else {
+    do {
+      let values = try resolvedURL.resourceValues(
+        forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
+      )
+
+      if let error = values.ubiquitousItemDownloadingError {
+        return (true, error)
+      }
+
+      if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
+        return (true, nil)
+      }
+      return (false, nil)
+    } catch {
+      let nsError = error as NSError
+      if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
+        return (true, fileNotFoundError)
+      }
       return (false, nil)
     }
-
-    if let error = values.ubiquitousItemDownloadingError {
-      return (true, error)
-    }
-
-    if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      return (true, nil)
-    }
-    return (false, nil)
   }
   
   /// Check if an item exists without downloading.
