@@ -226,11 +226,6 @@ final class ICloudInPlaceDocument: NSDocument {
         }
         textContents = text
     }
-
-    override func handleError(_ error: Error, userInteractionPermitted: Bool) {
-        lastError = error
-        super.handleError(error, userInteractionPermitted: userInteractionPermitted)
-    }
 }
 
 /// NSDocument subclass for coordinated in-place binary access.
@@ -251,11 +246,6 @@ final class ICloudInPlaceBinaryDocument: NSDocument {
 
     override func read(from data: Data, ofType typeName: String) throws {
         dataContents = data
-    }
-
-    override func handleError(_ error: Error, userInteractionPermitted: Bool) {
-        lastError = error
-        super.handleError(error, userInteractionPermitted: userInteractionPermitted)
     }
 }
 
