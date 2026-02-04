@@ -1,6 +1,6 @@
 PODS:
   - Flutter (1.0.0)
-  - icloud_storage_plus (0.0.1):
+  - icloud_storage_plus (1.0.0):
     - Flutter
 
 DEPENDENCIES:
@@ -15,7 +15,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  icloud_storage_plus: b306d48e4bf39abd9e225f34118f0d91831c0fa5
+  icloud_storage_plus: 5db4f527330ac75d476e872988d47af27a7b8580
 
 PODFILE CHECKSUM: 0dbd5a87e0ace00c9610d2037ac22083a01f861d
 
