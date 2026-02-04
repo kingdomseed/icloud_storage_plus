@@ -56,7 +56,9 @@ def main() -> None:
                     # Migrate legacy doc links into docs/notes.
                     if target == "doc/download-flow.md":
                         new_target = "../notes/download_flow.md"
-                    elif target.startswith(("http://", "https://", "#", "../", "./")):
+                    elif target.startswith(
+                        ("http://", "https://", "#", "../", "./")
+                    ):
                         new_target = target
                     else:
                         new_target = f"../../{target}"
@@ -73,4 +75,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
