@@ -209,7 +209,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       "sizeInBytes": values.fileSize,
       "creationDate": values.creationDate?.timeIntervalSince1970,
       "contentChangeDate": values.contentModificationDate?.timeIntervalSince1970,
-      "hasUnresolvedConflicts": values.hasUnresolvedConflicts ?? false,
+      "hasUnresolvedConflicts": values.ubiquitousItemHasUnresolvedConflicts ?? false,
       "downloadStatus": values.ubiquitousItemDownloadingStatus?.rawValue,
       "isDownloading": values.ubiquitousItemIsDownloading ?? false,
       "isUploaded": values.ubiquitousItemIsUploaded ?? false,
@@ -1180,8 +1180,6 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       return fileNotFoundError
     case NSFileReadNoSuchFileError:
       return fileNotFoundReadError
-    case NSFileWriteNoSuchFileError:
-      return fileNotFoundWriteError
     default:
       return nil
     }
