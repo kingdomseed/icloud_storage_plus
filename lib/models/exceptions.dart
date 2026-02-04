@@ -42,6 +42,13 @@ class PlatformExceptionCode {
   /// encounter this error.
   static const String pluginInternal = 'E_PLUGIN_INTERNAL';
 
+  /// The code indicates the plugin was not properly initialized on the native
+  /// side.
+  static const String initializationError = 'E_INIT';
+
+  /// The code indicates an iCloud download made no progress before timing out.
+  static const String timeout = 'E_TIMEOUT';
+
   /// The code indicates the native layer sent an invalid event type
   /// This represents a bug in the plugin. Please open a GitHub issue if you
   /// encounter this error.

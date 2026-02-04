@@ -1,22 +1,26 @@
 # iCloud Storage Plus
 
 [![Pub Version](https://img.shields.io/pub/v/icloud_storage_plus)](https://pub.dev/packages/icloud_storage_plus)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kingdomseed/icloud_storage_plus)
 [![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20macOS-blue)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![shorebird ci](https://api.shorebird.dev/api/v1/github/kingdomseed/icloud_storage_plus/badge.svg)](https://console.shorebird.dev/ci)
 [![Publisher](https://img.shields.io/badge/publisher-jasonholtdigital.com-2b7cff)](https://pub.dev/publishers/jasonholtdigital.com)
 
-Flutter plugin for iCloud document storage with automatic conflict resolution and Files app integration.
+Flutter plugin for iCloud document storage (iOS/macOS) with coordinated file
+access and optional Files app (iCloud Drive) visibility.
 
-## Features
+This package operates inside your app’s iCloud ubiquity container. You choose
+which container to use via the `containerId` you configured in Apple Developer
+Portal / Xcode.
 
-- Document-based operations with automatic download and conflict resolution
-- Coordinated in-place reads/writes (UIDocument/NSDocument) for small JSON/text
-- Files app integration for user-visible documents
-- Directory detection and metadata extraction
-- Progress callbacks for long-running operations
-- Coordinated file access prevents "file locked" errors during iCloud sync
+## Platform support
+
+| Platform | Minimum version |
+|----------|-----------------|
+| iOS | 13.0 |
+| macOS | 10.15 |
 
 ## Installation
 
@@ -24,647 +28,261 @@ Flutter plugin for iCloud document storage with automatic conflict resolution an
 flutter pub add icloud_storage_plus
 ```
 
-## Requirements
+## Before you start (Xcode / entitlements)
 
-- Dart SDK: `>=3.0.0 <4.0.0`
-- Flutter: `>=3.10.0`
+1. Create an iCloud Container ID (example: `iCloud.com.yourapp.container`)
+2. Enable iCloud for your App ID and assign that container
+3. In Xcode → your target → Signing & Capabilities:
+   - Add **iCloud**
+   - Enable **iCloud Documents**
+   - Select your container
 
-## Usage
+### Files app integration (optional)
 
-This plugin operates on your app’s iCloud container (files you write under that
-container).
+To make items visible in the Files app under “iCloud Drive”, you typically need
+to declare your container under `NSUbiquitousContainers` in your `Info.plist`.
 
-`uploadFile`/`downloadFile` are copy operations. If you want to read or write
-files where they live (inside the container), use the coordinated in-place
-APIs (`readInPlace`/`writeInPlace`).
+Files are only visible in Files/iCloud Drive when they live under the
+`Documents/` prefix.
 
-### Basic Example
-
-```dart
-import 'dart:io';
-import 'package:icloud_storage_plus/icloud_storage.dart';
-
-// Check iCloud availability
-final available = await ICloudStorage.icloudAvailable();
-if (!available) {
-  // User is not signed into iCloud
-  return;
-}
-
-// Prepare local file
-final localPath = '${Directory.systemTemp.path}/notes.txt';
-await File(localPath).writeAsString('My notes');
-
-// Copy a local file into iCloud (Files app visible)
-await ICloudStorage.uploadFile(
-  containerId: 'iCloud.com.yourapp.container',
-  localPath: localPath,
-  cloudRelativePath: 'Documents/notes.txt',
-);
-
-// Download from iCloud and copy out to a local path
-final downloadPath = '${Directory.systemTemp.path}/notes-downloaded.txt';
-await ICloudStorage.downloadFile(
-  containerId: 'iCloud.com.yourapp.container',
-  cloudRelativePath: 'Documents/notes.txt',
-  localPath: downloadPath,
-);
-
-final content = await File(downloadPath).readAsString();
-```
-
-### In-Place Access (Recommended for Transparent Sync)
-
-Use coordinated in-place access for small text/JSON files stored in the
-ubiquity container. These APIs load/write the full file contents in memory.
-Reads wait for iCloud downloads to complete, using metadata when available and
-falling back to the requested file URL if the index is still catching up. You
-can optionally configure idle watchdog timeouts and retry backoff in Dart
-(defaults to 60/90/180s with 2/4s backoff).
-File-not-found and other failures surface as errors. Text reads use UTF-8; use
-the bytes APIs for binary files.
-
-```dart
-// Read directly inside the container with coordination.
-final contents = await ICloudStorage.readInPlace(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/notes.txt',
-);
-
-// Write directly inside the container with coordination.
-await ICloudStorage.writeInPlace(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/notes.txt',
-  contents: 'Updated text',
-);
-```
-
-For binary files (images, PDFs), use the bytes APIs:
-
-```dart
-final bytes = await ICloudStorage.readInPlaceBytes(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/image.png',
-);
-
-await ICloudStorage.writeInPlaceBytes(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/image.png',
-  contents: bytes!,
-);
-```
-
-### File Operations
-
-```dart
-// Check if file exists
-final exists = await ICloudStorage.documentExists(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/notes.txt',
-);
-
-// Get file metadata
-final metadata = await ICloudStorage.getMetadata(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/notes.txt',
-);
-
-if (metadata != null && !metadata.isDirectory) {
-  final size = metadata.sizeInBytes ?? 0;
-  final modified = metadata.contentChangeDate;
-}
-
-// Delete file
-await ICloudStorage.delete(
-  containerId: 'iCloud.com.yourapp.container',
-  relativePath: 'Documents/notes.txt',
-);
-
-// Move file
-await ICloudStorage.move(
-  containerId: 'iCloud.com.yourapp.container',
-  fromRelativePath: 'Documents/draft.txt',
-  toRelativePath: 'Documents/Archive/draft.txt',
-);
-
-// List all files
-final result = await ICloudStorage.gather(
-  containerId: 'iCloud.com.yourapp.container',
-  onUpdate: (stream) {
-    stream.listen((gatherResult) {
-      final files = gatherResult.files;
-      // Handle full file list updates
-    });
-  },
-);
-final files = result.files;
-```
-
-## Method Semantics (Copy-In / Copy-Out)
-
-### uploadFile
-Copies a local file into the iCloud ubiquity container. After the copy
-completes, iCloud uploads the file automatically in the background.
-
-Semantics: local path -> iCloud container (copy-in).
-This is NOT in-place access.
-
-### downloadFile
-Triggers iCloud to download the container file if needed, then copies the
-fully downloaded file to the provided local destination path.
-
-Semantics: iCloud container -> local path (download-then-copy-out).
-This is NOT in-place access.
-
-### In-Place Access
-To work like iCloud Drive, use the coordinated in-place APIs:
-`readInPlace` / `writeInPlace`, which coordinate access inside the
-ubiquity container. No copy-out/copy-in is required for in-place reads
-and writes.
-
-## Terminology
-
-- **In-place access**: Coordinated read/write directly inside the iCloud
-  ubiquity container path (no copying).
-- **Copy-in**: Copy a local file into the iCloud container (`uploadFile`).
-- **Copy-out**: Download-then-copy a file from the iCloud container to a local
-  destination (`downloadFile`).
-
-## Migration from 2.x
-
-### Breaking Changes
-
-#### 1. Nullable ICloudFile Fields
-
-Four fields are now nullable:
-- `sizeInBytes: int?` - null for directories and undownloaded files
-- `creationDate: DateTime?` - null when metadata unavailable
-- `contentChangeDate: DateTime?` - null when metadata unavailable
-- `downloadStatus: DownloadStatus?` - null for local-only or unknown statuses
-
-**Before (2.x):**
-```dart
-final metadata = await ICloudStorage.getMetadata(...);
-final size = metadata.sizeInBytes;  // Always non-null
-```
-
-#### 2. gather() now returns GatherResult
-`gather()` now returns a `GatherResult` with `files` and `invalidEntries`
-instead of a raw list. This makes malformed metadata visible to callers.
-
-**Before (2.x):**
-```dart
-final files = await ICloudStorage.gather(...);
-```
-
-**After (3.0):**
-```dart
-final result = await ICloudStorage.gather(...);
-final files = result.files;
-
-if (result.invalidEntries.isNotEmpty) {
-  // Optional: log or surface skipped metadata to aid debugging.
-  debugPrint(
-    'Skipped ${result.invalidEntries.length} invalid metadata entries.',
-  );
-}
-```
-
-**After (3.0):**
-```dart
-final metadata = await ICloudStorage.getMetadata(...);
-final size = metadata?.sizeInBytes ?? 0;  // Handle null
-```
-
-#### 2. Directory Detection
-
-`documentExists()` and `getMetadata()` return true/non-null for directories.
-Use `isDirectory` to distinguish files from directories.
-
-**Before (2.x):**
-```dart
-// Directories returned false
-final exists = await ICloudStorage.documentExists(...);
-```
-
-**After (3.0):**
-```dart
-final metadata = await ICloudStorage.getMetadata(...);
-if (metadata != null && !metadata.isDirectory) {
-  // Process file only
-}
-```
-
-#### 3. Import Paths
-
-Use package-qualified imports:
-```dart
-import 'package:icloud_storage_plus/models/icloud_file.dart';
-```
-
-#### 4. Progress Streams Are Listener-Driven
-
-`uploadFile`/`downloadFile` progress streams subscribe lazily when a listener
-attaches. Attach a listener immediately inside the `onProgress` callback.
-If you delay calling `listen()` (for example, awaiting something first), you
-may miss early progress events.
-
-### Recommended Migration
-
-Replace manual file operations with streaming file-path methods:
-
-**Before (2.x):**
-```dart
-await ICloudStorage.download(...);
-final path = await ICloudStorage.getContainerPath(...);
-final file = File('$path/Documents/file.json');
-final contents = await file.readAsString();  // Can fail with permission errors
-```
-
-**After (3.0):**
-```dart
-final localPath = '${Directory.systemTemp.path}/file.json';
-await ICloudStorage.downloadFile(
-  containerId: 'iCloud.com.yourapp.container',
-  cloudRelativePath: 'Documents/file.json',
-  localPath: localPath,
-);
-final contents = await File(localPath).readAsString();
-```
-
-## Configuration
-
-### 1. Apple Developer Setup
-
-1. Create an App ID in Apple Developer portal
-2. Create an iCloud Container ID (e.g., `iCloud.com.yourapp.container`)
-3. Enable iCloud for your App ID and assign the container
-
-### 2. Xcode Configuration
-
-1. Open your project in Xcode
-2. Select your target → Signing & Capabilities
-3. Add iCloud capability
-4. Enable "iCloud Documents"
-5. Select your container
-
-### 3. Files App Integration
-
-To make files visible in the Files app, configure `Info.plist`:
-
-```xml
-<key>NSUbiquitousContainers</key>
-<dict>
-    <key>iCloud.com.yourapp.container</key>
-    <dict>
-        <key>NSUbiquitousContainerIsDocumentScopePublic</key>
-        <true/>
-        <key>NSUbiquitousContainerName</key>
-        <string>YourAppName</string>
-    </dict>
-</dict>
-```
-
-Files must use the `Documents/` prefix to appear in Files app:
 ```dart
 // Visible in Files app
 cloudRelativePath: 'Documents/notes.txt'
 
-// Hidden from Files app
-cloudRelativePath: 'cache/temp.dat'
+// Not visible in Files app (still syncs)
+cloudRelativePath: 'cache/notes.txt'
 ```
-Paths outside `Documents/` still sync across devices but remain hidden from
-the Files app.
 
-**Note:** Your app’s folder won’t appear in Files/iCloud Drive until at least
-one file has been written under `Documents/`.
+Note: your app’s folder won’t appear in Files/iCloud Drive until at least one
+file exists under `Documents/`.
 
-## API Reference
+## Choosing the right API
 
-### Streaming File Operations
+There are two “tiers” of API in this plugin:
 
-These methods use file-path-only streaming with Apple’s UIDocument (iOS) and
-NSDocument (macOS) for coordinated reads/writes. No bytes cross the platform
-channel.
+1. **Path-only transfers** for large files (no bytes returned to Dart)
+   - `uploadFile` (local → iCloud)
+   - `downloadFile` (iCloud → local)
+2. **In-place content** for small files (bytes/strings cross the platform
+   channel; loads full contents in memory)
+   - `readInPlace`, `readInPlaceBytes`
+   - `writeInPlace`, `writeInPlaceBytes`
 
-#### uploadFile
-```dart
-Future<void> uploadFile({
-  required String containerId,
-  required String localPath,
-  required String cloudRelativePath,
-  StreamHandler<ICloudTransferProgress>? onProgress,
-})
-```
-Streams a local file into the iCloud container. Use `Documents/` in
-`cloudRelativePath` to expose the file in Files app.
+The rest of the API is metadata + file management (`gather`, `getMetadata`,
+`documentExists`, `delete`, `move`, `copy`, `rename`).
 
-`cloudRelativePath` must refer to a file and must not end with `/`. Directory
-paths with trailing slashes may appear in metadata and are accepted by
-directory-oriented operations like `delete`, `move`, and `getMetadata`.
-`uploadFile` rejects directory paths because it uses file-specific document
-coordination APIs.
-
-#### downloadFile
-```dart
-Future<void> downloadFile({
-  required String containerId,
-  required String cloudRelativePath,
-  required String localPath,
-  StreamHandler<ICloudTransferProgress>? onProgress,
-})
-```
-Streams a file from iCloud into a local path.
-
-`cloudRelativePath` must refer to a file and must not end with `/`.
-`downloadFile` rejects directory paths because it uses file-specific document
-coordination APIs.
-
-Progress streams are broadcast and start when a listener attaches. For the most
-consistent updates, start listening immediately in the `onProgress` callback.
-
-Progress failures are delivered as `ICloudTransferProgressType.error` events
-(not as stream `onError`). Treat `error` and `done` as terminal: the stream
-emits the event and then closes. Unexpected progress event payload types are
-surfaced as `E_INVALID_EVENT` and terminate the stream.
-
-Existence checks use `FileManager.fileExists` on the container path rather than
-metadata queries. iCloud creates local placeholder entries for remote files, so
-`fileExists` returns true once the container metadata has synced, even if the
-file’s bytes are not downloaded. This method does not force a download.
-
-#### documentExists
-```dart
-Future<bool> documentExists({
-  required String containerId,
-  required String relativePath,
-})
-```
-Checks if a file or directory exists. Returns true for both files and directories.
-
-#### getMetadata
-```dart
-Future<ICloudFile?> getMetadata({
-  required String containerId,
-  required String relativePath,
-})
-```
-Returns metadata for a file or directory. Use `isDirectory` field to distinguish between them.
-
-#### getDocumentMetadata
-```dart
-Future<Map<String, dynamic>?> getDocumentMetadata({
-  required String containerId,
-  required String relativePath,
-})
-```
-Returns raw metadata map (same fields as `ICloudFile`). Most users should
-prefer `getMetadata()` for the typed model.
-
-### File Management
-
-#### gather
-```dart
-Future<GatherResult> gather({
-  required String containerId,
-  StreamHandler<GatherResult>? onUpdate,
-})
-```
-Lists all files and directories in the container. Optional `onUpdate` callback
-receives the full list when files change. The update stream stays active until
-the subscription is canceled, so dispose listeners when no longer needed.
-Invalid entries are returned in `result.invalidEntries`.
+## Quick start
 
 ```dart
-for (final invalid in result.invalidEntries) {
-  // Inspect malformed metadata entries if needed.
-  debugPrint('Invalid entry: ${invalid.error}');
+import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:icloud_storage_plus/icloud_storage.dart';
+
+const containerId = 'iCloud.com.yourapp.container';
+const notesPath = 'Documents/notes.txt';
+
+Future<void> example() async {
+  final available = await ICloudStorage.icloudAvailable();
+  if (!available) {
+    // Not signed into iCloud, iCloud Drive disabled, etc.
+    return;
+  }
+
+  // 1) Write a text file *in place* (recommended for JSON/text).
+  await ICloudStorage.writeInPlace(
+    containerId: containerId,
+    relativePath: notesPath,
+    contents: 'Hello from iCloud',
+  );
+
+  final contents = await ICloudStorage.readInPlace(
+    containerId: containerId,
+    relativePath: notesPath,
+  );
+
+  // 2) Copy-out to local storage (useful for large files / sharing / etc).
+  final localCopy = '${Directory.systemTemp.path}/notes.txt';
+  await ICloudStorage.downloadFile(
+    containerId: containerId,
+    cloudRelativePath: notesPath,
+    localPath: localCopy,
+  );
+
+  // 3) Metadata / listing.
+  final metadata = await ICloudStorage.getMetadata(
+    containerId: containerId,
+    relativePath: notesPath,
+  );
+  if (metadata != null && !metadata.isDirectory) {
+    final size = metadata.sizeInBytes;
+  }
+
+  try {
+    // Example: path validation happens in Dart before calling native.
+    await ICloudStorage.readInPlace(
+      containerId: containerId,
+      relativePath: 'Documents/.hidden.txt',
+    );
+  } on InvalidArgumentException catch (e) {
+    // Invalid path segment (starts with '.', contains ':', etc.)
+    // This is a Dart-side exception (not a PlatformException).
+    throw Exception(e);
+  } on PlatformException catch (e) {
+    // Native errors (e.g. container missing, file not found, etc.)
+    throw Exception(e);
+  }
 }
 ```
 
-#### delete
+## Transfers with progress
+
+Progress is delivered via an `EventChannel` as *data events* of type
+`ICloudTransferProgress`. Failures are **not** delivered via stream `onError`.
+
+Important: the progress stream is listener-driven; start listening immediately
+in the `onProgress` callback or you may miss early events.
+
 ```dart
-Future<void> delete({
-  required String containerId,
-  required String relativePath,
-})
+await ICloudStorage.uploadFile(
+  containerId: containerId,
+  localPath: '/absolute/path/to/local/file.pdf',
+  cloudRelativePath: 'Documents/file.pdf',
+  onProgress: (stream) {
+    stream.listen((event) {
+      if (event.isProgress) {
+        // 0.0 - 100.0
+        final percent = event.percent!;
+      } else if (event.isError) {
+        final exception = event.exception!;
+      }
+    });
+  },
+);
 ```
-Deletes a file or directory.
 
-#### move
+## Paths: `cloudRelativePath` vs `relativePath`
+
+This plugin always works in terms of paths *inside* the iCloud container:
+
+- `cloudRelativePath`: used by `uploadFile` / `downloadFile`
+- `relativePath`: used by the rest of the API
+
+These are the same kind of value; the naming difference exists for historical
+reasons.
+
+### Trailing slashes
+
+Directory paths can show up with trailing slashes in metadata, so the
+directory-oriented methods accept them:
+
+- `delete`, `move`, `copy`, `rename`, `documentExists`, `getMetadata`,
+  `getDocumentMetadata`
+
+File-centric operations reject trailing slashes (they require a file path):
+
+- `uploadFile`, `downloadFile`
+- `readInPlace`, `readInPlaceBytes`, `writeInPlace`, `writeInPlaceBytes`
+
+### Path validation
+
+Many methods validate path segments in Dart and throw `InvalidArgumentException`
+for invalid values (empty segments, segments starting with `.`, segments that
+contain `:` or `/`, etc).
+
+## Listing / watching with `gather`
+
+`gather()` returns a `GatherResult`:
+
+- `files`: parsed metadata entries
+- `invalidEntries`: entries that could not be parsed into `ICloudFile`
+
+When `onUpdate` is provided, the update stream stays active until the
+subscription is canceled. (Dispose listeners when done.)
+
 ```dart
-Future<void> move({
-  required String containerId,
-  required String fromRelativePath,
-  required String toRelativePath,
-})
+final initial = await ICloudStorage.gather(
+  containerId: containerId,
+  onUpdate: (stream) {
+    stream.listen((update) {
+      // Full file list on every update.
+      final files = update.files;
+    });
+  },
+);
 ```
-Moves or renames a file or directory.
 
-#### rename
-```dart
-Future<void> rename({
-  required String containerId,
-  required String relativePath,
-  required String newName,
-})
-```
-Renames a file or directory in place.
+## Metadata: `ICloudFile`
 
-#### copy
-```dart
-Future<void> copy({
-  required String containerId,
-  required String fromRelativePath,
-  required String toRelativePath,
-})
-```
-Copies a file.
+`getMetadata()` and `gather()` return `ICloudFile`, which represents either a
+file or a directory.
 
-### Utilities
-
-#### icloudAvailable
-```dart
-Future<bool> icloudAvailable()
-```
-Checks if iCloud is available and the user is signed in.
-
-#### getContainerPath
-```dart
-Future<String?> getContainerPath({
-  required String containerId,
-})
-```
-Returns the local container path when available. Use document APIs for access.
-Avoid direct `File()` reads/writes inside the container; use `uploadFile` and
-`downloadFile` instead.
-
-### ICloudFile Model
+Some fields are nullable because iCloud may not have indexed the item yet, or
+because the item is a directory (size) or remote-only (download status).
 
 ```dart
 class ICloudFile {
   final String relativePath;
   final bool isDirectory;
-  final int? sizeInBytes;           // null for directories, undownloaded files
-  final DateTime? creationDate;     // null when metadata unavailable
-  final DateTime? contentChangeDate; // null when metadata unavailable
-  final DownloadStatus? downloadStatus; // null for local-only files
+
+  final int? sizeInBytes;
+  final DateTime? creationDate;
+  final DateTime? contentChangeDate;
+
+  final bool isDownloading;
+  final DownloadStatus? downloadStatus;
+  final bool isUploading;
+  final bool isUploaded;
+  final bool hasUnresolvedConflicts;
 }
 ```
 
-`ICloudFile` uses value equality (via `equatable`) to make testing and
-comparisons predictable.
+## Error handling
 
-### Error Handling
+### Dart-side validation (`InvalidArgumentException`)
 
-All methods throw `PlatformException` on errors. Common codes:
+Thrown when you pass an invalid path/name to the Dart API (before calling
+native code).
+
+### Native failures (`PlatformException`)
+
+Thrown for container problems, file-not-found, read/write failures, etc.
+`PlatformExceptionCode` contains constants:
+
 - `E_CTR` (iCloud container/permission issues)
 - `E_FNF` (file not found)
 - `E_FNF_READ` (file not found during read)
 - `E_FNF_WRITE` (file not found during write)
 - `E_NAT` (native error)
-- `E_ARG` (invalid arguments)
+- `E_ARG` (invalid arguments passed to native)
 - `E_READ` (read failure)
 - `E_CANCEL` (operation canceled)
-- `E_PLUGIN_INTERNAL` (internal plugin error — please open a GitHub issue)
-- `E_INVALID_EVENT` (invalid event from native layer — please open a GitHub issue)
+- `E_INIT` (plugin not properly initialized)
+- `E_TIMEOUT` (download idle timeout)
+- `E_PLUGIN_INTERNAL` (internal plugin error)
+- `E_INVALID_EVENT` (invalid event from native layer)
 
-`PlatformExceptionCode` provides constants for all error codes above.
+## Troubleshooting / gotchas
 
-```dart
-try {
-  await ICloudStorage.uploadFile(...);
-} on PlatformException catch (e) {
-  switch (e.code) {
-    case PlatformExceptionCode.iCloudConnectionOrPermission:
-      // Invalid containerId or iCloud unavailable
-      break;
-    case PlatformExceptionCode.fileNotFound:
-      // File does not exist in iCloud
-      break;
-    case PlatformExceptionCode.fileNotFoundRead:
-      // File not found during read
-      break;
-    case PlatformExceptionCode.fileNotFoundWrite:
-      // File not found during write
-      break;
-    case PlatformExceptionCode.nativeCodeError:
-      // Underlying native error
-      break;
-    case PlatformExceptionCode.argumentError:
-      // Invalid arguments
-      break;
-    case PlatformExceptionCode.readError:
-      // Failed to read file content
-      break;
-    case PlatformExceptionCode.canceled:
-      // Operation canceled by caller
-      break;
-    case PlatformExceptionCode.pluginInternal:
-      // Internal plugin error — please open a GitHub issue
-      break;
-    case PlatformExceptionCode.invalidEvent:
-      // Invalid event from native layer — please open a GitHub issue
-      break;
-    default:
-      // Other error
-  }
-}
-```
+- Prefer testing on physical devices. iCloud sync is unreliable in iOS
+  Simulator.
+- `documentExists()` checks the filesystem path in the container; it does not
+  force a download.
+- If Files app visibility matters, ensure paths start with `Documents/` and
+  your container is configured under `NSUbiquitousContainers`.
 
-## Platform Support
+## Documentation
 
-| Platform | Minimum Version |
-|----------|----------------|
-| iOS | 13.0 |
-| macOS | 10.15 |
-
-## Technical Details
-
-### Implementation
-
-This plugin uses Apple's document storage APIs to provide safe, coordinated access to iCloud files:
-
-- **NSMetadataQuery**: Reports sync progress and metadata updates
-- **UIDocument (iOS) / NSDocument (macOS)**: Coordinates file access and handles conflict resolution
-- **NSUbiquitousContainerIdentifier**: Accesses app-specific iCloud container
-- **FileManager + NSFileCoordinator**: Performs delete/move/copy/exists/metadata
-  operations on container paths with coordinated access
-
-### File Coordination
-
-Without coordinated access, your app can encounter "Operation not permitted"
-errors (NSCocoaErrorDomain Code=257) when iCloud sync is accessing files. This
-plugin relies on `UIDocument`/`NSDocument` to coordinate reads/writes and to:
-
-1. Coordinate with iCloud sync processes
-2. Handle file conflicts automatically
-3. Download files on-demand when reading
-4. Upload files reliably when writing
-
-### Sync Behavior
-
-- Files sync automatically across devices signed into the same iCloud account
-- iOS may defer uploads on cellular connections
-- macOS typically syncs immediately when network is available
-- Use `gather()` with `onUpdate` to monitor file changes
-
-### Testing Recommendations
-
-- **Use physical devices for testing**: iCloud functionality is unreliable in iOS Simulator
-- Basic file operations may work in simulator, but sync behavior is unpredictable
-- Multi-device sync testing requires multiple physical devices
-- The Simulator's "Trigger iCloud Sync" feature (Debug → Trigger iCloud Sync) exists but is unreliable
-
-### Apple Documentation
-
-- [NSMetadataQuery](https://developer.apple.com/documentation/foundation/nsmetadataquery)
-- [UIDocument](https://developer.apple.com/documentation/uikit/uidocument)
-- [NSDocument](https://developer.apple.com/documentation/appkit/nsdocument)
-- [iCloud Document Storage](https://developer.apple.com/icloud/documentation/data-storage/)
-- [Configuring iCloud Services](https://developer.apple.com/documentation/xcode/configuring-icloud-services)
-
-## Troubleshooting
-
-### iCloud Not Available
-
-If `icloudAvailable()` returns false:
-- User is not signed into iCloud
-- iCloud Drive is disabled in Settings
-- Container ID does not match Xcode configuration
-
-### Files Not Syncing
-
-- **Test on real devices**: iCloud sync is unreliable in iOS Simulator. Use physical devices for sync testing
-- Sync can take time, especially for large files or slow connections
-- Check that container ID matches in code, Xcode capabilities, and Apple Developer portal
-- Verify iCloud capability is enabled for the correct target
-- For multi-device sync testing, use multiple physical devices signed into the same iCloud account
-
-### Files Not Visible in Files App
-
-- File path must start with `Documents/` (case-sensitive)
-- `Info.plist` must include `NSUbiquitousContainers` configuration
-- `NSUbiquitousContainerIsDocumentScopePublic` must be set to true
-- The app folder appears only after writing at least one file under
-  `Documents/`
-
-### Permission Errors
-
-Use streaming methods (`uploadFile`, `downloadFile`) instead of manual file
-access within the iCloud container. These methods coordinate access via
-UIDocument/NSDocument to prevent permission errors.
+- Deeper implementation notes are available under `docs/`:
+  - `docs/README.md`
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Support
-
-If you find this plugin helpful, consider supporting its development:
-
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee)](https://buymeacoffee.com/jasonholtdigital)
+MIT License - see [LICENSE](LICENSE).
 
 ## Credits
 
-Forked from [icloud_storage](https://github.com/deansyd/icloud_storage) by [deansyd](https://github.com/deansyd).
+Forked from [icloud_storage](https://github.com/deansyd/icloud_storage) by
+[deansyd](https://github.com/deansyd).
+
+Upstream is referenced for attribution only. This repository is not intended to
+track upstream changes.

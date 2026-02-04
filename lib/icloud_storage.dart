@@ -18,9 +18,16 @@ export 'models/transfer_progress.dart';
 /// 1. Sync files to iCloud so users can retrieve them on other devices.
 /// 2. Expose files in the Files app in iCloud Drive (when enabled by the app).
 ///
-/// ## Streaming-Only API
-/// This API never moves raw bytes over the platform channel. All operations
-/// reference local file paths to avoid memory spikes and IPC limits.
+/// ## Transfer API (path-only)
+/// For large files, prefer [uploadFile] and [downloadFile]. These methods pass
+/// only file paths over the platform channel (no file bytes), which avoids
+/// memory spikes and IPC limits.
+///
+/// ## In-place content API (small files)
+/// For small text/binary files you can read/write in place using
+/// [readInPlace]/[readInPlaceBytes] and [writeInPlace]/[writeInPlaceBytes].
+/// These methods transfer the full contents over the platform channel and load
+/// the whole file in memory.
 ///
 /// ## Document IO Tier Rationale
 /// The plugin uses the URL-tier document APIs (`UIDocument`/`NSDocument`) so

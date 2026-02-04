@@ -5,9 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-02-02
+## [1.0.0] - 2026-02-04
 
-This repository is currently tracking the upcoming `3.0.0` release. There are a number of breaking changes below.
+This repository is starting fresh with the `1.0.0` release. The notes below
+document the initial public API and behavior.
 
 ### BREAKING CHANGES
 
@@ -158,7 +159,7 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 - Stream mapping and event handling correctness.
 - Removed metadata query timeouts from structural operations.
 
-### Migration Guide (2.x -> 3.0.0)
+### Migration Guide (2.x -> 1.0.0)
 
 1. Replace byte-based reads/writes with local files + `uploadFile()` /
    `downloadFile()`.
@@ -171,6 +172,6 @@ Dependency changed from `flutter_lints` to `very_good_analysis`.
 
 ---
 
-## [2.x.x] - Previous Releases
+## Previous Releases
 
-See git history for changelog of releases before 3.0.0.
+See git history for changelog of releases before 1.0.0.
