@@ -6,7 +6,7 @@
 The following files were used as context for generating this wiki page:
 
 - [CHANGELOG.md](../../CHANGELOG.md)
-- [docs/notes/download_flow.md](../notes/download_flow.md)
+- [doc/notes/download_flow.md](../notes/download_flow.md)
 - [ios/Classes/ICloudDocument.swift](../../ios/Classes/ICloudDocument.swift)
 - [macos/Classes/ICloudDocument.swift](../../macos/Classes/ICloudDocument.swift)
 
@@ -37,7 +37,7 @@ streaming was motivated by three key constraints:
 
 The streaming approach aligns with the "Streaming-Only File Path API" breaking change described in the CHANGELOG, where methods like `uploadFile()` and `downloadFile()` accept local file paths and cloud relative paths rather than byte arrays.
 
-**Sources:** [CHANGELOG.md:14-29](), [docs/notes/download_flow.md:8-18]()
+**Sources:** [CHANGELOG.md:14-29](), [doc/notes/download_flow.md:8-18]()
 
 ---
 

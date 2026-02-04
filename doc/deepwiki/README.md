@@ -4,7 +4,7 @@ This folder is a generated export of the DeepWiki documentation for this repo:
 
 https://deepwiki.com/kingdomseed/icloud_storage_plus
 
-If you need to regenerate the export, see `docs/README.md`.
+If you need to regenerate the export, see `doc/README.md`.
 
 ## Table of contents
 

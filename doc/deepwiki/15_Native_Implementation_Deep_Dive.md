@@ -5,7 +5,7 @@
 
 The following files were used as context for generating this wiki page:
 
-- [docs/notes/download_flow.md](../notes/download_flow.md)
+- [doc/notes/download_flow.md](../notes/download_flow.md)
 - [ios/Classes/ICloudDocument.swift](../../ios/Classes/ICloudDocument.swift)
 - [ios/Classes/iOSICloudStoragePlugin.swift](../../ios/Classes/iOSICloudStoragePlugin.swift)
 - [macos/Classes/ICloudDocument.swift](../../macos/Classes/ICloudDocument.swift)
@@ -320,7 +320,7 @@ graph LR
 
 - **File Management**: Uses `NSFileCoordinator` for atomic operations. No progress reporting.
 
-**Sources**: [ios/Classes/iOSICloudStoragePlugin.swift:236-285,378-482,485-686,947-1096](), [docs/notes/download_flow.md:1-54]()
+**Sources**: [ios/Classes/iOSICloudStoragePlugin.swift:236-285,378-482,485-686,947-1096](), [doc/notes/download_flow.md:1-54]()
 
 ---
 

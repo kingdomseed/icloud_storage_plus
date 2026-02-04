@@ -272,8 +272,8 @@ Thrown for container problems, file-not-found, read/write failures, etc.
 
 ## Documentation
 
-- Deeper implementation notes are available under `docs/`:
-  - `docs/README.md`
+- Deeper implementation notes are available under `doc/`:
+  - `doc/README.md`
 
 ## License
 

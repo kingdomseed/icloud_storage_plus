@@ -25,7 +25,7 @@ The following tools are required for plugin development:
 
 | Tool | Purpose | Installation |
 |------|---------|-------------|
-| Flutter SDK | Core framework | https://flutter.dev/docs/get-started/install |
+| Flutter SDK | Core framework | https://flutter.dev/doc/get-started/install |
 | Xcode | iOS/macOS development | Mac App Store (macOS only) |
 | CocoaPods | iOS/macOS dependency management | `sudo gem install cocoapods` |
 | Dart SDK | Included with Flutter | - |
@@ -601,7 +601,7 @@ class MockICloudStoragePlatform extends Mock
 
 ### Documentation Links
 
-- [Flutter Plugin Development](https://flutter.dev/docs/development/packages-and-plugins/developing-packages)
+- [Flutter Plugin Development](https://flutter.dev/doc/development/packages-and-plugins/developing-packages)
 - [Effective Dart Style Guide](https://dart.dev/effective-dart)
 - [Apple iCloud Documentation](https://developer.apple.com/icloud/)
 - [NSFileCoordinator Reference](https://developer.apple.com/documentation/foundation/nsfilecoordinator)

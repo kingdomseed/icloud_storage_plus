@@ -5,7 +5,7 @@
 
 The following files were used as context for generating this wiki page:
 
-- [docs/notes/download_flow.md](../notes/download_flow.md)
+- [doc/notes/download_flow.md](../notes/download_flow.md)
 - [ios/Classes/ICloudDocument.swift](../../ios/Classes/ICloudDocument.swift)
 - [ios/Classes/iOSICloudStoragePlugin.swift](../../ios/Classes/iOSICloudStoragePlugin.swift)
 - [macos/Classes/ICloudDocument.swift](../../macos/Classes/ICloudDocument.swift)

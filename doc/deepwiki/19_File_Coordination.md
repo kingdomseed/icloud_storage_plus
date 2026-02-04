@@ -6,7 +6,7 @@
 The following files were used as context for generating this wiki page:
 
 - [README.md](../../README.md)
-- [docs/notes/download_flow.md](../notes/download_flow.md)
+- [doc/notes/download_flow.md](../notes/download_flow.md)
 - [ios/Classes/ICloudDocument.swift](../../ios/Classes/ICloudDocument.swift)
 - [ios/Classes/iOSICloudStoragePlugin.swift](../../ios/Classes/iOSICloudStoragePlugin.swift)
 - [macos/Classes/ICloudDocument.swift](../../macos/Classes/ICloudDocument.swift)
@@ -47,7 +47,7 @@ Apple's coordination APIs establish temporary exclusive or shared access to file
 
 The plugin wraps all iCloud file access in coordinated operations to provide reliable, race-condition-free behavior.
 
-**Sources:** [README.md:594-604](), [docs/notes/download_flow.md:1-17]()
+**Sources:** [README.md:594-604](), [doc/notes/download_flow.md:1-17]()
 
 ---
 
@@ -506,7 +506,7 @@ The plugin does not implement timeouts for coordination because:
 
 For operations that may take time (like downloads), the plugin uses `NSMetadataQuery` with idle watchdog timers (see [Download Retry Logic](#6.2)) rather than coordination timeouts.
 
-**Sources:** [docs/notes/download_flow.md:1-54](), [ios/Classes/iOSICloudStoragePlugin.swift:733-837]()
+**Sources:** [doc/notes/download_flow.md:1-54](), [ios/Classes/iOSICloudStoragePlugin.swift:733-837]()
 
 ---
 

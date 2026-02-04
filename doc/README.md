@@ -1,6 +1,6 @@
 # Documentation
 
-This `docs/` folder contains a local export of the DeepWiki documentation for
+This `doc/` folder contains a local export of the DeepWiki documentation for
 this repository.
 
 Source: https://deepwiki.com/kingdomseed/icloud_storage_plus
@@ -36,10 +36,10 @@ From the repo root:
 deepwiki-export https://deepwiki.com/kingdomseed/icloud_storage_plus -o docs
 ```
 
-Then move/rename the generated output directory to `docs/deepwiki/` if needed.
+Then move/rename the generated output directory to `doc/deepwiki/` if needed.
 
 Finally, fix relative links in the generated pages (so repo file links work
-from `docs/deepwiki/` on GitHub):
+from `doc/deepwiki/` on GitHub):
 
 ```bash
 python3 scripts/fix_deepwiki_links.py

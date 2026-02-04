@@ -75,10 +75,10 @@ Dev linting moved to `very_good_analysis`.
 - Documentation overhaul:
   - README updated to match the real API surface and semantics
   - DeepWiki badge added to the README
-  - DeepWiki exported into `docs/` for GitHub navigation
+  - DeepWiki exported into `doc/` for GitHub navigation
   - Added `scripts/fix_deepwiki_links.py` to keep exported docs linkable
   - Old `doc/` research/plans removed (replaced by short notes under
-    `docs/notes/`)
+    `doc/notes/`)
 
 ### Changed
 

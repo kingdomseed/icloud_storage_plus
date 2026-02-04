@@ -8,19 +8,19 @@ from pathlib import Path
 def main() -> None:
     """
     Fixes relative links in DeepWiki-exported markdown when stored under
-    `docs/deepwiki/`.
+    `doc/deepwiki/`.
 
     The exporter generates links as if the markdown lives at the repo root
-    (e.g. `(README.md)`, `(ios/Classes/...)`). When placed under `docs/`,
+    (e.g. `(README.md)`, `(ios/Classes/...)`). When placed under `doc/`,
     those links break on GitHub. This script updates only the "Relevant source
     files" `<details>` block at the top of each page.
     """
 
-    deepwiki_dir = Path("docs/deepwiki")
+    deepwiki_dir = Path("doc/deepwiki")
     if not deepwiki_dir.is_dir():
         raise SystemExit(
-            "Expected 'docs/deepwiki/' to exist. "
-            "Run deepwiki-export and move the output to docs/deepwiki first.",
+            "Expected 'doc/deepwiki/' to exist. "
+            "Run deepwiki-export and move the output to doc/deepwiki first.",
         )
 
     link_re = re.compile(r"^(\s*-\s*\[[^\]]+\]\()([^)]+)(\)\s*)$")
@@ -53,7 +53,7 @@ def main() -> None:
                     prefix, target, suffix = match.groups()
                     new_target = target
 
-                    # Migrate legacy doc links into docs/notes.
+                    # Migrate legacy doc links into doc/notes.
                     if target == "doc/download-flow.md":
                         new_target = "../notes/download_flow.md"
                     elif target.startswith(
