@@ -110,7 +110,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
     // Verify event channel handler exists before registering observers
     if !eventChannelName.isEmpty {
-      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+      guard self.streamHandlers[eventChannelName] != nil else {
         result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
         return
       }
@@ -209,7 +209,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       "sizeInBytes": values.fileSize,
       "creationDate": values.creationDate?.timeIntervalSince1970,
       "contentChangeDate": values.contentModificationDate?.timeIntervalSince1970,
-      "hasUnresolvedConflicts": values.hasUnresolvedConflicts ?? false,
+      "hasUnresolvedConflicts": values.ubiquitousItemHasUnresolvedConflicts ?? false,
       "downloadStatus": values.ubiquitousItemDownloadingStatus?.rawValue,
       "isDownloading": values.ubiquitousItemIsDownloading ?? false,
       "isUploaded": values.ubiquitousItemIsUploaded ?? false,
@@ -1179,8 +1179,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return fileNotFoundError
     case NSFileReadNoSuchFileError:
       return fileNotFoundReadError
-    case NSFileWriteNoSuchFileError:
-      return fileNotFoundWriteError
     default:
       return nil
     }
