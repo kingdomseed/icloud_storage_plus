@@ -1,7 +1,7 @@
 import Flutter
 import UIKit
 
-public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
+public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
@@ -23,7 +23,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let messenger = registrar.messenger()
     let channel = FlutterMethodChannel(name: "icloud_storage_plus", binaryMessenger: messenger)
-    let instance = SwiftICloudStoragePlugin()
+    let instance = ICloudStoragePlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.messenger = messenger
   }
@@ -110,7 +110,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
 
     // Verify event channel handler exists before registering observers
     if !eventChannelName.isEmpty {
-      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+      guard self.streamHandlers[eventChannelName] != nil else {
         result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
         return
       }
