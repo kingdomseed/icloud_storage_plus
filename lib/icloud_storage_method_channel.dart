@@ -12,6 +12,7 @@ import 'package:logging/logging.dart';
 /// An implementation of [ICloudStoragePlatform] that uses method channels.
 class MethodChannelICloudStorage extends ICloudStoragePlatform {
   static final Logger _logger = Logger('ICloudStorage');
+  static final Random _random = Random();
 
   /// The method channel used to interact with the native platform.
   @visibleForTesting
@@ -401,6 +402,6 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
         ...(additionalIdentifier == null
             ? <String>[]
             : <String>[additionalIdentifier]),
-        '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(999)}',
+        '${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(999)}',
       ].join('/');
 }
