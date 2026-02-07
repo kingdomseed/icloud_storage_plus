@@ -14,7 +14,9 @@ constant container path.
 
 ## Optimization
 We refactored `relativePath` to accept a pre-calculated `containerPath` string.
-We now calculate `containerURL.standardizedFileURL.path` once before entering the loop in `mapFileAttributesFromQuery` and pass this string down to `mapMetadataItem` and `relativePath`.
+We now calculate `containerURL.standardizedFileURL.path` once before entering
+the loop in `mapFileAttributesFromQuery` and pass this string down to
+`mapMetadataItem` and `relativePath`.
 
 ## Performance Impact
 This change reduces the *container path normalization* from $O(N)$ to $O(1)$ per
@@ -24,9 +26,67 @@ item, including relative path computation).
 The improvement is most relevant for large file lists, where shaving repeated
 per-item work can reduce CPU time and allocations.
 
+## iOS Micro-benchmark (optional)
+If you want a rough sense of the overhead difference, you can run the following
+Swift snippet in an Xcode Playground or as a standalone Swift file on macOS.
+
+Note: this is a micro-benchmark of repeated path normalization and should not
+be treated as a full end-to-end iCloud performance benchmark.
+
+```swift
+import Foundation
+
+func relativePathOld(for fileURL: URL, containerURL: URL) -> String {
+    let containerPath = containerURL.standardizedFileURL.path
+    let filePath = fileURL.standardizedFileURL.path
+    guard filePath.hasPrefix(containerPath) else {
+        return fileURL.lastPathComponent
+    }
+    var relative = String(filePath.dropFirst(containerPath.count))
+    if relative.hasPrefix("/") {
+        relative.removeFirst()
+    }
+    return relative
+}
+
+func relativePathNew(for fileURL: URL, containerPath: String) -> String {
+    let filePath = fileURL.standardizedFileURL.path
+    guard filePath.hasPrefix(containerPath) else {
+        return fileURL.lastPathComponent
+    }
+    var relative = String(filePath.dropFirst(containerPath.count))
+    if relative.hasPrefix("/") {
+        relative.removeFirst()
+    }
+    return relative
+}
+
+let containerURL = URL(
+    fileURLWithPath: "/Users/user/Library/Mobile Documents/iCloud~com~example~app/Documents/"
+)
+let fileURL = containerURL.appendingPathComponent("folder/file.txt")
+let iterations = 100_000
+
+let startOld = CFAbsoluteTimeGetCurrent()
+for _ in 0..<iterations {
+    _ = relativePathOld(for: fileURL, containerURL: containerURL)
+}
+let endOld = CFAbsoluteTimeGetCurrent()
+print("Old implementation time: \\(endOld - startOld) seconds")
+
+let startNew = CFAbsoluteTimeGetCurrent()
+let containerPath = containerURL.standardizedFileURL.path
+for _ in 0..<iterations {
+    _ = relativePathNew(for: fileURL, containerPath: containerPath)
+}
+let endNew = CFAbsoluteTimeGetCurrent()
+print("New implementation time: \\(endNew - startNew) seconds")
+```
+
 ## Affected Methods
 - `relativePath(for:containerURL:)` -> `relativePath(for:containerPath:)`
 - `mapMetadataItem(_:containerURL:)` -> `mapMetadataItem(_:containerPath:)`
 - `mapResourceValues(fileURL:values:containerURL:)` -> `mapResourceValues(fileURL:values:containerPath:)`
 - `mapFileAttributesFromQuery(query:containerURL:)` (Implementation updated)
 - `getDocumentMetadata` (Implementation updated)
+
