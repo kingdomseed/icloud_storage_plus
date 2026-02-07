@@ -13,10 +13,12 @@ this resulted in $O(N)$ repeated normalizations just to re-calculate the same
 constant container path.
 
 ## Optimization
-We refactored `relativePath` to accept a pre-calculated `containerPath` string.
-We now calculate `containerURL.standardizedFileURL.path` once before entering
-the loop in `mapFileAttributesFromQuery` and pass this string down to
-`mapMetadataItem` and `relativePath`.
+We refactored the code to calculate `containerPath` once before the loop and
+pass it down to `relativePath` (and intermediate mapping functions). This
+changes the complexity of the container path standardization step from being
+performed $O(N)$ times to $O(1)$ time per gather operation, while the overall
+file listing remains $O(N)$ because `relativePath` is still computed for each
+item.
 
 ## Performance Impact
 This change reduces the *container path normalization* from $O(N)$ to $O(1)$ per
@@ -89,4 +91,3 @@ print("New implementation time: \\(endNew - startNew) seconds")
 - `mapResourceValues(fileURL:values:containerURL:)` -> `mapResourceValues(fileURL:values:containerPath:)`
 - `mapFileAttributesFromQuery(query:containerURL:)` (Implementation updated)
 - `getDocumentMetadata` (Implementation updated)
-
