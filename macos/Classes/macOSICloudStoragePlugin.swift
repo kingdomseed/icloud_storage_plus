@@ -8,6 +8,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   private var progressByEventChannel: [String: Double] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
+  private let processingQueue = DispatchQueue(label: "icloud_storage_plus.processing", qos: .userInitiated)
   private let fileNotFoundReadError = FlutterError(
     code: "E_FNF_READ",
     message: "The file could not be read because it does not exist",
@@ -139,12 +140,18 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
-      let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
+      let results = query.results as? [NSMetadataItem] ?? []
       if eventChannelName.isEmpty {
         removeObservers(query)
         query.stop()
       }
-      result(files)
+
+      processingQueue.async {
+        let files = self.mapFileAttributes(items: results, containerURL: containerURL)
+        DispatchQueue.main.async {
+          result(files)
+        }
+      }
     }
     
     if !eventChannelName.isEmpty {
@@ -152,22 +159,26 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         for: query,
         name: NSNotification.Name.NSMetadataQueryDidUpdate
       ) { [self] _ in
-        let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
-        guard let streamHandler = self.streamHandlers[eventChannelName] else {
-          return
+        let results = query.results as? [NSMetadataItem] ?? []
+        processingQueue.async {
+          let files = self.mapFileAttributes(items: results, containerURL: containerURL)
+          DispatchQueue.main.async {
+            guard let streamHandler = self.streamHandlers[eventChannelName] else {
+              return
+            }
+            streamHandler.setEvent(files)
+          }
         }
-        streamHandler.setEvent(files)
       }
     }
   }
   
   /// Maps query results into metadata dictionaries.
-  private func mapFileAttributesFromQuery(query: NSMetadataQuery, containerURL: URL) -> [[String: Any?]] {
+  private func mapFileAttributes(items: [NSMetadataItem], containerURL: URL) -> [[String: Any?]] {
     var fileMaps: [[String: Any?]] = []
     let containerPath = containerURL.standardizedFileURL.path
-    for item in query.results {
-      guard let fileItem = item as? NSMetadataItem else { continue }
-      guard let map = mapMetadataItem(fileItem, containerPath: containerPath) else {
+    for item in items {
+      guard let map = mapMetadataItem(item, containerPath: containerPath) else {
         continue
       }
       fileMaps.append(map)
