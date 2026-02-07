@@ -503,7 +503,6 @@ class ICloudStorage {
   static final _fileNameRegex = RegExp(r'([:/]+)|(^[.].*$)');
 
   /// Validate a single file or directory name.
-  static bool _validateFileName(String name) => !(name.isEmpty ||
-      name.length > 255 ||
-      _fileNameRegex.hasMatch(name));
+  static bool _validateFileName(String name) =>
+      !(name.isEmpty || name.length > 255 || _fileNameRegex.hasMatch(name));
 }
