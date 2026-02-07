@@ -6,7 +6,7 @@ The `relativePath` method in `iOSICloudStoragePlugin.swift` was previously calcu
 `standardizedFileURL` can be an expensive operation as it may involve filesystem calls to resolve symbolic links and normalize paths.
 
 ## Optimization
-We refactored the code to calculate `containerPath` once before the loop and pass it down to `relativePath` (and intermediate mapping functions). This changes the complexity of the container path calculation from O(N) to O(1) per gather operation.
+We refactored the code to calculate `containerPath` once before the loop and pass it down to `relativePath` (and intermediate mapping functions). This changes the complexity of the container path standardization step from being performed O(N) times to O(1) time per gather operation, while the overall file listing remains O(N) because `relativePath` is still computed for each item.
 
 ## Benchmark
 Since we cannot run native iOS benchmarks in the CI environment, we provide a standalone Swift script below that demonstrates the performance difference.
