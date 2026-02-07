@@ -500,7 +500,7 @@ class ICloudStorage {
     return fileOrDirNames.every(_validateFileName);
   }
 
-  static final _fileNameRegex = RegExp(r'([:/]+)|(^[.].*$)');
+  static final RegExp _fileNameRegex = RegExp(r'([:/]+)|(^[.].*$)');
 
   /// Validate a single file or directory name.
   static bool _validateFileName(String name) =>
