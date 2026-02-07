@@ -141,7 +141,10 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
       query.disableUpdates()
-      let items = query.results.map { $0 }
+      let rawItems = query.results.compactMap { item -> PendingQueryItem? in
+        guard let fileItem = item as? NSMetadataItem else { return nil }
+        return extractPendingItem(from: fileItem)
+      }
       query.enableUpdates()
 
       if eventChannelName.isEmpty {
@@ -151,7 +154,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
 
       backgroundQueue.async { [weak self] in
         guard let self = self else { return }
-        let files = self.mapFileAttributesFromItems(items, containerURL: containerURL)
+        let files = rawItems.map { self.mapPendingItem($0, containerURL: containerURL) }
         DispatchQueue.main.async {
           result(files)
         }
@@ -164,12 +167,15 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
         name: NSNotification.Name.NSMetadataQueryDidUpdate
       ) { [self] _ in
         query.disableUpdates()
-        let items = query.results.map { $0 }
+        let rawItems = query.results.compactMap { item -> PendingQueryItem? in
+          guard let fileItem = item as? NSMetadataItem else { return nil }
+          return extractPendingItem(from: fileItem)
+        }
         query.enableUpdates()
 
         backgroundQueue.async { [weak self] in
           guard let self = self else { return }
-          let files = self.mapFileAttributesFromItems(items, containerURL: containerURL)
+          let files = rawItems.map { self.mapPendingItem($0, containerURL: containerURL) }
           DispatchQueue.main.async {
             guard let streamHandler = self.streamHandlers[eventChannelName] else {
               return
@@ -180,40 +186,48 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       }
     }
   }
-  
-  /// Maps query results into metadata dictionaries.
-  private func mapFileAttributesFromItems(_ items: [Any], containerURL: URL) -> [[String: Any?]] {
-    var fileMaps: [[String: Any?]] = []
-    for item in items {
-      guard let fileItem = item as? NSMetadataItem else { continue }
-      guard let map = mapMetadataItem(fileItem, containerURL: containerURL) else {
-        continue
-      }
-      fileMaps.append(map)
-    }
-    return fileMaps
+
+  private struct PendingQueryItem {
+    let url: URL
+    let size: Any?
+    let creationDate: Date?
+    let contentChangeDate: Date?
+    let hasUnresolvedConflicts: Bool
+    let downloadStatus: String?
+    let isDownloading: Bool
+    let isUploaded: Bool
+    let isUploading: Bool
   }
 
-  /// Map an NSMetadataItem into a Flutter-friendly metadata dictionary.
-  /// Includes directories and sets `isDirectory` for caller interpretation.
-  private func mapMetadataItem(_ item: NSMetadataItem, containerURL: URL) -> [String: Any?]? {
+  private func extractPendingItem(from item: NSMetadataItem) -> PendingQueryItem? {
     guard let fileURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
       return nil
     }
+    return PendingQueryItem(
+      url: fileURL,
+      size: item.value(forAttribute: NSMetadataItemFSSizeKey),
+      creationDate: item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date,
+      contentChangeDate: item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date,
+      hasUnresolvedConflicts: (item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
+      downloadStatus: item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String,
+      isDownloading: (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
+      isUploaded: (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
+      isUploading: (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false
+    )
+  }
 
+  private func mapPendingItem(_ item: PendingQueryItem, containerURL: URL) -> [String: Any?] {
     return [
-      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
-      "isDirectory": fileURL.hasDirectoryPath,
-      "sizeInBytes": item.value(forAttribute: NSMetadataItemFSSizeKey),
-      "creationDate": (item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
-      "contentChangeDate": (item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
-      "hasUnresolvedConflicts": (item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
-      "downloadStatus": item.value(
-        forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey
-      ) as? String,
-      "isDownloading": (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
-      "isUploaded": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
-      "isUploading": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
+      "relativePath": relativePath(for: item.url, containerURL: containerURL),
+      "isDirectory": item.url.hasDirectoryPath,
+      "sizeInBytes": item.size,
+      "creationDate": item.creationDate?.timeIntervalSince1970,
+      "contentChangeDate": item.contentChangeDate?.timeIntervalSince1970,
+      "hasUnresolvedConflicts": item.hasUnresolvedConflicts,
+      "downloadStatus": item.downloadStatus,
+      "isDownloading": item.isDownloading,
+      "isUploaded": item.isUploaded,
+      "isUploading": item.isUploading,
     ]
   }
 
