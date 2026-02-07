@@ -153,12 +153,12 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
       }
 
       backgroundQueue.async { [weak self] in
-        let files = self?.mapFileAttributesFromItems(items, containerURL: containerURL) ?? []
+        guard let self = self else { return }
+        let files = rawItems.map { self.mapPendingItem($0, containerURL: containerURL) }
         DispatchQueue.main.async {
           result(files)
         }
       }
-
     }
     
     if !eventChannelName.isEmpty {
