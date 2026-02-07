@@ -6,7 +6,6 @@ The previous implementation of `relativePath(for:containerURL:)` calculated
 `standardizedFileURL` performs in-memory URL/path normalization (for example,
 removing `.` and `..` components). Even though each call is relatively cheap,
 performing that work repeatedly in a tight loop is redundant.
-
 This method was called inside a loop in `mapFileAttributesFromQuery`, which
 iterates over all items in the iCloud container. For a container with $N$ items,
 this resulted in $O(N)$ repeated normalizations just to re-calculate the same
