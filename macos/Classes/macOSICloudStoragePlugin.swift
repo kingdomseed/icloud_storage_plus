@@ -164,9 +164,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Maps query results into metadata dictionaries.
   private func mapFileAttributesFromQuery(query: NSMetadataQuery, containerURL: URL) -> [[String: Any?]] {
     var fileMaps: [[String: Any?]] = []
+    let containerPath = containerURL.standardizedFileURL.path
     for item in query.results {
       guard let fileItem = item as? NSMetadataItem else { continue }
-      guard let map = mapMetadataItem(fileItem, containerURL: containerURL) else {
+      guard let map = mapMetadataItem(fileItem, containerPath: containerPath) else {
         continue
       }
       fileMaps.append(map)
@@ -176,13 +177,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
   /// Map an NSMetadataItem into a Flutter-friendly metadata dictionary.
   /// Includes directories and sets `isDirectory` for caller interpretation.
-  private func mapMetadataItem(_ item: NSMetadataItem, containerURL: URL) -> [String: Any?]? {
+  private func mapMetadataItem(_ item: NSMetadataItem, containerPath: String) -> [String: Any?]? {
     guard let fileURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
       return nil
     }
 
     return [
-      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
+      "relativePath": relativePath(for: fileURL, containerPath: containerPath),
       "isDirectory": fileURL.hasDirectoryPath,
       "sizeInBytes": item.value(forAttribute: NSMetadataItemFSSizeKey),
       "creationDate": (item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
@@ -201,10 +202,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   private func mapResourceValues(
     fileURL: URL,
     values: URLResourceValues,
-    containerURL: URL
+    containerPath: String
   ) -> [String: Any?] {
     return [
-      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
+      "relativePath": relativePath(for: fileURL, containerPath: containerPath),
       "isDirectory": values.isDirectory ?? false,
       "sizeInBytes": values.fileSize,
       "creationDate": values.creationDate?.timeIntervalSince1970,
@@ -218,13 +219,18 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
 
   /// Computes the container-relative path for a URL.
-  private func relativePath(for fileURL: URL, containerURL: URL) -> String {
-    let containerPath = containerURL.standardizedFileURL.path
+  private func relativePath(for fileURL: URL, containerPath: String) -> String {
     let filePath = fileURL.standardizedFileURL.path
-    guard filePath.hasPrefix(containerPath) else {
+    let normalizedContainerPath = containerPath.hasSuffix("/")
+      ? containerPath
+      : containerPath + "/"
+    guard filePath == containerPath || filePath.hasPrefix(normalizedContainerPath) else {
       return fileURL.lastPathComponent
     }
-    var relative = String(filePath.dropFirst(containerPath.count))
+    let prefixLength = filePath == containerPath
+      ? containerPath.count
+      : normalizedContainerPath.count
+    var relative = String(filePath.dropFirst(prefixLength))
     if relative.hasPrefix("/") {
       relative.removeFirst()
     }
@@ -923,7 +929,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       result(mapResourceValues(
         fileURL: fileURL,
         values: values,
-        containerURL: containerURL
+        containerPath: containerURL.standardizedFileURL.path
       ))
     } catch {
       result(nativeCodeError(error))
