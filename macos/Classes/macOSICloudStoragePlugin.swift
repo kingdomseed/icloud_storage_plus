@@ -221,10 +221,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Computes the container-relative path for a URL.
   private func relativePath(for fileURL: URL, containerPath: String) -> String {
     let filePath = fileURL.standardizedFileURL.path
-    guard filePath.hasPrefix(containerPath) else {
+    let normalizedContainerPath = containerPath.hasSuffix("/")
+      ? containerPath
+      : containerPath + "/"
+    guard filePath == containerPath || filePath.hasPrefix(normalizedContainerPath) else {
       return fileURL.lastPathComponent
     }
-    var relative = String(filePath.dropFirst(containerPath.count))
+    let prefixLength = filePath == containerPath
+      ? containerPath.count
+      : normalizedContainerPath.count
+    var relative = String(filePath.dropFirst(prefixLength))
     if relative.hasPrefix("/") {
       relative.removeFirst()
     }
