@@ -8,6 +8,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   private var progressByEventChannel: [String: Double] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
+  private let queryObserversQueue = DispatchQueue(
+    label: "icloud_storage_plus.query_observers"
+  )
+  private let metadataQueryOperationQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "icloud_storage_plus.metadata_query"
+    queue.maxConcurrentOperationCount = 1
+    queue.qualityOfService = .userInitiated
+    return queue
+  }()
   private let fileNotFoundReadError = FlutterError(
     code: "E_FNF_READ",
     message: "The file could not be read because it does not exist",
@@ -117,7 +127,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     let query = NSMetadataQuery.init()
-    query.operationQueue = .main
+    query.operationQueue = metadataQueryOperationQueue
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K beginswith %@", NSMetadataItemPathKey, containerURL.path)
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
@@ -139,12 +149,18 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
-      let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
+      query.disableUpdates()
+      defer { query.enableUpdates() }
+      let results = query.results.compactMap { $0 as? NSMetadataItem }
       if eventChannelName.isEmpty {
         removeObservers(query)
         query.stop()
       }
-      result(files)
+
+      let files = mapFileAttributes(items: results, containerURL: containerURL)
+      DispatchQueue.main.async {
+        result(files)
+      }
     }
     
     if !eventChannelName.isEmpty {
@@ -152,22 +168,33 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         for: query,
         name: NSNotification.Name.NSMetadataQueryDidUpdate
       ) { [self] _ in
-        let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
-        guard let streamHandler = self.streamHandlers[eventChannelName] else {
+        let hasStreamHandler = DispatchQueue.main.sync {
+          self.streamHandlers[eventChannelName] != nil
+        }
+        guard hasStreamHandler else {
           return
         }
-        streamHandler.setEvent(files)
+
+        query.disableUpdates()
+        defer { query.enableUpdates() }
+        let results = query.results.compactMap { $0 as? NSMetadataItem }
+        let files = mapFileAttributes(items: results, containerURL: containerURL)
+        DispatchQueue.main.async {
+          guard let streamHandler = self.streamHandlers[eventChannelName] else {
+            return
+          }
+          streamHandler.setEvent(files)
+        }
       }
     }
   }
   
   /// Maps query results into metadata dictionaries.
-  private func mapFileAttributesFromQuery(query: NSMetadataQuery, containerURL: URL) -> [[String: Any?]] {
+  private func mapFileAttributes(items: [NSMetadataItem], containerURL: URL) -> [[String: Any?]] {
     var fileMaps: [[String: Any?]] = []
     let containerPath = containerURL.standardizedFileURL.path
-    for item in query.results {
-      guard let fileItem = item as? NSMetadataItem else { continue }
-      guard let map = mapMetadataItem(fileItem, containerPath: containerPath) else {
+    for item in items {
+      guard let map = mapMetadataItem(item, containerPath: containerPath) else {
         continue
       }
       fileMaps.append(map)
@@ -1113,19 +1140,26 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       using: block
     )
     let key = ObjectIdentifier(query)
-    var tokens = queryObservers[key] ?? []
-    tokens.append(token)
-    queryObservers[key] = tokens
+    queryObserversQueue.sync {
+      var tokens = queryObservers[key] ?? []
+      tokens.append(token)
+      queryObservers[key] = tokens
+    }
   }
 
   /// Removes all observers for a metadata query.
   private func removeObservers(_ query: NSMetadataQuery) {
     let key = ObjectIdentifier(query)
-    guard let tokens = queryObservers[key] else { return }
+    let tokens: [NSObjectProtocol]? = queryObserversQueue.sync {
+      queryObservers[key]
+    }
+    guard let tokens else { return }
     for token in tokens {
       NotificationCenter.default.removeObserver(token)
     }
-    queryObservers.removeValue(forKey: key)
+    queryObserversQueue.sync {
+      queryObservers.removeValue(forKey: key)
+    }
   }
   
   /// Creates and registers a stream handler for an event channel.
