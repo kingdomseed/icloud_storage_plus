@@ -7,3 +7,9 @@ pubspec.lock
 .idea/
 
 build/
+
+# Codex planning artifacts
+docs/plans/
+
+# Flutter iOS ephemeral artifacts under example/
+example/ios/Flutter/ephemeral/
