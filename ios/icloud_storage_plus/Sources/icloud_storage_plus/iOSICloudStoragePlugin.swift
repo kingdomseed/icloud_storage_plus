@@ -8,6 +8,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   private var progressByEventChannel: [String: Double] = [:]
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
+  private let queryObserversQueue = DispatchQueue(
+    label: "icloud_storage_plus.query_observers"
+  )
+  private let metadataQueryOperationQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "icloud_storage_plus.metadata_query"
+    queue.maxConcurrentOperationCount = 1
+    queue.qualityOfService = .userInitiated
+    return queue
+  }()
   private let fileNotFoundReadError = FlutterError(
     code: "E_FNF_READ",
     message: "The file could not be read because it does not exist",
@@ -117,7 +127,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     let query = NSMetadataQuery.init()
-    query.operationQueue = .main
+    query.operationQueue = metadataQueryOperationQueue
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K beginswith %@", NSMetadataItemPathKey, containerURL.path)
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
@@ -139,12 +149,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       for: query,
       name: NSNotification.Name.NSMetadataQueryDidFinishGathering
     ) { [self] _ in
+      query.disableUpdates()
+      defer { query.enableUpdates() }
       let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
       if eventChannelName.isEmpty {
         removeObservers(query)
         query.stop()
       }
-      result(files)
+      DispatchQueue.main.async {
+        result(files)
+      }
     }
     
     if !eventChannelName.isEmpty {
@@ -152,11 +166,22 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         for: query,
         name: NSNotification.Name.NSMetadataQueryDidUpdate
       ) { [self] _ in
-        let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
-        guard let streamHandler = self.streamHandlers[eventChannelName] else {
+        let hasStreamHandler = DispatchQueue.main.sync {
+          self.streamHandlers[eventChannelName] != nil
+        }
+        guard hasStreamHandler else {
           return
         }
-        streamHandler.setEvent(files)
+
+        query.disableUpdates()
+        defer { query.enableUpdates() }
+        let files = mapFileAttributesFromQuery(query: query, containerURL: containerURL)
+        DispatchQueue.main.async {
+          guard let streamHandler = self.streamHandlers[eventChannelName] else {
+            return
+          }
+          streamHandler.setEvent(files)
+        }
       }
     }
   }
@@ -164,36 +189,61 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   /// Maps query results into metadata dictionaries.
   private func mapFileAttributesFromQuery(query: NSMetadataQuery, containerURL: URL) -> [[String: Any?]] {
     var fileMaps: [[String: Any?]] = []
-    for item in query.results {
-      guard let fileItem = item as? NSMetadataItem else { continue }
-      guard let map = mapMetadataItem(fileItem, containerURL: containerURL) else {
-        continue
-      }
-      fileMaps.append(map)
+    let pendingItems = query.results.compactMap { item -> PendingQueryItem? in
+      guard let fileItem = item as? NSMetadataItem else { return nil }
+      return extractPendingItem(from: fileItem)
+    }
+    let containerPath = containerURL.standardizedFileURL.path
+    for item in pendingItems {
+      fileMaps.append(mapPendingItem(item, containerPath: containerPath))
     }
     return fileMaps
   }
 
-  /// Map an NSMetadataItem into a Flutter-friendly metadata dictionary.
-  /// Includes directories and sets `isDirectory` for caller interpretation.
-  private func mapMetadataItem(_ item: NSMetadataItem, containerURL: URL) -> [String: Any?]? {
+  private struct PendingQueryItem {
+    let url: URL
+    let size: Any?
+    let creationDate: Date?
+    let contentChangeDate: Date?
+    let hasUnresolvedConflicts: Bool
+    let downloadStatus: String?
+    let isDownloading: Bool
+    let isUploaded: Bool
+    let isUploading: Bool
+  }
+
+  private func extractPendingItem(from item: NSMetadataItem) -> PendingQueryItem? {
     guard let fileURL = item.value(forAttribute: NSMetadataItemURLKey) as? URL else {
       return nil
     }
+    return PendingQueryItem(
+      url: fileURL,
+      size: item.value(forAttribute: NSMetadataItemFSSizeKey),
+      creationDate: item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date,
+      contentChangeDate: item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date,
+      hasUnresolvedConflicts: (item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
+      downloadStatus: item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String,
+      isDownloading: (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
+      isUploaded: (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
+      isUploading: (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false
+    )
+  }
 
+  private func mapPendingItem(
+    _ item: PendingQueryItem,
+    containerPath: String
+  ) -> [String: Any?] {
     return [
-      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
-      "isDirectory": fileURL.hasDirectoryPath,
-      "sizeInBytes": item.value(forAttribute: NSMetadataItemFSSizeKey),
-      "creationDate": (item.value(forAttribute: NSMetadataItemFSCreationDateKey) as? Date)?.timeIntervalSince1970,
-      "contentChangeDate": (item.value(forAttribute: NSMetadataItemFSContentChangeDateKey) as? Date)?.timeIntervalSince1970,
-      "hasUnresolvedConflicts": (item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool) ?? false,
-      "downloadStatus": item.value(
-        forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey
-      ) as? String,
-      "isDownloading": (item.value(forAttribute: NSMetadataUbiquitousItemIsDownloadingKey) as? Bool) ?? false,
-      "isUploaded": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadedKey) as? Bool) ?? false,
-      "isUploading": (item.value(forAttribute: NSMetadataUbiquitousItemIsUploadingKey) as? Bool) ?? false,
+      "relativePath": relativePath(for: item.url, containerPath: containerPath),
+      "isDirectory": item.url.hasDirectoryPath,
+      "sizeInBytes": item.size,
+      "creationDate": item.creationDate?.timeIntervalSince1970,
+      "contentChangeDate": item.contentChangeDate?.timeIntervalSince1970,
+      "hasUnresolvedConflicts": item.hasUnresolvedConflicts,
+      "downloadStatus": item.downloadStatus,
+      "isDownloading": item.isDownloading,
+      "isUploaded": item.isUploaded,
+      "isUploading": item.isUploading,
     ]
   }
 
@@ -201,10 +251,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   private func mapResourceValues(
     fileURL: URL,
     values: URLResourceValues,
-    containerURL: URL
+    containerPath: String
   ) -> [String: Any?] {
     return [
-      "relativePath": relativePath(for: fileURL, containerURL: containerURL),
+      "relativePath": relativePath(for: fileURL, containerPath: containerPath),
       "isDirectory": values.isDirectory ?? false,
       "sizeInBytes": values.fileSize,
       "creationDate": values.creationDate?.timeIntervalSince1970,
@@ -218,13 +268,18 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
 
   /// Computes the container-relative path for a URL.
-  private func relativePath(for fileURL: URL, containerURL: URL) -> String {
-    let containerPath = containerURL.standardizedFileURL.path
+  private func relativePath(for fileURL: URL, containerPath: String) -> String {
     let filePath = fileURL.standardizedFileURL.path
-    guard filePath.hasPrefix(containerPath) else {
+    let normalizedContainerPath = containerPath.hasSuffix("/")
+      ? containerPath
+      : containerPath + "/"
+    guard filePath == containerPath || filePath.hasPrefix(normalizedContainerPath) else {
       return fileURL.lastPathComponent
     }
-    var relative = String(filePath.dropFirst(containerPath.count))
+    let prefixLength = filePath == containerPath
+      ? containerPath.count
+      : normalizedContainerPath.count
+    var relative = String(filePath.dropFirst(prefixLength))
     if relative.hasPrefix("/") {
       relative.removeFirst()
     }
@@ -921,10 +976,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         .ubiquitousItemIsUploadingKey,
         .ubiquitousItemHasUnresolvedConflictsKey,
       ])
+      let containerPath = containerURL.standardizedFileURL.path
       result(mapResourceValues(
         fileURL: fileURL,
         values: values,
-        containerURL: containerURL
+        containerPath: containerPath
       ))
     } catch {
       result(nativeCodeError(error))
@@ -1108,19 +1164,26 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       using: block
     )
     let key = ObjectIdentifier(query)
-    var tokens = queryObservers[key] ?? []
-    tokens.append(token)
-    queryObservers[key] = tokens
+    queryObserversQueue.sync {
+      var tokens = queryObservers[key] ?? []
+      tokens.append(token)
+      queryObservers[key] = tokens
+    }
   }
 
   /// Removes all observers for a metadata query.
   private func removeObservers(_ query: NSMetadataQuery) {
     let key = ObjectIdentifier(query)
-    guard let tokens = queryObservers[key] else { return }
+    let tokens: [NSObjectProtocol]? = queryObserversQueue.sync {
+      queryObservers[key]
+    }
+    guard let tokens else { return }
     for token in tokens {
       NotificationCenter.default.removeObserver(token)
     }
-    queryObservers.removeValue(forKey: key)
+    queryObserversQueue.sync {
+      queryObservers.removeValue(forKey: key)
+    }
   }
   
   /// Creates and registers a stream handler for an event channel.
