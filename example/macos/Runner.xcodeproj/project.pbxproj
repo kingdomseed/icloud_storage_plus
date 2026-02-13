@@ -380,7 +380,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.jasonholtdigital.exampleicloudstorageplus;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.exampleicloudstorageplus;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 			};
