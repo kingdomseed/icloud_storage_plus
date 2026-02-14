@@ -28,6 +28,15 @@ Portal / Xcode.
 flutter pub add icloud_storage_plus
 ```
 
+### Swift Package Manager (optional)
+
+This plugin supports Flutter’s Swift Package Manager integration for iOS/macOS
+projects (requires Flutter `>= 3.24`). To enable SwiftPM in your app:
+
+```bash
+flutter config --enable-swift-package-manager
+```
+
 ## Before you start (Xcode / entitlements)
 
 1. Create an iCloud Container ID (example: `iCloud.com.yourapp.container`)

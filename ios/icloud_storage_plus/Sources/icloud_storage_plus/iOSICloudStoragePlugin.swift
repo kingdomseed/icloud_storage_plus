@@ -1,7 +1,7 @@
 import Flutter
 import UIKit
 
-public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
+public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
@@ -33,7 +33,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let messenger = registrar.messenger()
     let channel = FlutterMethodChannel(name: "icloud_storage_plus", binaryMessenger: messenger)
-    let instance = SwiftICloudStoragePlugin()
+    let instance = ICloudStoragePlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
     instance.messenger = messenger
   }
@@ -119,11 +119,13 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     DebugHelper.log("containerURL: \(containerURL.path)")
 
     // Verify event channel handler exists before registering observers
+    var streamHandler: StreamHandler?
     if !eventChannelName.isEmpty {
-      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+      guard let handler = self.streamHandlers[eventChannelName] else {
         result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
         return
       }
+      streamHandler = handler
     }
 
     let query = NSMetadataQuery.init()
@@ -132,8 +134,7 @@ public class SwiftICloudStoragePlugin: NSObject, FlutterPlugin {
     query.predicate = NSPredicate(format: "%K beginswith %@", NSMetadataItemPathKey, containerURL.path)
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
 
-    if !eventChannelName.isEmpty {
-      let streamHandler = self.streamHandlers[eventChannelName]!
+    if let streamHandler {
       streamHandler.onCancelHandler = { [self] in
         removeObservers(query)
         query.stop()

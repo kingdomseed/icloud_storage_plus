@@ -316,7 +316,7 @@ final class ICloudInPlaceBinaryDocument: UIDocument {
 
 // MARK: - Extension for Document Operations
 
-extension SwiftICloudStoragePlugin {
+extension ICloudStoragePlugin {
     /// Read a document from iCloud using UIDocument streaming.
     /// - Parameters:
     ///   - url: The URL of the document to read

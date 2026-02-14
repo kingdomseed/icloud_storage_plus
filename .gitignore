@@ -8,6 +8,14 @@ pubspec.lock
 
 build/
 
+# Swift Package Manager build artifacts
+.swiftpm/
+.build/
+
+# Xcode user-specific data
+**/xcuserdata/
+**/*.xcuserdatad/
+
 # Codex planning artifacts
 docs/plans/
 
