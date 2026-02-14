@@ -3,12 +3,21 @@ name: Publish to pub.dev
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      # Tags like '1.2.3' (no 'v' prefix).
+      # pub.dev tag-pattern should be: '{{version}}'
+      #
+      # Note: GitHub tag filters use "filter patterns" (not full regex), so we
+      # keep this intentionally simple and let pub.dev enforce that the tag
+      # matches the package version.
+      - '[0-9]*.[0-9]*.[0-9]*'
 
 jobs:
   publish:
     permissions:
+      contents: read # Required for actions/checkout in the reusable workflow
       id-token: write # Required for authentication using OIDC
     uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
-    # with:
-    #   working-directory: path/to/package/within/repository
+    with:
+      # Optional security hardening (recommended by dart.dev). If you enable
+      # "Require GitHub Actions environment" on pub.dev, use the same name here.
+      environment: pub.dev
