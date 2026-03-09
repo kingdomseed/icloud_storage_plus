@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - iCloud placeholder file resolution: both iOS (`.originalName.icloud` stubs)
   and macOS Sonoma+ (APFS dataless files) are handled transparently —
   `listContents` returns the real filename and accurate download status.
+- Hidden file filtering: `listContents` suppresses system files (`.DS_Store`,
+  `.Trash`, etc.) by filtering entries whose resolved name starts with `.`.
 
 ### Changed
 - `ICloudFile` dartdoc now cross-references `ContainerItem` and explains the

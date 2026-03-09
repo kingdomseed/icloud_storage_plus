@@ -256,6 +256,7 @@ for (final item in items) {
 | Download/upload progress % | Yes | No |
 | Download/upload status | Yes | Yes |
 | Conflict detection | Yes | Yes |
+| Hidden files (`.DS_Store`, etc.) | Excluded by Spotlight | Filtered by resolved-name prefix |
 | Underlying mechanism | `NSMetadataQuery` (Spotlight) | `FileManager` + URL resource values |
 
 **When to use which:**
@@ -280,6 +281,12 @@ not been fully downloaded to the local device. There are two eras:
 Both `gather` and `listContents` handle this transparently — they resolve
 placeholder names and report download status so you don't need to parse
 `.icloud` filenames yourself.
+
+`listContents` also filters out system hidden files (`.DS_Store`, `.Trash`,
+`.DocumentRevisions-V100`, etc.) by skipping any entry whose resolved name
+starts with `.`. Files whose real name starts with `.` will not appear in
+`listContents` results. `gather` excludes most of these naturally via
+Spotlight's indexing scope.
 
 To check if a file has local content available:
 

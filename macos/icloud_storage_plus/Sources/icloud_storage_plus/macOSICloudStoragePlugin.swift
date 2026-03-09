@@ -1022,14 +1022,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           )
 
           let diskName = fileURL.lastPathComponent
-          // Only resolve placeholder names when the file is
-          // actually not downloaded — avoids false positives on
-          // legitimate hidden files like `.config.icloud`.
-          let isPlaceholder =
-            values.ubiquitousItemDownloadingStatus == .notDownloaded
-          let resolvedName = isPlaceholder
-            ? self.resolveICloudPlaceholderName(diskName)
-            : diskName
+          let resolvedName = self.resolveICloudPlaceholderName(diskName)
+
+          // Skip system hidden files (.DS_Store, .Trash, etc.).
+          // Placeholder files (.foo.icloud) have already been resolved
+          // to their real name, so they pass through this filter.
+          if resolvedName.hasPrefix(".") { continue }
 
           // Build relative path from the container root so the
           // result is usable with other plugin methods.
