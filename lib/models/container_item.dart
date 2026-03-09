@@ -22,6 +22,12 @@ import 'package:icloud_storage_plus/models/icloud_file.dart';
 ///   files with a local representation.
 class ContainerItem extends Equatable {
   /// Creates a [ContainerItem] from a platform channel map.
+  ///
+  /// Used internally by the method channel layer to deserialize native results.
+  /// Expected keys: `relativePath` (String, required), `downloadStatus`
+  /// (String?), `isDownloading` (bool?), `isUploaded` (bool?),
+  /// `isUploading` (bool?), `hasUnresolvedConflicts` (bool?),
+  /// `isDirectory` (bool?).
   ContainerItem.fromMap(Map<dynamic, dynamic> map)
       : relativePath = map['relativePath'] as String,
         downloadStatus = _mapDownloadStatus(
@@ -40,6 +46,8 @@ class ContainerItem extends Equatable {
 
   /// Download status from `URLUbiquitousItemDownloadingStatus`.
   ///
+  /// Possible values are [DownloadStatus.notDownloaded],
+  /// [DownloadStatus.downloaded], or [DownloadStatus.current].
   /// Null when the platform does not provide it (e.g. the file is not in
   /// a ubiquity container).
   final DownloadStatus? downloadStatus;

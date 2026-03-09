@@ -93,6 +93,10 @@ class _GatherState extends State<Gather> {
                 value: '/rename',
                 child: Text('Rename'),
               ),
+              PopupMenuItem(
+                value: '/listContents',
+                child: Text('List Contents'),
+              ),
             ],
             onSelected: (value) => Navigator.pushNamed(
               context,

@@ -1,6 +1,10 @@
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 
 /// Result of a gather operation, including malformed entries.
+///
+/// The [invalidEntries] list contains entries that could not be parsed into
+/// [ICloudFile] instances, usually due to malformed metadata from the native
+/// layer. These can typically be logged for diagnostics and safely ignored.
 class GatherResult {
   /// Creates a gather result with parsed files and invalid entries.
   const GatherResult({

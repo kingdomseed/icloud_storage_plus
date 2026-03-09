@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'gather.dart';
-import 'upload.dart';
-import 'download.dart';
 import 'delete.dart';
+import 'download.dart';
+import 'gather.dart';
+import 'list_contents.dart';
 import 'move.dart';
 import 'rename.dart';
+import 'upload.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,6 +36,9 @@ class MyApp extends StatelessWidget {
             break;
           case '/rename':
             page = Rename(containerId: args as String);
+            break;
+          case '/listContents':
+            page = ListContents(containerId: args as String);
             break;
         }
         return MaterialPageRoute(builder: (_) => page);

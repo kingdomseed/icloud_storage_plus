@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-09
+
+### Added
+- `listContents()` API for immediately-consistent container listings using
+  `FileManager.contentsOfDirectory` with URL resource values. Unlike `gather()`
+  (which reads the Spotlight metadata index), `listContents()` reflects
+  filesystem mutations (rename, delete, copy) immediately.
+- `ContainerItem` model with `relativePath`, `downloadStatus`, `isDownloading`,
+  `isUploaded`, `isUploading`, `hasUnresolvedConflicts`, `isDirectory`, and a
+  convenience `isDownloaded` getter.
+- iCloud placeholder file resolution: both iOS (`.originalName.icloud` stubs)
+  and macOS Sonoma+ (APFS dataless files) are handled transparently —
+  `listContents` returns the real filename and accurate download status.
+
+### Changed
+- `ICloudFile` dartdoc now cross-references `ContainerItem` and explains the
+  eventual-consistency distinction.
+- `GatherResult` dartdoc expanded to describe `invalidEntries` purpose.
+- Fixed typo in `InvalidArgumentException` doc comment ("ued" → "used").
+- README expanded with `listContents` documentation, `gather` vs `listContents`
+  comparison table, iCloud placeholder files section, and `ContainerItem` model
+  reference.
+
 ## [1.1.1] - 2026-02-14
 
 ### Fixed

@@ -67,7 +67,7 @@ file exists under `Documents/`.
 
 ## Choosing the right API
 
-There are two “tiers” of API in this plugin:
+There are four “tiers” of API in this plugin:
 
 1. **Path-only transfers** for large files (no bytes returned to Dart)
    - `uploadFile` (local → iCloud)
@@ -76,9 +76,16 @@ There are two “tiers” of API in this plugin:
    channel; loads full contents in memory)
    - `readInPlace`, `readInPlaceBytes`
    - `writeInPlace`, `writeInPlaceBytes`
-
-The rest of the API is metadata + file management (`gather`, `getMetadata`,
-`documentExists`, `delete`, `move`, `copy`, `rename`).
+3. **File management** (filesystem operations)
+   - `delete`, `move`, `copy`, `rename`
+   - `documentExists`, `getMetadata`, `getDocumentMetadata`
+4. **Container listing** (two complementary approaches)
+   - `gather` — NSMetadataQuery-based; sees remote files and document promises;
+     provides real-time change notifications and download progress; eventually
+     consistent after local mutations
+   - `listContents` — FileManager-based; immediately consistent after local
+     mutations; returns download/upload status via URL resource values; only sees
+     files with a local representation (including iCloud placeholders)
 
 ## Quick start
 
@@ -220,13 +227,80 @@ final initial = await ICloudStorage.gather(
 );
 ```
 
-## Metadata: `ICloudFile`
+## Immediate listing with `listContents`
 
-`getMetadata()` and `gather()` return `ICloudFile`, which represents either a
-file or a directory.
+`listContents()` returns `List<ContainerItem>` — an immediately-consistent
+snapshot of the container (or a subdirectory) using `FileManager` rather than
+`NSMetadataQuery`.
 
-Some fields are nullable because iCloud may not have indexed the item yet, or
-because the item is a directory (size) or remote-only (download status).
+```dart
+final items = await ICloudStorage.listContents(
+  containerId: containerId,
+  relativePath: 'Documents/', // optional; defaults to container root
+);
+
+for (final item in items) {
+  print('${item.relativePath} — ${item.downloadStatus}');
+  if (item.isDirectory) print('  (directory)');
+  if (item.hasUnresolvedConflicts) print('  ⚠ conflicts');
+}
+```
+
+### `gather` vs `listContents`
+
+| Capability | `gather` | `listContents` |
+|---|---|---|
+| Consistency after mutations | Eventually consistent (Spotlight index lag) | **Immediately consistent** |
+| Sees remote-only files | Yes (document promises) | No |
+| Real-time change notifications | Yes (via `onUpdate` stream) | No (one-shot) |
+| Download/upload progress % | Yes | No |
+| Download/upload status | Yes | Yes |
+| Conflict detection | Yes | Yes |
+| Underlying mechanism | `NSMetadataQuery` (Spotlight) | `FileManager` + URL resource values |
+
+**When to use which:**
+
+- **After your own mutations** (rename, delete, copy, write): use `listContents`
+  for an immediate, accurate listing.
+- **Initial sync on a new device**: use `gather` to discover document promises
+  (remote files not yet represented locally).
+- **Live monitoring**: use `gather` with `onUpdate` for real-time change
+  notifications from other devices.
+
+## iCloud placeholder files
+
+iCloud uses placeholder files to represent items that exist in iCloud but have
+not been fully downloaded to the local device. There are two eras:
+
+- **iOS and pre-Sonoma macOS**: stub files named `.originalName.icloud` (~192
+  bytes) that stand in for the real file.
+- **macOS Sonoma+**: APFS dataless files that keep the real filename and logical
+  size; the actual content is fetched on demand.
+
+Both `gather` and `listContents` handle this transparently — they resolve
+placeholder names and report download status so you don't need to parse
+`.icloud` filenames yourself.
+
+To check if a file has local content available:
+
+```dart
+// With ContainerItem (from listContents)
+if (item.isDownloaded) {
+  // File has local content (downloadStatus is .downloaded or .current)
+}
+
+// With ICloudFile (from gather)
+if (file.downloadStatus == DownloadStatus.current) {
+  // Fully up-to-date local copy
+}
+```
+
+## Metadata models
+
+### `ICloudFile` (from `gather` / `getMetadata`)
+
+Populated from `NSMetadataQuery`. Eventually consistent — the Spotlight index
+may lag behind local filesystem mutations.
 
 ```dart
 class ICloudFile {
@@ -244,6 +318,31 @@ class ICloudFile {
   final bool hasUnresolvedConflicts;
 }
 ```
+
+### `ContainerItem` (from `listContents`)
+
+Populated from `FileManager.contentsOfDirectory` with URL resource values.
+Immediately consistent after local mutations.
+
+```dart
+class ContainerItem {
+  final String relativePath;
+  final bool isDirectory;
+
+  final DownloadStatus? downloadStatus;
+  final bool isDownloading;
+  final bool isUploaded;
+  final bool isUploading;
+  final bool hasUnresolvedConflicts;
+
+  /// Whether the item has local content available.
+  bool get isDownloaded => ...;
+}
+```
+
+`ContainerItem` does not include `sizeInBytes`, `creationDate`, or
+`contentChangeDate` — these require `NSMetadataQuery` or additional URL resource
+key lookups that are not part of the current implementation.
 
 ## Error handling
 
@@ -278,6 +377,9 @@ Thrown for container problems, file-not-found, read/write failures, etc.
   force a download.
 - If Files app visibility matters, ensure paths start with `Documents/` and
   your container is configured under `NSUbiquitousContainers`.
+- After a rename/move/delete, `gather()` may still return stale results for a
+  few seconds while the Spotlight index catches up. Use `listContents()` for
+  immediate consistency.
 
 ## Documentation
 
