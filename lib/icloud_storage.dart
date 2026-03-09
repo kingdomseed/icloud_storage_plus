@@ -1,11 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/models/container_item.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
 
+export 'models/container_item.dart';
 export 'models/exceptions.dart';
 export 'models/gather_result.dart';
 export 'models/icloud_file.dart';
@@ -483,6 +485,42 @@ class ICloudStorage {
     }
 
     return ICloudStoragePlatform.instance.getDocumentMetadata(
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+  }
+
+  /// List files in the iCloud container using the filesystem directly.
+  ///
+  /// Unlike [gather], which queries the Spotlight metadata index (eventually
+  /// consistent), this method uses `FileManager.contentsOfDirectory` and is
+  /// **immediately consistent** after local mutations (rename, delete, copy).
+  ///
+  /// Each returned [ContainerItem] includes download/upload status from URL
+  /// resource values — no `NSMetadataQuery` required.
+  ///
+  /// [relativePath] scopes the listing to a subdirectory (e.g. `Documents`).
+  /// When omitted, lists the container root.
+  ///
+  /// ## When to use this vs [gather]
+  ///
+  /// - **After your own mutations**: use `listContents` for immediate truth.
+  /// - **Remote sync monitoring**: use `gather` with `onUpdate` for real-time
+  ///   notifications and download progress percentages.
+  /// - **Initial device sync**: `gather` discovers document promises (files
+  ///   not yet placeholder'd locally); `listContents` only sees files with
+  ///   a local filesystem representation.
+  static Future<List<ContainerItem>> listContents({
+    required String containerId,
+    String? relativePath,
+  }) async {
+    if (relativePath != null && !_validateRelativePath(relativePath)) {
+      throw InvalidArgumentException(
+        'invalid relativePath: $relativePath',
+      );
+    }
+
+    return ICloudStoragePlatform.instance.listContents(
       containerId: containerId,
       relativePath: relativePath,
     );

@@ -70,6 +70,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       documentExists(call, result)
     case "getDocumentMetadata":
       getDocumentMetadata(call, result)
+    case "listContents":
+      listContents(call, result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -963,6 +965,135 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
   
+  /// Lists files in the container using `FileManager.contentsOfDirectory`
+  /// with URL resource values for download/upload status.
+  ///
+  /// Unlike `gather()` (which queries the Spotlight metadata index),
+  /// this reads the POSIX filesystem directly and is immediately consistent
+  /// after local mutations.
+  private func listContents(
+    _ call: FlutterMethodCall,
+    _ result: @escaping FlutterResult
+  ) {
+    guard let args = call.arguments as? Dictionary<String, Any>,
+          let containerId = args["containerId"] as? String
+    else {
+      result(argumentError)
+      return
+    }
+
+    guard let containerURL = FileManager.default
+      .url(forUbiquityContainerIdentifier: containerId)
+    else {
+      result(containerError)
+      return
+    }
+
+    let subdir = args["relativePath"] as? String
+    let listURL = subdir != nil
+      ? containerURL.appendingPathComponent(subdir!)
+      : containerURL
+
+    let keys: [URLResourceKey] = [
+      .isRegularFileKey,
+      .isDirectoryKey,
+      .ubiquitousItemDownloadingStatusKey,
+      .ubiquitousItemIsDownloadingKey,
+      .ubiquitousItemIsUploadedKey,
+      .ubiquitousItemIsUploadingKey,
+      .ubiquitousItemHasUnresolvedConflictsKey,
+    ]
+
+    DispatchQueue.global(qos: .userInitiated).async {
+      do {
+        let contents = try FileManager.default.contentsOfDirectory(
+          at: listURL,
+          includingPropertiesForKeys: keys,
+          // Do NOT use .skipsHiddenFiles — iCloud placeholders
+          // have a leading dot and would be filtered out.
+          options: []
+        )
+
+        let containerPath = containerURL.standardizedFileURL.path
+        var items: [[String: Any?]] = []
+
+        for fileURL in contents {
+          let values = try fileURL.resourceValues(
+            forKeys: Set(keys)
+          )
+
+          let diskName = fileURL.lastPathComponent
+          let resolvedName = self.resolveICloudPlaceholderName(
+            diskName
+          )
+
+          // Build relative path from the container root so the
+          // result is usable with other plugin methods.
+          let parentURL = fileURL.deletingLastPathComponent()
+          let parentRelative = self.relativePath(
+            for: parentURL, containerPath: containerPath
+          )
+          let itemRelativePath = parentRelative.isEmpty
+            ? resolvedName
+            : parentRelative + "/" + resolvedName
+
+          items.append([
+            "relativePath": itemRelativePath,
+            "isDirectory": values.isDirectory ?? false,
+            "downloadStatus": self.normalizeDownloadStatus(
+              values.ubiquitousItemDownloadingStatus
+            ),
+            "isDownloading":
+              values.ubiquitousItemIsDownloading ?? false,
+            "isUploaded":
+              values.ubiquitousItemIsUploaded ?? false,
+            "isUploading":
+              values.ubiquitousItemIsUploading ?? false,
+            "hasUnresolvedConflicts":
+              values.ubiquitousItemHasUnresolvedConflicts ?? false,
+          ])
+        }
+
+        DispatchQueue.main.async { result(items) }
+      } catch {
+        DispatchQueue.main.async {
+          result(self.nativeCodeError(error))
+        }
+      }
+    }
+  }
+
+  /// Resolves the real filename from an iCloud placeholder name.
+  ///
+  /// On iOS and pre-Sonoma macOS, non-downloaded files appear as
+  /// `.originalName.icloud` (leading dot + `.icloud` suffix). On macOS
+  /// Sonoma+ (APFS dataless files), the real name is already used.
+  private func resolveICloudPlaceholderName(
+    _ diskName: String
+  ) -> String {
+    guard diskName.hasPrefix("."),
+          diskName.hasSuffix(".icloud")
+    else {
+      return diskName
+    }
+    let stripped = String(diskName.dropFirst().dropLast(7))
+    return stripped.isEmpty ? diskName : stripped
+  }
+
+  /// Normalizes `URLUbiquitousItemDownloadingStatus` to clean
+  /// enum-style strings for the Dart layer.
+  private func normalizeDownloadStatus(
+    _ status: URLUbiquitousItemDownloadingStatus?
+  ) -> String? {
+    guard let status = status else { return nil }
+    switch status {
+    case .notDownloaded: return "notDownloaded"
+    case .downloaded: return "downloaded"
+    case .current: return "current"
+    default: return nil
+    }
+  }
+
   /// Moves a file by copying and removing the original.
   private func moveCloudFile(at: URL, to: URL) throws {
     do {

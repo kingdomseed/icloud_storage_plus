@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:icloud_storage_plus/icloud_storage_platform_interface.dart';
+import 'package:icloud_storage_plus/models/container_item.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
@@ -334,6 +335,25 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     );
 
     return eventChannel.receiveBroadcastStream().transform(transformer);
+  }
+
+  @override
+  Future<List<ContainerItem>> listContents({
+    required String containerId,
+    String? relativePath,
+  }) async {
+    final mapList =
+        await methodChannel.invokeListMethod<dynamic>('listContents', {
+      'containerId': containerId,
+      if (relativePath != null) 'relativePath': relativePath,
+    });
+
+    if (mapList == null) return [];
+
+    return [
+      for (final entry in mapList)
+        if (entry is Map<dynamic, dynamic>) ContainerItem.fromMap(entry),
+    ];
   }
 
   /// Private method to convert the list of maps from platform code to a list of
