@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 
 /// A file or directory entry from the iCloud ubiquity container, enumerated
@@ -29,7 +30,7 @@ class ContainerItem extends Equatable {
   /// `isUploading` (bool?), `hasUnresolvedConflicts` (bool?),
   /// `isDirectory` (bool?).
   ContainerItem.fromMap(Map<dynamic, dynamic> map)
-      : relativePath = map['relativePath'] as String,
+      : relativePath = _requireRelativePath(map),
         downloadStatus = _mapDownloadStatus(
           map['downloadStatus'] as String?,
         ),
@@ -40,8 +41,8 @@ class ContainerItem extends Equatable {
             (map['hasUnresolvedConflicts'] as bool?) ?? false,
         isDirectory = (map['isDirectory'] as bool?) ?? false;
 
-  /// File path relative to the listing root (the container root or the
-  /// subdirectory passed as `relativePath` to `listContents`).
+  /// File path relative to the iCloud container root, regardless of which
+  /// subdirectory was passed as `relativePath` to `listContents`.
   final String relativePath;
 
   /// Download status from `URLUbiquitousItemDownloadingStatus`.
@@ -85,6 +86,15 @@ class ContainerItem extends Equatable {
         hasUnresolvedConflicts,
         isDirectory,
       ];
+
+  static String _requireRelativePath(Map<dynamic, dynamic> map) {
+    final value = map['relativePath'];
+    if (value is String) return value;
+    throw InvalidArgumentException(
+      'relativePath is required and must be a String '
+      '(got: ${value.runtimeType})',
+    );
+  }
 
   static DownloadStatus? _mapDownloadStatus(String? key) {
     if (key == null) return null;

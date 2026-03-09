@@ -1020,7 +1020,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       : containerURL
 
     let keys: [URLResourceKey] = [
-      .isRegularFileKey,
       .isDirectoryKey,
       .ubiquitousItemDownloadingStatusKey,
       .ubiquitousItemIsDownloadingKey,
@@ -1048,9 +1047,14 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           )
 
           let diskName = fileURL.lastPathComponent
-          let resolvedName = self.resolveICloudPlaceholderName(
-            diskName
-          )
+          // Only resolve placeholder names when the file is
+          // actually not downloaded — avoids false positives on
+          // legitimate hidden files like `.config.icloud`.
+          let isPlaceholder =
+            values.ubiquitousItemDownloadingStatus == .notDownloaded
+          let resolvedName = isPlaceholder
+            ? self.resolveICloudPlaceholderName(diskName)
+            : diskName
 
           // Build relative path from the container root so the
           // result is usable with other plugin methods.

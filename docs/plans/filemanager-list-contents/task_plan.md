@@ -12,7 +12,7 @@ returns stale results because the Spotlight metadata index hasn't converged.
 still shows old filename, UI does not update, second rename fails.
 
 ## Current Phase
-Phase 1
+Complete — PR #19
 
 ## Phases
 
@@ -23,40 +23,40 @@ Phase 1
 - [x] Research proper placeholder detection via URL resource values
 - [x] Research iCloud Drive vs iCloud Sync architecture
 - [x] Discover that FileManager CAN provide download status via resource keys
-- [ ] Finalize Dart return type and model design
-- [ ] Design method signature across all layers
-- [ ] Document final API design decisions
-- **Status:** in_progress
+- [x] Finalize Dart return type and model design
+- [x] Design method signature across all layers
+- [x] Document final API design decisions
+- **Status:** complete
 
 ### Phase 2: Swift Implementation (both platforms)
-- [ ] Implement `listContents` in macOS Swift plugin
-- [ ] Implement `listContents` in iOS Swift plugin
-- [ ] Use URL resource values for download status detection
-- [ ] Handle `.icloud` placeholder filename resolution (iOS + pre-Sonoma macOS)
-- [ ] Filter out directories (use `.isRegularFileKey`)
-- [ ] Run on background queue (AGENTS.md rule 6)
-- [ ] Wire into method channel `handle()` switch
-- **Status:** pending
+- [x] Implement `listContents` in macOS Swift plugin
+- [x] Implement `listContents` in iOS Swift plugin
+- [x] Use URL resource values for download status detection
+- [x] Handle `.icloud` placeholder filename resolution (iOS + pre-Sonoma macOS)
+- [x] Include directories (report via `isDirectory` field)
+- [x] Run on background queue (AGENTS.md rule 6)
+- [x] Wire into method channel `handle()` switch
+- **Status:** complete
 
 ### Phase 3: Dart Layer
-- [ ] Create `ContainerItem` model (or equivalent)
-- [ ] Add `listContents` to `ICloudStoragePlatform` (platform interface)
-- [ ] Add `listContents` to `MethodChannelICloudStorage` (method channel impl)
-- [ ] Add `listContents` to `ICloudStorage` (public API)
-- [ ] Add input validation (containerId, optional relativePath)
-- **Status:** pending
+- [x] Create `ContainerItem` model
+- [x] Add `listContents` to `ICloudStoragePlatform` (platform interface)
+- [x] Add `listContents` to `MethodChannelICloudStorage` (method channel impl)
+- [x] Add `listContents` to `ICloudStorage` (public API)
+- [x] Add input validation (containerId, optional relativePath)
+- **Status:** complete
 
 ### Phase 4: Tests
-- [ ] Unit test Dart method channel layer
-- [ ] Verify `flutter analyze` passes
-- [ ] Verify `flutter test` passes
-- **Status:** pending
+- [x] Unit test Dart method channel layer (7 new tests)
+- [x] Verify `flutter analyze` passes (0 issues)
+- [x] Verify `flutter test` passes (85/85)
+- **Status:** complete
 
 ### Phase 5: Documentation & PR
-- [ ] Update CHANGELOG.md
-- [ ] Update README if needed
-- [ ] Create PR with clear description
-- **Status:** pending
+- [x] Update CHANGELOG.md (1.2.0 entry)
+- [x] Update README (gather vs listContents, placeholder files, ContainerItem)
+- [x] Create PR with clear description (#19)
+- **Status:** complete
 
 ## Design Considerations (Active Discussion)
 
