@@ -3,6 +3,11 @@ import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:logging/logging.dart';
 
 /// Metadata for an iCloud file or directory.
+///
+/// Populated from `NSMetadataQuery`, which is eventually consistent — the
+/// Spotlight index may lag behind local filesystem mutations. For an
+/// immediately-consistent listing after your own mutations (rename, delete,
+/// copy), use `ContainerItem` via `ICloudStorage.listContents` instead.
 class ICloudFile extends Equatable {
   /// Constructor to create the object from the map passed from platform code.
   /// The native layer guarantees `relativePath` is always present when a map

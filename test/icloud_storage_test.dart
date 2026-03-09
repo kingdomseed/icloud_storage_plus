@@ -179,6 +179,17 @@ class MockICloudStoragePlatform
     _calls.add('getDocumentMetadata');
     return documentMetadataResult;
   }
+
+  @override
+  Future<List<ContainerItem>> listContents({
+    required String containerId,
+    String? relativePath,
+  }) async {
+    _calls.add('listContents');
+    return listContentsResult;
+  }
+
+  List<ContainerItem> listContentsResult = [];
 }
 
 void main() {
@@ -205,7 +216,8 @@ void main() {
           'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
           'hasUnresolvedConflicts': false,
         }
-        ..readInPlaceResult = 'contents';
+        ..readInPlaceResult = 'contents'
+        ..listContentsResult = [];
     });
 
     test('gather', () async {
@@ -493,6 +505,77 @@ void main() {
         relativePath: 'Documents/test.pdf',
       );
       expect(metadata?['relativePath'], 'Documents/test.pdf');
+    });
+
+    group('listContents tests:', () {
+      test('listContents returns items', () async {
+        fakePlatform.listContentsResult = [
+          ContainerItem.fromMap(const {
+            'relativePath': 'Documents/journal1.json',
+            'downloadStatus': 'current',
+            'isDownloading': false,
+            'isUploaded': true,
+            'isUploading': false,
+            'hasUnresolvedConflicts': false,
+            'isDirectory': false,
+          }),
+        ];
+
+        final items = await ICloudStorage.listContents(
+          containerId: containerId,
+        );
+        expect(items, hasLength(1));
+        expect(items.first.relativePath, 'Documents/journal1.json');
+        expect(items.first.downloadStatus, DownloadStatus.current);
+        expect(items.first.isDownloaded, isTrue);
+        expect(items.first.isUploaded, isTrue);
+        expect(fakePlatform.calls.last, 'listContents');
+      });
+
+      test('listContents with relativePath', () async {
+        final items = await ICloudStorage.listContents(
+          containerId: containerId,
+          relativePath: 'Documents',
+        );
+        expect(items, isEmpty);
+        expect(fakePlatform.calls.last, 'listContents');
+      });
+
+      test('listContents rejects invalid relativePath', () async {
+        expect(
+          () async => ICloudStorage.listContents(
+            containerId: containerId,
+            relativePath: 'dir//file',
+          ),
+          throwsA(isA<InvalidArgumentException>()),
+        );
+      });
+
+      test('ContainerItem.isDownloaded for downloaded status', () {
+        final item = ContainerItem.fromMap(const {
+          'relativePath': 'file.txt',
+          'downloadStatus': 'downloaded',
+        });
+        expect(item.isDownloaded, isTrue);
+        expect(item.downloadStatus, DownloadStatus.downloaded);
+      });
+
+      test('ContainerItem.isDownloaded for notDownloaded status', () {
+        final item = ContainerItem.fromMap(const {
+          'relativePath': 'file.txt',
+          'downloadStatus': 'notDownloaded',
+        });
+        expect(item.isDownloaded, isFalse);
+        expect(item.downloadStatus, DownloadStatus.notDownloaded);
+      });
+
+      test('ContainerItem handles null downloadStatus', () {
+        final item = ContainerItem.fromMap(const {
+          'relativePath': 'file.txt',
+        });
+        expect(item.downloadStatus, isNull);
+        expect(item.isDownloaded, isFalse);
+      });
     });
   });
 }

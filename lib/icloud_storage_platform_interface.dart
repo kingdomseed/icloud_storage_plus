@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
+import 'package:icloud_storage_plus/models/container_item.dart';
 import 'package:icloud_storage_plus/models/gather_result.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -301,5 +302,25 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
     required String relativePath,
   }) async {
     throw UnimplementedError('getDocumentMetadata() has not been implemented.');
+  }
+
+  /// List files in the iCloud container using `FileManager.contentsOfDirectory`
+  /// with URL resource values for download/upload status.
+  ///
+  /// Unlike [gather], this method reads the POSIX filesystem directly and is
+  /// **immediately consistent** after local mutations (rename, delete, copy).
+  ///
+  /// [containerId] is the iCloud Container Id.
+  ///
+  /// [relativePath] is an optional subdirectory to list (e.g. `Documents`).
+  /// When omitted, lists the container root.
+  ///
+  /// Returns a list of [ContainerItem] entries with resolved filenames and
+  /// download/upload status from URL resource values.
+  Future<List<ContainerItem>> listContents({
+    required String containerId,
+    String? relativePath,
+  }) async {
+    throw UnimplementedError('listContents() has not been implemented.');
   }
 }

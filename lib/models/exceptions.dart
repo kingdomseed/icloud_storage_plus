@@ -1,4 +1,4 @@
-/// An exception class used for development. It's ued when invalid argument
+/// An exception class used for development. It's used when invalid argument
 /// is passed to the API
 class InvalidArgumentException implements Exception {
   /// Constructor takes the exception message as an argument
