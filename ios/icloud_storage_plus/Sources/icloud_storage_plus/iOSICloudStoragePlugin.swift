@@ -4,7 +4,7 @@ import UIKit
 public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var listStreamHandler: StreamHandler?
   var messenger: FlutterBinaryMessenger?
-  var streamHandlers: [String: StreamHandler] = [:]
+  private var streamHandlers: [String: StreamHandler] = [:]
   private var progressByEventChannel: [String: Double] = [:]
   private let streamStateQueue = DispatchQueue(
     label: "icloud_storage_plus.stream_state"

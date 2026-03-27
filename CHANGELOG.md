@@ -14,18 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   thread during in-place reads and writes on supported runtimes.
 
 ### Fixed
-- iOS metadata query update handling no longer depends on
+- iOS and macOS metadata query update handling no longer depends on
   `DispatchQueue.main.sync` for event-channel state checks, reducing deadlock
   risk when iCloud change notifications arrive while other native work is in
   flight.
-- Event stream state on iOS is now synchronized for cross-queue access, which
-  avoids races between cancellation, progress delivery, and metadata updates.
+- Event stream state on iOS and macOS is now synchronized for cross-queue
+  access, which avoids races between cancellation, progress delivery, and
+  metadata updates.
 - iOS download watchdog startup now schedules its initial timeout on the main
   run loop even when the method channel handler starts on a background task
   queue, preventing stalled in-place reads from hanging indefinitely.
-- iOS download completion/cancellation paths now use a synchronized single-fire
-  completion gate, preventing double `FlutterResult` delivery when cancellation
-  races with native completion.
+- iOS and macOS download completion/cancellation paths now use a synchronized
+  single-fire completion gate, preventing double `FlutterResult` delivery when
+  cancellation races with native completion.
 
 ## [1.2.0] - 2026-03-09
 
