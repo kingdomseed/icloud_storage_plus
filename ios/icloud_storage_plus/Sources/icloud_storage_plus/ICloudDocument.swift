@@ -71,7 +71,14 @@ class ICloudDocument: UIDocument {
     // MARK: - Initialization and Deinitialization
 
     override init(fileURL url: URL) {
+        let startedAt = DebugHelper.makeTimestamp()
         super.init(fileURL: url)
+        DebugHelper.logElapsed(
+            "ICloudDocument.init",
+            step: "construct",
+            startedAt: startedAt,
+            details: "file=\(url.lastPathComponent)"
+        )
         setupStateChangeObserver()
     }
 
@@ -220,6 +227,17 @@ final class ICloudInPlaceDocument: UIDocument {
 
     /// Error occurred during the last operation (if any).
     var lastError: Error?
+
+    override init(fileURL url: URL) {
+        let startedAt = DebugHelper.makeTimestamp()
+        super.init(fileURL: url)
+        DebugHelper.logElapsed(
+            "ICloudInPlaceDocument.init",
+            step: "construct",
+            startedAt: startedAt,
+            details: "file=\(url.lastPathComponent)"
+        )
+    }
 
     override func contents(forType typeName: String) throws -> Any {
         return textContents.data(using: .utf8) ?? Data()
@@ -427,12 +445,32 @@ extension ICloudStoragePlugin {
         at url: URL,
         completion: @escaping (String?, Error?) -> Void
     ) {
-        let document = ICloudInPlaceDocument(fileURL: url)
+        let document = DebugHelper.measureSync(
+            "readInPlaceDocument",
+            step: "document_init",
+            details: "file=\(url.lastPathComponent)"
+        ) {
+            ICloudInPlaceDocument(fileURL: url)
+        }
 
+        let openStartedAt = DebugHelper.makeTimestamp()
         document.open { success in
+            DebugHelper.logElapsed(
+                "readInPlaceDocument",
+                step: "document_open_completion",
+                startedAt: openStartedAt,
+                details: "file=\(url.lastPathComponent) success=\(success)"
+            )
             if success {
                 let contents = document.textContents
+                let closeStartedAt = DebugHelper.makeTimestamp()
                 document.close { _ in
+                    DebugHelper.logElapsed(
+                        "readInPlaceDocument",
+                        step: "document_close_completion",
+                        startedAt: closeStartedAt,
+                        details: "file=\(url.lastPathComponent)"
+                    )
                     completion(contents, nil)
                 }
             } else {
@@ -476,17 +514,42 @@ extension ICloudStoragePlugin {
         contents: String,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudInPlaceDocument(fileURL: url)
+        let document = DebugHelper.measureSync(
+            "writeInPlaceDocument",
+            step: "document_init",
+            details: "file=\(url.lastPathComponent)"
+        ) {
+            ICloudInPlaceDocument(fileURL: url)
+        }
         document.textContents = contents
 
-        let saveOperation: UIDocument.SaveOperation =
+        let saveOperation: UIDocument.SaveOperation = DebugHelper.measureSync(
+            "writeInPlaceDocument",
+            step: "save_operation_preflight",
+            details: "file=\(url.lastPathComponent)"
+        ) {
             FileManager.default.fileExists(atPath: url.path)
-            ? .forOverwriting
-            : .forCreating
+                ? .forOverwriting
+                : .forCreating
+        }
 
+        let saveStartedAt = DebugHelper.makeTimestamp()
         document.save(to: url, for: saveOperation) { success in
+            DebugHelper.logElapsed(
+                "writeInPlaceDocument",
+                step: "document_save_completion",
+                startedAt: saveStartedAt,
+                details: "file=\(url.lastPathComponent) success=\(success) saveOperation=\(saveOperation.rawValue)"
+            )
             if success {
+                let closeStartedAt = DebugHelper.makeTimestamp()
                 document.close { _ in
+                    DebugHelper.logElapsed(
+                        "writeInPlaceDocument",
+                        step: "document_close_completion",
+                        startedAt: closeStartedAt,
+                        details: "file=\(url.lastPathComponent)"
+                    )
                     completion(nil)
                 }
             } else {
