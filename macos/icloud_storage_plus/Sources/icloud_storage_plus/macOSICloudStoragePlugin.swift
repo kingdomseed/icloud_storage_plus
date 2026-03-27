@@ -6,6 +6,9 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   var messenger: FlutterBinaryMessenger?
   var streamHandlers: [String: StreamHandler] = [:]
   private var progressByEventChannel: [String: Double] = [:]
+  private let streamStateQueue = DispatchQueue(
+    label: "icloud_storage_plus.stream_state"
+  )
   let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
   private let queryObserversQueue = DispatchQueue(
@@ -121,11 +124,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     DebugHelper.log("containerURL: \(containerURL.path)")
 
     // Verify event channel handler exists before registering observers
+    var streamHandler: StreamHandler?
     if !eventChannelName.isEmpty {
-      guard self.streamHandlers[eventChannelName] != nil else {
+      guard let handler = registeredStreamHandler(for: eventChannelName) else {
         result(FlutterError(code: "E_NO_HANDLER", message: "Event channel '\(eventChannelName)' not created. Call createEventChannel first.", details: nil))
         return
       }
+      streamHandler = handler
     }
 
     let query = NSMetadataQuery.init()
@@ -134,8 +139,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.predicate = NSPredicate(format: "%K beginswith %@", NSMetadataItemPathKey, containerURL.path)
     addGatherFilesObservers(query: query, containerURL: containerURL, eventChannelName: eventChannelName, result: result)
 
-    if !eventChannelName.isEmpty {
-      let streamHandler = self.streamHandlers[eventChannelName]!
+    if let streamHandler {
       streamHandler.onCancelHandler = { [self] in
         removeObservers(query)
         query.stop()
@@ -170,10 +174,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         for: query,
         name: NSNotification.Name.NSMetadataQueryDidUpdate
       ) { [self] _ in
-        let hasStreamHandler = DispatchQueue.main.sync {
-          self.streamHandlers[eventChannelName] != nil
-        }
-        guard hasStreamHandler else {
+        guard hasStreamHandler(named: eventChannelName) else {
           return
         }
 
@@ -182,7 +183,9 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         let results = query.results.compactMap { $0 as? NSMetadataItem }
         let files = mapFileAttributes(items: results, containerURL: containerURL)
         DispatchQueue.main.async {
-          guard let streamHandler = self.streamHandlers[eventChannelName] else {
+          guard let streamHandler = self.registeredStreamHandler(
+            for: eventChannelName
+          ) else {
             return
           }
           streamHandler.setEvent(files)
@@ -326,7 +329,9 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     query.searchScopes = querySearchScopes
     query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemPathKey, cloudFileURL.path)
 
-    guard let uploadStreamHandler = self.streamHandlers[eventChannelName] else {
+    guard let uploadStreamHandler = registeredStreamHandler(
+      for: eventChannelName
+    ) else {
       return
     }
     emitProgress(10.0, eventChannelName: eventChannelName)
@@ -381,10 +386,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     guard let fileURLValues = try? fileURL.resourceValues(
       forKeys: [.ubiquitousItemUploadingErrorKey]
     ) else { return }
-    guard self.streamHandlers[eventChannelName] != nil else { return }
+    guard hasStreamHandler(named: eventChannelName) else { return }
     
     if let error = fileURLValues.ubiquitousItemUploadingError {
-      guard let streamHandler = self.streamHandlers[eventChannelName] else {
+      guard let streamHandler = registeredStreamHandler(
+        for: eventChannelName
+      ) else {
         return
       }
       streamHandler.setEvent(nativeCodeError(error))
@@ -398,7 +405,9 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     if let progress = fileItem.value(forAttribute: NSMetadataUbiquitousItemPercentUploadedKey) as? Double {
       emitProgress(progress, eventChannelName: eventChannelName)
       if (progress >= 100) {
-        guard let streamHandler = self.streamHandlers[eventChannelName] else {
+        guard let streamHandler = registeredStreamHandler(
+          for: eventChannelName
+        ) else {
           return
         }
         streamHandler.setEvent(FlutterEndOfEventStream)
@@ -438,12 +447,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    var didComplete = false
+    let completionGate = CompletionGate()
     let completeOnce: (Any?) -> Void = { value in
-      if didComplete {
+      guard completionGate.tryComplete() else {
         return
       }
-      didComplete = true
       result(value)
     }
 
@@ -461,7 +469,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           return query
         }()
 
-    let downloadStreamHandler = self.streamHandlers[eventChannelName]
+    let downloadStreamHandler = registeredStreamHandler(for: eventChannelName)
     downloadStreamHandler?.onCancelHandler = { [self] in
       if let query {
         removeObservers(query)
@@ -489,7 +497,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     readDocumentAt(url: cloudFileURL, destinationURL: localFileURL) { [self] error in
-      if didComplete {
+      if completionGate.isCompleted {
         return
       }
       if let error = error {
@@ -787,17 +795,22 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let idleSchedule = idleTimeouts.isEmpty ? [60, 90, 180] : idleTimeouts
     let backoffSchedule = retryBackoff.isEmpty ? [2, 4] : retryBackoff
 
-    var didComplete = false
+    let completionGate = CompletionGate()
+    let completionQueue = DispatchQueue(
+      label: "icloud_storage_plus.download_wait_completion",
+      qos: .userInitiated
+    )
     let completeOnce: (Error?) -> Void = { error in
-      if didComplete {
+      guard completionGate.tryComplete() else {
         return
       }
-      didComplete = true
-      completion(error)
+      completionQueue.async {
+        completion(error)
+      }
     }
 
     func startAttempt(index: Int) {
-      if didComplete { return }
+      if completionGate.isCompleted { return }
       let query = NSMetadataQuery()
       query.operationQueue = .main
       query.searchScopes = querySearchScopes
@@ -864,8 +877,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         handleEvaluation()
       }
 
-      resetWatchdog()
-      query.start()
+      DispatchQueue.main.async {
+        guard !completionGate.isCompleted else {
+          return
+        }
+        resetWatchdog()
+        query.start()
+      }
     }
 
     startAttempt(index: 0)
@@ -1312,24 +1330,67 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let streamHandler = StreamHandler()
     let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: messenger)
     eventChannel.setStreamHandler(streamHandler)
-    self.streamHandlers[eventChannelName] = streamHandler
+    setStreamHandler(streamHandler, for: eventChannelName)
 
     result(nil)
   }
   
   /// Removes a stream handler for the given event channel.
   private func removeStreamHandler(_ eventChannelName: String) {
-    self.streamHandlers[eventChannelName] = nil
-    progressByEventChannel.removeValue(forKey: eventChannelName)
+    streamStateQueue.sync {
+      streamHandlers[eventChannelName] = nil
+      progressByEventChannel.removeValue(forKey: eventChannelName)
+    }
   }
 
   /// Emits a monotonic progress update to the Flutter stream.
   private func emitProgress(_ progress: Double, eventChannelName: String) {
-    guard let streamHandler = streamHandlers[eventChannelName] else { return }
-    let lastProgress = progressByEventChannel[eventChannelName] ?? 0
-    let clamped = max(progress, lastProgress)
-    progressByEventChannel[eventChannelName] = clamped
+    guard let (streamHandler, clamped) = reserveProgressUpdate(
+      progress,
+      eventChannelName: eventChannelName
+    ) else {
+      return
+    }
     streamHandler.setEvent(clamped)
+  }
+
+  private func registeredStreamHandler(
+    for eventChannelName: String
+  ) -> StreamHandler? {
+    streamStateQueue.sync {
+      streamHandlers[eventChannelName]
+    }
+  }
+
+  private func hasStreamHandler(named eventChannelName: String) -> Bool {
+    streamStateQueue.sync {
+      streamHandlers[eventChannelName] != nil
+    }
+  }
+
+  private func setStreamHandler(
+    _ streamHandler: StreamHandler,
+    for eventChannelName: String
+  ) {
+    streamStateQueue.sync {
+      streamHandlers[eventChannelName] = streamHandler
+      progressByEventChannel[eventChannelName] = 0
+    }
+  }
+
+  private func reserveProgressUpdate(
+    _ progress: Double,
+    eventChannelName: String
+  ) -> (StreamHandler, Double)? {
+    streamStateQueue.sync {
+      guard let streamHandler = streamHandlers[eventChannelName] else {
+        return nil
+      }
+      let lastProgress = progressByEventChannel[eventChannelName] ?? 0
+      let clamped = max(progress, lastProgress)
+      progressByEventChannel[eventChannelName] = clamped
+      return (streamHandler, clamped)
+    }
   }
   
   let argumentError = FlutterError(code: "E_ARG", message: "Invalid Arguments", details: nil)
@@ -1377,32 +1438,80 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   }
 }
 
+private final class CompletionGate {
+  private let queue = DispatchQueue(
+    label: "icloud_storage_plus.completion_gate"
+  )
+  private var completed = false
+
+  var isCompleted: Bool {
+    queue.sync {
+      completed
+    }
+  }
+
+  func tryComplete() -> Bool {
+    queue.sync {
+      if completed {
+        return false
+      }
+      completed = true
+      return true
+    }
+  }
+}
+
 class StreamHandler: NSObject, FlutterStreamHandler {
-  private var _eventSink: FlutterEventSink?
-  var onCancelHandler: (() -> Void)?
-  var isCancelled = false
+  private let stateQueue = DispatchQueue(
+    label: "icloud_storage_plus.stream_handler"
+  )
+  private var eventSink: FlutterEventSink?
+  private var cancelHandler: (() -> Void)?
+  private var isCancelled = false
+
+  var onCancelHandler: (() -> Void)? {
+    get {
+      stateQueue.sync {
+        cancelHandler
+      }
+    }
+    set {
+      stateQueue.sync {
+        cancelHandler = newValue
+      }
+    }
+  }
 
   /// Starts listening for events from the native side.
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-    isCancelled = false
-    _eventSink = events
+    stateQueue.sync {
+      isCancelled = false
+      eventSink = events
+    }
     DebugHelper.log("on listen")
     return nil
   }
 
   /// Stops listening for events from the native side.
   func onCancel(withArguments arguments: Any?) -> FlutterError? {
-    isCancelled = true
+    let onCancelHandler = stateQueue.sync { () -> (() -> Void)? in
+      isCancelled = true
+      eventSink = nil
+      return cancelHandler
+    }
     onCancelHandler?()
-    _eventSink = nil
     DebugHelper.log("on cancel")
     return nil
   }
 
   /// Emits an event to the Flutter stream.
   func setEvent(_ data: Any) {
-    if isCancelled { return }
-    _eventSink?(data)
+    stateQueue.sync {
+      if isCancelled {
+        return
+      }
+      eventSink?(data)
+    }
   }
 }
 
