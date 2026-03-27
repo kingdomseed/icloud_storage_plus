@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.1] - 2026-03-27
 
 ### Changed
-- iOS method-channel filesystem work now runs on Flutter's background task
-  queue instead of the main thread. Container lookup, iCloud path preflight,
-  and `UIDocument` initialization stay coordinated but no longer block the UI
-  thread during in-place reads and writes.
+- iOS method-channel filesystem work now uses Flutter's background task queue
+  when that queue is available. Container lookup, iCloud path preflight, and
+  `UIDocument` initialization stay coordinated but no longer block the UI
+  thread during in-place reads and writes on supported runtimes.
 
 ### Fixed
 - iOS metadata query update handling no longer depends on

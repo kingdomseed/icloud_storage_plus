@@ -1545,13 +1545,12 @@ class StreamHandler: NSObject, FlutterStreamHandler {
   
   /// Emits an event to the Flutter stream.
   func setEvent(_ data: Any) {
-    let sink = stateQueue.sync { () -> FlutterEventSink? in
+    stateQueue.sync {
       if isCancelled {
-        return nil
+        return
       }
-      return eventSink
+      eventSink?(data)
     }
-    sink?(data)
   }
 }
 
