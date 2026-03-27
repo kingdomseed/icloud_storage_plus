@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flight.
 - Event stream state on iOS is now synchronized for cross-queue access, which
   avoids races between cancellation, progress delivery, and metadata updates.
+- iOS download watchdog startup now schedules its initial timeout on the main
+  run loop even when the method channel handler starts on a background task
+  queue, preventing stalled in-place reads from hanging indefinitely.
+- iOS download completion/cancellation paths now use a synchronized single-fire
+  completion gate, preventing double `FlutterResult` delivery when cancellation
+  races with native completion.
 
 ## [1.2.0] - 2026-03-09
 

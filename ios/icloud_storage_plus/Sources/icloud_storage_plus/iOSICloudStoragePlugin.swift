@@ -484,12 +484,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    var didComplete = false
+    let completionGate = CompletionGate()
     let completeOnce: (Any?) -> Void = { value in
-      if didComplete {
+      guard completionGate.tryComplete() else {
         return
       }
-      didComplete = true
       result(value)
     }
 
@@ -535,7 +534,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     readDocumentAt(url: cloudFileURL, destinationURL: localFileURL) { [self] error in
-      if didComplete {
+      if completionGate.isCompleted {
         return
       }
       if let error = error {
@@ -833,17 +832,22 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let idleSchedule = idleTimeouts.isEmpty ? [60, 90, 180] : idleTimeouts
     let backoffSchedule = retryBackoff.isEmpty ? [2, 4] : retryBackoff
 
-    var didComplete = false
+    let completionGate = CompletionGate()
+    let completionQueue = DispatchQueue(
+      label: "icloud_storage_plus.download_wait_completion",
+      qos: .userInitiated
+    )
     let completeOnce: (Error?) -> Void = { error in
-      if didComplete {
+      guard completionGate.tryComplete() else {
         return
       }
-      didComplete = true
-      completion(error)
+      completionQueue.async {
+        completion(error)
+      }
     }
 
     func startAttempt(index: Int) {
-      if didComplete { return }
+      if completionGate.isCompleted { return }
       let query = NSMetadataQuery()
       query.operationQueue = .main
       query.searchScopes = querySearchScopes
@@ -910,8 +914,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         handleEvaluation()
       }
 
-      resetWatchdog()
-      query.start()
+      DispatchQueue.main.async {
+        guard !completionGate.isCompleted else {
+          return
+        }
+        resetWatchdog()
+        query.start()
+      }
     }
 
     startAttempt(index: 0)
@@ -1465,6 +1474,29 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let nsError = error as NSError
     guard nsError.domain == "ICloudStorageTimeout" else { return nil }
     return timeoutError
+  }
+}
+
+private final class CompletionGate {
+  private let queue = DispatchQueue(
+    label: "icloud_storage_plus.completion_gate"
+  )
+  private var completed = false
+
+  var isCompleted: Bool {
+    queue.sync {
+      completed
+    }
+  }
+
+  func tryComplete() -> Bool {
+    queue.sync {
+      if completed {
+        return false
+      }
+      completed = true
+      return true
+    }
   }
 }
 
