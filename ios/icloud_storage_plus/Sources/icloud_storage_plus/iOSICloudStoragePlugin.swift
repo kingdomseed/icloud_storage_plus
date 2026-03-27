@@ -95,13 +95,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
     
-    guard let containerURL = DebugHelper.measureSync(
-      "getContainerPath",
-      step: "container_lookup",
-      details: "containerId=\(containerId)",
-      body: {
-        FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-      }
+    guard let containerURL = FileManager.default.url(
+      forUbiquityContainerIdentifier: containerId
     ) else {
       result(containerError)
       return
@@ -560,13 +555,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let retryBackoff = (args["retryBackoffSeconds"] as? [NSNumber])?
       .map { $0.doubleValue } ?? []
 
-    guard let containerURL = DebugHelper.measureSync(
-      "readInPlace",
-      step: "container_lookup",
-      details: "containerId=\(containerId) relativePath=\(relativePath)",
-      body: {
-        FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-      }
+    guard let containerURL = FileManager.default.url(
+      forUbiquityContainerIdentifier: containerId
     ) else {
       result(containerError)
       return
@@ -575,31 +565,18 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let fileURL = containerURL.appendingPathComponent(relativePath)
 
     do {
-      try DebugHelper.measureSync(
-        "readInPlace",
-        step: "start_downloading",
-        details: "relativePath=\(relativePath)"
-      ) {
-        try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
-      }
+      try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
     } catch {
       let mapped = mapFileNotFoundError(error) ?? nativeCodeError(error)
       result(mapped)
       return
     }
 
-    let waitStartedAt = DebugHelper.makeTimestamp()
     waitForDownloadCompletion(
       fileURL: fileURL,
       idleTimeouts: idleTimeouts,
       retryBackoff: retryBackoff
     ) { [self] error in
-      DebugHelper.logElapsed(
-        "readInPlace",
-        step: "wait_for_download_completion",
-        startedAt: waitStartedAt,
-        details: "relativePath=\(relativePath) success=\(error == nil)"
-      )
       if let error {
         if let timeoutError = mapTimeoutError(error) {
           result(timeoutError)
@@ -632,13 +609,8 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    guard let containerURL = DebugHelper.measureSync(
-      "writeInPlace",
-      step: "container_lookup",
-      details: "containerId=\(containerId) relativePath=\(relativePath)",
-      body: {
-        FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-      }
+    guard let containerURL = FileManager.default.url(
+      forUbiquityContainerIdentifier: containerId
     ) else {
       result(containerError)
       return
@@ -648,17 +620,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
     do {
       let dirURL = fileURL.deletingLastPathComponent()
-      try DebugHelper.measureSync(
-        "writeInPlace",
-        step: "ensure_parent_directory",
-        details: "relativePath=\(relativePath)"
-      ) {
-        try FileManager.default.createDirectory(
-          at: dirURL,
-          withIntermediateDirectories: true,
-          attributes: nil
-        )
-      }
+      try FileManager.default.createDirectory(
+        at: dirURL,
+        withIntermediateDirectories: true,
+        attributes: nil
+      )
     } catch {
       result(nativeCodeError(error))
       return
@@ -1472,41 +1438,5 @@ class DebugHelper {
     #if DEBUG
     print(message)
     #endif
-  }
-
-  public static func makeTimestamp() -> CFAbsoluteTime {
-    CFAbsoluteTimeGetCurrent()
-  }
-
-  @discardableResult
-  public static func measureSync<T>(
-    _ operation: String,
-    step: String,
-    details: String? = nil,
-    body: () throws -> T
-  ) rethrows -> T {
-    let startedAt = makeTimestamp()
-    defer {
-      logElapsed(
-        operation,
-        step: step,
-        startedAt: startedAt,
-        details: details
-      )
-    }
-    return try body()
-  }
-
-  public static func logElapsed(
-    _ operation: String,
-    step: String,
-    startedAt: CFAbsoluteTime,
-    details: String? = nil
-  ) {
-    let elapsedMs = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
-    let extraDetails = details.map { " \($0)" } ?? ""
-    log(
-      "[icloud_storage_plus][\(operation)] step=\(step) elapsed_ms=\(String(format: "%.1f", elapsedMs)) main_thread=\(Thread.isMainThread)\(extraDetails)"
-    )
   }
 }
