@@ -18,6 +18,7 @@ build/
 
 # Codex planning artifacts
 docs/plans/
+.codex/
 
 # Flutter iOS ephemeral artifacts under example/
 example/ios/Flutter/ephemeral/

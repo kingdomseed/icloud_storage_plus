@@ -481,8 +481,8 @@ extension ICloudStoragePlugin {
 
         let saveOperation: UIDocument.SaveOperation =
             FileManager.default.fileExists(atPath: url.path)
-            ? .forOverwriting
-            : .forCreating
+                ? .forOverwriting
+                : .forCreating
 
         document.save(to: url, for: saveOperation) { success in
             if success {

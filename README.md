@@ -87,6 +87,12 @@ There are four “tiers” of API in this plugin:
      mutations; returns download/upload status via URL resource values; only sees
      files with a local representation (including iCloud placeholders)
 
+On iOS, when Flutter provides a background platform-channel task queue, native
+filesystem work for the in-place APIs runs there so iCloud container lookup and
+`UIDocument` preflight do not block the app's main thread. If that queue is not
+available, Flutter falls back to its default platform-channel dispatch model.
+macOS keeps the existing dispatch model.
+
 ## Quick start
 
 ```dart
