@@ -833,15 +833,11 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let backoffSchedule = retryBackoff.isEmpty ? [2, 4] : retryBackoff
 
     let completionGate = CompletionGate()
-    let completionQueue = DispatchQueue(
-      label: "icloud_storage_plus.download_wait_completion",
-      qos: .userInitiated
-    )
     let completeOnce: (Error?) -> Void = { error in
       guard completionGate.tryComplete() else {
         return
       }
-      completionQueue.async {
+      DispatchQueue.main.async {
         completion(error)
       }
     }
