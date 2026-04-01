@@ -1363,11 +1363,14 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     let streamHandler = StreamHandler()
-    let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: messenger)
-    eventChannel.setStreamHandler(streamHandler)
-    setStreamHandler(streamHandler, for: eventChannelName)
+    DispatchQueue.main.async {
+        let eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: messenger)
+        eventChannel.setStreamHandler(streamHandler)
+        
+        self.setStreamHandler(streamHandler, for: eventChannelName)
 
-    result(nil)
+        result(nil)
+    }
   }
   
   /// Removes a stream handler for the given event channel.
