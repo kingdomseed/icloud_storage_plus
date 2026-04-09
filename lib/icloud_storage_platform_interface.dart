@@ -180,8 +180,9 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [contents] is the full contents to write.
   ///
   /// Trailing slashes are rejected here because writes are file-centric.
-  /// Coordinated access uses UIDocument/NSDocument and writes the full contents
-  /// as a single operation. Use for small text/JSON files.
+  /// Coordinated access writes the full contents as a single operation.
+  /// Existing-file overwrites on Darwin use coordinated atomic replacement.
+  /// Use for small text/JSON files.
   Future<void> writeInPlace({
     required String containerId,
     required String relativePath,
@@ -198,8 +199,9 @@ abstract class ICloudStoragePlatform extends PlatformInterface {
   /// [contents] is the full contents to write.
   ///
   /// Trailing slashes are rejected here because writes are file-centric.
-  /// Coordinated access uses UIDocument/NSDocument and writes the full contents
-  /// as a single operation. Use for small files.
+  /// Coordinated access writes the full contents as a single operation.
+  /// Existing-file overwrites on Darwin use coordinated atomic replacement.
+  /// Use for small files.
   Future<void> writeInPlaceBytes({
     required String containerId,
     required String relativePath,

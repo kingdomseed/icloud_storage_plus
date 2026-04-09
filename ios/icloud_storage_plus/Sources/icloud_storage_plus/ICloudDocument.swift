@@ -357,15 +357,26 @@ extension ICloudStoragePlugin {
         sourceURL: URL,
         completion: @escaping (Error?) -> Void
     ) {
+        do {
+            let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                at: url
+            ) { replacementURL in
+                try streamCopyToURL(from: sourceURL, to: replacementURL)
+            }
+
+            if handled {
+                completion(nil)
+                return
+            }
+        } catch {
+            completion(error)
+            return
+        }
+
         let document = ICloudDocument(fileURL: url)
         document.sourceURL = sourceURL
 
-        let saveOperation: UIDocument.SaveOperation =
-            FileManager.default.fileExists(atPath: url.path)
-            ? .forOverwriting
-            : .forCreating
-
-        document.save(to: url, for: saveOperation) { success in
+        document.save(to: url, for: .forCreating) { success in
             if success {
                 document.close { _ in
                     completion(nil)
@@ -476,15 +487,26 @@ extension ICloudStoragePlugin {
         contents: String,
         completion: @escaping (Error?) -> Void
     ) {
+        do {
+            let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                at: url
+            ) { replacementURL in
+                try writeTextToURL(contents, to: replacementURL)
+            }
+
+            if handled {
+                completion(nil)
+                return
+            }
+        } catch {
+            completion(error)
+            return
+        }
+
         let document = ICloudInPlaceDocument(fileURL: url)
         document.textContents = contents
 
-        let saveOperation: UIDocument.SaveOperation =
-            FileManager.default.fileExists(atPath: url.path)
-                ? .forOverwriting
-                : .forCreating
-
-        document.save(to: url, for: saveOperation) { success in
+        document.save(to: url, for: .forCreating) { success in
             if success {
                 document.close { _ in
                     completion(nil)
@@ -506,15 +528,26 @@ extension ICloudStoragePlugin {
         contents: Data,
         completion: @escaping (Error?) -> Void
     ) {
+        do {
+            let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                at: url
+            ) { replacementURL in
+                try writeDataToURL(contents, to: replacementURL)
+            }
+
+            if handled {
+                completion(nil)
+                return
+            }
+        } catch {
+            completion(error)
+            return
+        }
+
         let document = ICloudInPlaceBinaryDocument(fileURL: url)
         document.dataContents = contents
 
-        let saveOperation: UIDocument.SaveOperation =
-            FileManager.default.fileExists(atPath: url.path)
-            ? .forOverwriting
-            : .forCreating
-
-        document.save(to: url, for: saveOperation) { success in
+        document.save(to: url, for: .forCreating) { success in
             if success {
                 document.close { _ in
                     completion(nil)

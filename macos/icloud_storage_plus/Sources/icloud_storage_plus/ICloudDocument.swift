@@ -282,18 +282,29 @@ extension ICloudStoragePlugin {
         sourceURL: URL,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudDocument()
-        document.sourceURL = sourceURL
-
         DispatchQueue.global(qos: .userInitiated).async {
-            defer { DispatchQueue.main.async { document.close() } }
             do {
+                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                    at: url
+                ) { replacementURL in
+                    try streamCopyToURL(from: sourceURL, to: replacementURL)
+                }
+
+                if handled {
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+
+                let document = ICloudDocument()
+                document.sourceURL = sourceURL
+                defer { DispatchQueue.main.async { document.close() } }
+
                 try document.write(
                     to: url,
                     ofType: "public.data",
-                    for: FileManager.default.fileExists(atPath: url.path)
-                        ? .saveOperation
-                        : .saveAsOperation,
+                    for: .saveAsOperation,
                     originalContentsURL: nil
                 )
                 DispatchQueue.main.async {
@@ -385,17 +396,35 @@ extension ICloudStoragePlugin {
         contents: String,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudInPlaceDocument()
-        document.textContents = contents
-
         DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                    at: url
+                ) { replacementURL in
+                    try writeTextToURL(contents, to: replacementURL)
+                }
+
+                if handled {
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(error)
+                }
+                return
+            }
+
+            let document = ICloudInPlaceDocument()
+            document.textContents = contents
+
             do {
                 try document.write(
                     to: url,
                     ofType: "public.data",
-                    for: FileManager.default.fileExists(atPath: url.path)
-                        ? .saveOperation
-                        : .saveAsOperation,
+                    for: .saveAsOperation,
                     originalContentsURL: nil
                 )
                 DispatchQueue.main.async {
@@ -441,17 +470,35 @@ extension ICloudStoragePlugin {
         contents: Data,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudInPlaceBinaryDocument()
-        document.dataContents = contents
-
         DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                    at: url
+                ) { replacementURL in
+                    try writeDataToURL(contents, to: replacementURL)
+                }
+
+                if handled {
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(error)
+                }
+                return
+            }
+
+            let document = ICloudInPlaceBinaryDocument()
+            document.dataContents = contents
+
             do {
                 try document.write(
                     to: url,
                     ofType: "public.data",
-                    for: FileManager.default.fileExists(atPath: url.path)
-                        ? .saveOperation
-                        : .saveAsOperation,
+                    for: .saveAsOperation,
                     originalContentsURL: nil
                 )
                 DispatchQueue.main.async {

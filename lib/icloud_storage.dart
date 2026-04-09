@@ -267,11 +267,12 @@ class ICloudStorage {
   /// [relativePath] is the path within the iCloud container.
   /// [contents] is the full contents to write.
   ///
-  /// Trailing slashes are rejected here because writes are file-centric and
-  /// coordinated through UIDocument/NSDocument.
+  /// Trailing slashes are rejected here because writes are file-centric.
   ///
-  /// Coordinated access writes the full contents as a single operation. Use
-  /// for small text/JSON files.
+  /// Coordinated access writes the full contents as a single operation.
+  /// Existing-file overwrites on Darwin use coordinated atomic replacement so
+  /// the user-visible document path stays stable. Use for small text/JSON
+  /// files.
   static Future<void> writeInPlace({
     required String containerId,
     required String relativePath,
@@ -303,11 +304,11 @@ class ICloudStorage {
   /// [relativePath] is the path within the iCloud container.
   /// [contents] is the full contents to write.
   ///
-  /// Trailing slashes are rejected here because writes are file-centric and
-  /// coordinated through UIDocument/NSDocument.
+  /// Trailing slashes are rejected here because writes are file-centric.
   ///
-  /// Coordinated access writes the full contents as a single operation. Use
-  /// for small files.
+  /// Coordinated access writes the full contents as a single operation.
+  /// Existing-file overwrites on Darwin use coordinated atomic replacement so
+  /// the user-visible document path stays stable. Use for small files.
   static Future<void> writeInPlaceBytes({
     required String containerId,
     required String relativePath,
