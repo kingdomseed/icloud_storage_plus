@@ -11,6 +11,9 @@
 Flutter plugin for iCloud document storage (iOS/macOS) with coordinated file
 access and optional Files app (iCloud Drive) visibility.
 
+Hosted reference docs are available on DeepWiki:
+https://deepwiki.com/kingdomseed/icloud_storage_plus
+
 This package operates inside your app’s iCloud ubiquity container. You choose
 which container to use via the `containerId` you configured in Apple Developer
 Portal / Xcode.
@@ -76,9 +79,19 @@ There are four “tiers” of API in this plugin:
    channel; loads full contents in memory)
    - `readInPlace`, `readInPlaceBytes`
    - `writeInPlace`, `writeInPlaceBytes`
-3. **File management** (filesystem operations)
+   - On iOS and macOS, existing-file writes use coordinated atomic replacement so the
+     destination path stays stable during overwrite.
+   - On iOS and macOS, these file-write overwrite paths reject an existing directory
+     destination instead of replacing it, and they only replace ubiquitous
+     items that are currently up to date.
+3. **File management and queries**
    - `delete`, `move`, `copy`, `rename`
-   - `documentExists`, `getMetadata`, `getDocumentMetadata`
+   - `documentExists`, `getItemMetadata`, `getDocumentMetadata`
+   - On iOS and macOS, copying onto an existing destination also uses coordinated
+     atomic replacement rather than remove-then-copy behavior.
+   - `copy()` keeps its file-or-directory behavior for existing destinations;
+     the stricter file-only overwrite rules apply to file-write APIs such as
+     `uploadFile`, `writeInPlace`, and `writeInPlaceBytes`.
 4. **Container listing** (two complementary approaches)
    - `gather` — NSMetadataQuery-based; sees remote files and document promises;
      provides real-time change notifications and download progress; eventually
@@ -130,8 +143,8 @@ Future<void> example() async {
     localPath: localCopy,
   );
 
-  // 3) Metadata / listing.
-  final metadata = await ICloudStorage.getMetadata(
+  // 3) Typed metadata / listing.
+  final metadata = await ICloudStorage.getItemMetadata(
     containerId: containerId,
     relativePath: notesPath,
   );
@@ -149,8 +162,11 @@ Future<void> example() async {
     // Invalid path segment (starts with '.', contains ':', etc.)
     // This is a Dart-side exception (not a PlatformException).
     throw Exception(e);
+  } on ICloudOperationException catch (e) {
+    // Structured request/response failures are typed in 2.0.0.
+    throw Exception(e);
   } on PlatformException catch (e) {
-    // Native errors (e.g. container missing, file not found, etc.)
+    // Legacy unstructured native failures stay raw PlatformException values.
     throw Exception(e);
   }
 }
@@ -160,6 +176,9 @@ Future<void> example() async {
 
 Progress is delivered via an `EventChannel` as *data events* of type
 `ICloudTransferProgress`. Failures are **not** delivered via stream `onError`.
+In `2.0.0`, transfer-progress failures still carry raw `PlatformException`
+objects in `event.exception` even though structured request/response APIs now
+map to typed Dart exceptions.
 
 Important: the progress stream is listener-driven; start listening immediately
 in the `onProgress` callback or you may miss early events.
@@ -197,13 +216,18 @@ reasons.
 Directory paths can show up with trailing slashes in metadata, so the
 directory-oriented methods accept them:
 
-- `delete`, `move`, `copy`, `rename`, `documentExists`, `getMetadata`,
+- `delete`, `move`, `copy`, `rename`, `documentExists`, `getItemMetadata`,
   `getDocumentMetadata`
 
 File-centric operations reject trailing slashes (they require a file path):
 
 - `uploadFile`, `downloadFile`
 - `readInPlace`, `readInPlaceBytes`, `writeInPlace`, `writeInPlaceBytes`
+
+On iOS and macOS, file-centric overwrite operations also reject an existing directory
+destination instead of replacing it. If you need to replace an existing
+directory tree, use the directory-aware `copy()` APIs rather than a file-write
+operation.
 
 ### Path validation
 
@@ -310,7 +334,32 @@ if (file.downloadStatus == DownloadStatus.current) {
 
 ## Metadata models
 
-### `ICloudFile` (from `gather` / `getMetadata`)
+### `ICloudItemMetadata` (from `getItemMetadata`)
+
+Populated from the known-path metadata request API. This is the typed metadata
+model for request/response use.
+
+```dart
+class ICloudItemMetadata {
+  final String relativePath;
+  final bool isDirectory;
+
+  final int? sizeInBytes;
+  final DateTime? creationDate;
+  final DateTime? contentChangeDate;
+
+  final bool isDownloading;
+  final DownloadStatus? downloadStatus;
+  final bool isUploading;
+  final bool isUploaded;
+  final bool hasUnresolvedConflicts;
+
+  /// Whether the item has local content available.
+  // bool get isLocal => <computed>;
+}
+```
+
+### `ICloudFile` (from `gather`)
 
 Populated from `NSMetadataQuery`. Eventually consistent — the Spotlight index
 may lag behind local filesystem mutations.
@@ -349,7 +398,7 @@ class ContainerItem {
   final bool hasUnresolvedConflicts;
 
   /// Whether the item has local content available.
-  bool get isDownloaded => ...;
+  // bool get isDownloaded => <computed>;
 }
 ```
 
@@ -364,13 +413,48 @@ key lookups that are not part of the current implementation.
 Thrown when you pass an invalid path/name to the Dart API (before calling
 native code).
 
-### Native failures (`PlatformException`)
+### Structured request/response failures (`ICloudOperationException`)
 
-Thrown for container problems, file-not-found, read/write failures, etc.
+Structured native failures from request/response APIs such as `readInPlace`,
+`writeInPlace`, `copy`, `getContainerPath`, and `getItemMetadata` map to typed
+exceptions in `2.0.0`:
+
+- `ICloudContainerAccessException`
+- `ICloudItemNotFoundException`
+- `ICloudConflictException`
+- `ICloudCoordinationException`
+- `ICloudItemNotDownloadedException`
+- `ICloudDownloadInProgressException`
+- `ICloudTimeoutException`
+- `ICloudUnknownNativeException`
+
+For iOS and macOS file-write overwrite operations, trying to overwrite an existing
+directory target is treated as an invalid argument rather than as a successful
+replacement.
+
+These exceptions expose `operation`, `retryable`, `relativePath`, and native
+error context when the platform provides it.
+
+`ICloudCoordinationException` is reserved for structured coordination failures.
+Current iOS and macOS native implementations still classify some lower-level
+coordination problems as `ICloudUnknownNativeException` when they do not yet
+emit an explicit `coordination` category.
+
+### Raw `PlatformException` cases
+
+`PlatformException` is still the contract for:
+
+- legacy unstructured request/response failures
+- `getDocumentMetadata()`
+- transfer-progress stream error events (`event.exception`)
+
 `PlatformExceptionCode` contains constants:
 
 - `E_CTR` (iCloud container/permission issues)
+- `E_CONFLICT` (structured conflict failures)
 - `E_FNF` (file not found)
+- `E_NOT_DOWNLOADED` (structured nonlocal placeholder failures)
+- `E_DOWNLOAD_IN_PROGRESS` (structured active-download failures)
 - `E_FNF_READ` (file not found during read)
 - `E_FNF_WRITE` (file not found during write)
 - `E_NAT` (native error)
@@ -396,8 +480,8 @@ Thrown for container problems, file-not-found, read/write failures, etc.
 
 ## Documentation
 
-- Deeper implementation notes are available under `doc/`:
-  - `doc/README.md`
+- Hosted DeepWiki reference: https://deepwiki.com/kingdomseed/icloud_storage_plus
+- Local notes index: `doc/README.md`
 
 ## License
 

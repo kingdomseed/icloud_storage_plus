@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.0.0] - 2026-04-09
+
+Breaking release that hardens the Dart API contract around known-path metadata,
+typed request/response failures, and coordinated overwrite behavior on iOS and
+macOS.
+
+### BREAKING CHANGES
+- Removed the old typed `getMetadata()` API in favor of `getItemMetadata()`.
+- Structured native request/response failures now map to typed
+  `ICloudOperationException` subclasses across the Dart API.
+- `getDocumentMetadata()` remains the raw metadata escape hatch and preserves
+  raw `PlatformException` behavior.
+
+### Added
+- `ICloudItemMetadata` as the typed known-path metadata model returned by
+  `getItemMetadata()`.
+- Typed request/response exception mapping for structured native payloads,
+  including container access, not found, conflict, download-in-progress, item
+  not downloaded, and timeout cases.
+
+### Changed
+- README, example code, and public Dart doc comments now document the `2.0.0`
+  contract explicitly, including the separation between `ICloudItemMetadata`,
+  `ICloudFile`, and raw `getDocumentMetadata()` payloads.
+- Transfer-progress streams continue to emit `PlatformException`-based error
+  payloads in `2.0.0`; only request/response APIs use the new typed exception
+  mapping.
+- README, changelog, and public Dart doc comments now describe the final iOS
+  and macOS coordinated replacement behavior for existing-destination writes
+  and copies.
+- On iOS and macOS, file-write overwrite APIs and `copy()` now document
+  separate existing-destination semantics: file writes target files only,
+  while `copy()` preserves file-or-directory copy behavior.
+- The iOS and macOS coordinated replacement logic now has standalone
+  Foundation-level Swift test seams, with helper XCTest coverage for overwrite
+  and existing-destination copy replacement behavior.
+- Repository documentation now points to the hosted DeepWiki site instead of
+  keeping a checked-in export under `doc/deepwiki/`.
+
+### Fixed
+- iOS and macOS existing-file `writeDocument`, `writeInPlace`, and
+  `writeInPlaceBytes` now stage replacement content outside the ubiquity
+  container and replace the destination through coordinated atomic replacement.
+- iOS and macOS keep the `1.2.2` download-wait completion fix that dispatches
+  `UIDocument` completion back onto `DispatchQueue.main`, avoiding the
+  `_os_object_retain` resurrection crash from short-lived local queues.
+- On iOS and macOS, file-write overwrite APIs now reject existing directory
+  destinations instead of replacing them.
+- On iOS and macOS, existing ubiquitous items must be `.current` before
+  replacement, and `.downloaded` is now rejected as not yet replace-safe.
+- iOS and macOS `copy()` now keep existing destinations inside coordinated
+  atomic replacement flows instead of removing the destination before copying.
+
 ## [1.2.2] - 2026-03-30
 
 ### Fixed

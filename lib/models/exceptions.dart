@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 /// An exception class used for development. It's used when invalid argument
 /// is passed to the API
 class InvalidArgumentException implements Exception {
@@ -15,6 +17,18 @@ class PlatformExceptionCode {
   /// The code indicates iCloud container ID is not valid, or user is not signed
   /// in to iCloud, or user denied iCloud permission for this app
   static const String iCloudConnectionOrPermission = 'E_CTR';
+
+  /// The code indicates the operation failed due to a coordination conflict.
+  static const String conflict = 'E_CONFLICT';
+
+  /// The code indicates the item is not downloaded locally yet.
+  static const String itemNotDownloaded = 'E_NOT_DOWNLOADED';
+
+  /// The code indicates a download is already in progress.
+  static const String downloadInProgress = 'E_DOWNLOAD_IN_PROGRESS';
+
+  /// The code indicates file coordination failed.
+  static const String coordination = 'E_COORDINATION';
 
   /// The code indicates file not found
   static const String fileNotFound = 'E_FNF';
@@ -53,4 +67,250 @@ class PlatformExceptionCode {
   /// This represents a bug in the plugin. Please open a GitHub issue if you
   /// encounter this error.
   static const String invalidEvent = 'E_INVALID_EVENT';
+}
+
+/// Base class for typed iCloud operation failures surfaced from native code.
+class ICloudOperationException implements Exception {
+  /// Creates a typed iCloud operation exception.
+  const ICloudOperationException({
+    required this.category,
+    required this.operation,
+    required this.retryable,
+    required this.message,
+    this.relativePath,
+    this.nativeDomain,
+    this.nativeCode,
+    this.nativeDescription,
+    this.underlying,
+  });
+
+  /// Stable error category from the native payload.
+  final String category;
+
+  /// Operation name that failed.
+  final String operation;
+
+  /// Whether retrying the operation may succeed.
+  final bool retryable;
+
+  /// Human-readable failure message.
+  final String message;
+
+  /// Relative path associated with the failure, when present.
+  final String? relativePath;
+
+  /// Native error domain, when present.
+  final String? nativeDomain;
+
+  /// Native error code, when present.
+  final int? nativeCode;
+
+  /// Native error description, when present.
+  final String? nativeDescription;
+
+  /// Underlying native error payload, when present.
+  final Object? underlying;
+
+  @override
+  String toString() => '$category: $message';
+}
+
+/// Thrown when the requested item does not exist.
+class ICloudItemNotFoundException extends ICloudOperationException {
+  /// Creates an item-not-found exception.
+  ICloudItemNotFoundException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when the iCloud container cannot be accessed.
+class ICloudContainerAccessException extends ICloudOperationException {
+  /// Creates a container-access exception.
+  ICloudContainerAccessException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when file coordination detects a conflict.
+class ICloudConflictException extends ICloudOperationException {
+  /// Creates a conflict exception.
+  ICloudConflictException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when an item must be downloaded before use.
+class ICloudItemNotDownloadedException extends ICloudOperationException {
+  /// Creates an item-not-downloaded exception.
+  ICloudItemNotDownloadedException._(
+    _ICloudOperationExceptionData data,
+  ) : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when a download is already active for the item.
+class ICloudDownloadInProgressException extends ICloudOperationException {
+  /// Creates a download-in-progress exception.
+  ICloudDownloadInProgressException._(
+    _ICloudOperationExceptionData data,
+  ) : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when a native request times out.
+class ICloudTimeoutException extends ICloudOperationException {
+  /// Creates a timeout exception.
+  ICloudTimeoutException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when file coordination fails for another reason.
+class ICloudCoordinationException extends ICloudOperationException {
+  /// Creates a coordination exception.
+  ICloudCoordinationException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Thrown when native code reports an unknown structured failure.
+class ICloudUnknownNativeException extends ICloudOperationException {
+  /// Creates an unknown native exception.
+  ICloudUnknownNativeException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
+/// Maps a structured platform exception into a typed iCloud exception.
+ICloudOperationException mapICloudPlatformException(PlatformException error) {
+  final details = error.details;
+  final payload = details is Map ? details : const <Object?, Object?>{};
+  final data = _ICloudOperationExceptionData(
+    category: _readString(payload, 'category') ?? 'unknownNative',
+    operation: _readString(payload, 'operation') ?? 'unknown',
+    retryable: payload['retryable'] == true,
+    message: error.message ?? 'iCloud operation failed',
+    relativePath: _readString(payload, 'relativePath'),
+    nativeDomain: _readString(payload, 'nativeDomain'),
+    nativeCode: _readInt(payload, 'nativeCode'),
+    nativeDescription: _readString(payload, 'nativeDescription'),
+    underlying: payload['underlying'],
+  );
+
+  return switch (data.category) {
+    'itemNotFound' => ICloudItemNotFoundException._(data),
+    'containerAccess' => ICloudContainerAccessException._(data),
+    'conflict' => ICloudConflictException._(data),
+    'itemNotDownloaded' => ICloudItemNotDownloadedException._(data),
+    'downloadInProgress' => ICloudDownloadInProgressException._(data),
+    'timeout' => ICloudTimeoutException._(data),
+    'coordination' => ICloudCoordinationException._(data),
+    _ => ICloudUnknownNativeException._(data),
+  };
+}
+
+class _ICloudOperationExceptionData {
+  const _ICloudOperationExceptionData({
+    required this.category,
+    required this.operation,
+    required this.retryable,
+    required this.message,
+    this.relativePath,
+    this.nativeDomain,
+    this.nativeCode,
+    this.nativeDescription,
+    this.underlying,
+  });
+
+  final String category;
+  final String operation;
+  final bool retryable;
+  final String message;
+  final String? relativePath;
+  final String? nativeDomain;
+  final int? nativeCode;
+  final String? nativeDescription;
+  final Object? underlying;
+}
+
+String? _readString(Map<Object?, Object?> payload, String key) {
+  final value = payload[key];
+  return value is String ? value : null;
+}
+
+int? _readInt(Map<Object?, Object?> payload, String key) {
+  final value = payload[key];
+  return value is int ? value : null;
 }

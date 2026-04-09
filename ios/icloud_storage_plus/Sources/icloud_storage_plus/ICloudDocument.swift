@@ -357,26 +357,29 @@ extension ICloudStoragePlugin {
         sourceURL: URL,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudDocument(fileURL: url)
-        document.sourceURL = sourceURL
+        performBackgroundOverwriteIfNeeded(
+            at: url,
+            prepareReplacementFile: { replacementURL in
+                try streamCopyToURL(from: sourceURL, to: replacementURL)
+            },
+            completion: completion
+        ) {
+            let document = ICloudDocument(fileURL: url)
+            document.sourceURL = sourceURL
 
-        let saveOperation: UIDocument.SaveOperation =
-            FileManager.default.fileExists(atPath: url.path)
-            ? .forOverwriting
-            : .forCreating
-
-        document.save(to: url, for: saveOperation) { success in
-            if success {
-                document.close { _ in
-                    completion(nil)
+            document.save(to: url, for: .forCreating) { success in
+                if success {
+                    document.close { _ in
+                        completion(nil)
+                    }
+                } else {
+                    let error = document.lastError ?? NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileWriteUnknownError,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
+                    )
+                    completion(error)
                 }
-            } else {
-                let error = document.lastError ?? NSError(
-                    domain: NSCocoaErrorDomain,
-                    code: NSFileWriteUnknownError,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
-                )
-                completion(error)
             }
         }
     }
@@ -476,26 +479,29 @@ extension ICloudStoragePlugin {
         contents: String,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudInPlaceDocument(fileURL: url)
-        document.textContents = contents
+        performBackgroundOverwriteIfNeeded(
+            at: url,
+            prepareReplacementFile: { replacementURL in
+                try writeTextToURL(contents, to: replacementURL)
+            },
+            completion: completion
+        ) {
+            let document = ICloudInPlaceDocument(fileURL: url)
+            document.textContents = contents
 
-        let saveOperation: UIDocument.SaveOperation =
-            FileManager.default.fileExists(atPath: url.path)
-                ? .forOverwriting
-                : .forCreating
-
-        document.save(to: url, for: saveOperation) { success in
-            if success {
-                document.close { _ in
-                    completion(nil)
+            document.save(to: url, for: .forCreating) { success in
+                if success {
+                    document.close { _ in
+                        completion(nil)
+                    }
+                } else {
+                    let error = document.lastError ?? NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileWriteUnknownError,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
+                    )
+                    completion(error)
                 }
-            } else {
-                let error = document.lastError ?? NSError(
-                    domain: NSCocoaErrorDomain,
-                    code: NSFileWriteUnknownError,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
-                )
-                completion(error)
             }
         }
     }
@@ -506,27 +512,60 @@ extension ICloudStoragePlugin {
         contents: Data,
         completion: @escaping (Error?) -> Void
     ) {
-        let document = ICloudInPlaceBinaryDocument(fileURL: url)
-        document.dataContents = contents
+        performBackgroundOverwriteIfNeeded(
+            at: url,
+            prepareReplacementFile: { replacementURL in
+                try writeDataToURL(contents, to: replacementURL)
+            },
+            completion: completion
+        ) {
+            let document = ICloudInPlaceBinaryDocument(fileURL: url)
+            document.dataContents = contents
 
-        let saveOperation: UIDocument.SaveOperation =
-            FileManager.default.fileExists(atPath: url.path)
-            ? .forOverwriting
-            : .forCreating
-
-        document.save(to: url, for: saveOperation) { success in
-            if success {
-                document.close { _ in
-                    completion(nil)
+            document.save(to: url, for: .forCreating) { success in
+                if success {
+                    document.close { _ in
+                        completion(nil)
+                    }
+                } else {
+                    let error = document.lastError ?? NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileWriteUnknownError,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
+                    )
+                    completion(error)
                 }
-            } else {
-                let error = document.lastError ?? NSError(
-                    domain: NSCocoaErrorDomain,
-                    code: NSFileWriteUnknownError,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to save document"]
-                )
-                completion(error)
             }
         }
+    }
+}
+
+private func performBackgroundOverwriteIfNeeded(
+    at url: URL,
+    prepareReplacementFile: @escaping (URL) throws -> Void,
+    completion: @escaping (Error?) -> Void,
+    fallbackCreate: @escaping () -> Void
+) {
+    DispatchQueue.global(qos: .userInitiated).async {
+        do {
+            let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                at: url,
+                prepareReplacementFile: prepareReplacementFile
+            )
+
+            if handled {
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+        } catch {
+            DispatchQueue.main.async {
+                completion(error)
+            }
+            return
+        }
+
+        DispatchQueue.main.async(execute: fallbackCreate)
     }
 }

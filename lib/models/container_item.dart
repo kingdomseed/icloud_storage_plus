@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:icloud_storage_plus/models/download_status.dart';
 import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 
@@ -31,9 +32,7 @@ class ContainerItem extends Equatable {
   /// `isDirectory` (bool?).
   ContainerItem.fromMap(Map<dynamic, dynamic> map)
       : relativePath = _requireRelativePath(map),
-        downloadStatus = _mapDownloadStatus(
-          map['downloadStatus'] as String?,
-        ),
+        downloadStatus = parseDownloadStatus(map['downloadStatus'] as String?),
         isDownloading = (map['isDownloading'] as bool?) ?? false,
         isUploaded = (map['isUploaded'] as bool?) ?? false,
         isUploading = (map['isUploading'] as bool?) ?? false,
@@ -94,15 +93,5 @@ class ContainerItem extends Equatable {
       'relativePath is required and must be a String '
       '(got: ${value.runtimeType})',
     );
-  }
-
-  static DownloadStatus? _mapDownloadStatus(String? key) {
-    if (key == null) return null;
-    return switch (key) {
-      'notDownloaded' => DownloadStatus.notDownloaded,
-      'downloaded' => DownloadStatus.downloaded,
-      'current' => DownloadStatus.current,
-      _ => null,
-    };
   }
 }

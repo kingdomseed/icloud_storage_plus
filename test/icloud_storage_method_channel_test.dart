@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icloud_storage_plus/icloud_storage_method_channel.dart';
+import 'package:icloud_storage_plus/models/exceptions.dart';
 import 'package:icloud_storage_plus/models/icloud_file.dart';
 import 'package:icloud_storage_plus/models/transfer_progress.dart';
 
@@ -8,6 +9,7 @@ void main() {
   final platform = MethodChannelICloudStorage();
   const channel = MethodChannel('icloud_storage_plus');
   late MethodCall mockMethodCall;
+  final mockMethodCalls = <MethodCall>[];
   const containerId = 'containerId';
   MockStreamHandler? mockStreamHandler;
   String? lastEventChannelName;
@@ -20,6 +22,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (methodCall) async {
       mockMethodCall = methodCall;
+      mockMethodCalls.add(methodCall);
       switch (methodCall.method) {
         case 'createEventChannel':
           final args = mockArguments();
@@ -55,6 +58,12 @@ void main() {
             'relativePath': 'meta.txt',
             'isDirectory': false,
           };
+        case 'getItemMetadata':
+          return {
+            'relativePath': 'item.txt',
+            'isDirectory': false,
+            'downloadStatus': 'NSURLUbiquitousItemDownloadingStatusCurrent',
+          };
         case 'getContainerPath':
           return '/container/path';
         case 'readInPlace':
@@ -74,6 +83,7 @@ void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
+    mockMethodCalls.clear();
     if (lastEventChannelName != null) {
       final eventChannel = EventChannel(lastEventChannelName!);
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -433,8 +443,410 @@ void main() {
     expect(metadata?['relativePath'], 'meta.txt');
   });
 
+  test('getDocumentMetadata preserves raw native downloadStatus', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'getDocumentMetadata') {
+        return {
+          'relativePath': 'meta.txt',
+          'isDirectory': false,
+          'downloadStatus': 'NSURLUbiquitousItemDownloadingStatusCurrent',
+        };
+      }
+      return null;
+    });
+
+    final metadata = await platform.getDocumentMetadata(
+      containerId: containerId,
+      relativePath: 'file',
+    );
+
+    expect(
+      metadata?['downloadStatus'],
+      'NSURLUbiquitousItemDownloadingStatusCurrent',
+    );
+  });
+
+  test(
+    'getDocumentMetadata keeps structured PlatformException behavior raw',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'getDocumentMetadata') {
+          throw PlatformException(
+            code: PlatformExceptionCode.conflict,
+            message: 'Conflict detected',
+            details: {
+              'category': 'conflict',
+              'operation': 'getDocumentMetadata',
+              'retryable': false,
+              'relativePath': 'file',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.getDocumentMetadata(
+          containerId: containerId,
+          relativePath: 'file',
+        ),
+        throwsA(
+          isA<PlatformException>()
+              .having(
+                (error) => error.code,
+                'code',
+                PlatformExceptionCode.conflict,
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                'Conflict detected',
+              ),
+        ),
+      );
+    },
+  );
+
+  test('getItemMetadata returns mapped metadata', () async {
+    final metadata = await platform.getItemMetadata(
+      containerId: containerId,
+      relativePath: 'file',
+    );
+
+    expect(metadata?['relativePath'], 'item.txt');
+    expect(metadata?['isDirectory'], isFalse);
+    expect(metadata?['downloadStatus'], 'current');
+  });
+
+  test('getItemMetadata preserves unknown native downloadStatus values',
+      () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'getItemMetadata') {
+        return {
+          'relativePath': 'item.txt',
+          'isDirectory': false,
+          'downloadStatus': 'NSURLUbiquitousItemDownloadingStatusMystery',
+        };
+      }
+      return null;
+    });
+
+    final metadata = await platform.getItemMetadata(
+      containerId: containerId,
+      relativePath: 'file',
+    );
+
+    expect(
+      metadata?['downloadStatus'],
+      'NSURLUbiquitousItemDownloadingStatusMystery',
+    );
+  });
+
+  test('getItemMetadata returns null', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      mockMethodCall = methodCall;
+      mockMethodCalls.add(methodCall);
+      if (methodCall.method == 'getItemMetadata') {
+        return null;
+      }
+      return null;
+    });
+
+    final metadata = await platform.getItemMetadata(
+      containerId: containerId,
+      relativePath: 'file',
+    );
+
+    expect(metadata, isNull);
+  });
+
+  test('getItemMetadata falls back when new method is unimplemented', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      mockMethodCall = methodCall;
+      mockMethodCalls.add(methodCall);
+      switch (methodCall.method) {
+        case 'getItemMetadata':
+          throw MissingPluginException();
+        case 'getDocumentMetadata':
+          return {
+            'relativePath': 'fallback.txt',
+            'isDirectory': false,
+            'downloadStatus':
+                'NSMetadataUbiquitousItemDownloadingStatusNotDownloaded',
+          };
+        default:
+          return null;
+      }
+    });
+
+    final metadata = await platform.getItemMetadata(
+      containerId: containerId,
+      relativePath: 'file',
+    );
+
+    expect(metadata?['relativePath'], 'fallback.txt');
+    expect(metadata?['downloadStatus'], 'notDownloaded');
+    expect(
+      mockMethodCalls.map((call) => call.method),
+      ['getItemMetadata', 'getDocumentMetadata'],
+    );
+  });
+
+  test('getItemMetadata maps structured conflict payloads', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'getItemMetadata') {
+        throw PlatformException(
+          code: PlatformExceptionCode.conflict,
+          message: 'Conflict detected',
+          details: {
+            'category': 'conflict',
+            'operation': 'getItemMetadata',
+            'retryable': false,
+            'relativePath': 'file',
+          },
+        );
+      }
+      return null;
+    });
+
+    await expectLater(
+      () => platform.getItemMetadata(
+        containerId: containerId,
+        relativePath: 'file',
+      ),
+      throwsA(isA<ICloudConflictException>()),
+    );
+  });
+
+  test('getItemMetadata maps structured timeout payloads', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'getItemMetadata') {
+        throw PlatformException(
+          code: PlatformExceptionCode.timeout,
+          message: 'Timed out',
+          details: {
+            'category': 'timeout',
+            'operation': 'getItemMetadata',
+            'retryable': true,
+            'relativePath': 'file',
+          },
+        );
+      }
+      return null;
+    });
+
+    await expectLater(
+      () => platform.getItemMetadata(
+        containerId: containerId,
+        relativePath: 'file',
+      ),
+      throwsA(isA<ICloudTimeoutException>()),
+    );
+  });
+
   test('getContainerPath', () async {
     final path = await platform.getContainerPath(containerId: containerId);
     expect(path, '/container/path');
   });
+
+  test('copy maps structured downloadInProgress payloads', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'copy') {
+        throw PlatformException(
+          code: PlatformExceptionCode.downloadInProgress,
+          message: 'Download already in progress',
+          details: {
+            'category': 'downloadInProgress',
+            'operation': 'copy',
+            'retryable': true,
+            'relativePath': 'destination/file.txt',
+          },
+        );
+      }
+      return null;
+    });
+
+    await expectLater(
+      () => platform.copy(
+        containerId: containerId,
+        fromRelativePath: 'source/file.txt',
+        toRelativePath: 'destination/file.txt',
+      ),
+      throwsA(
+        isA<ICloudDownloadInProgressException>()
+            .having(
+              (error) => error.relativePath,
+              'relativePath',
+              'destination/file.txt',
+            )
+            .having((error) => error.operation, 'operation', 'copy'),
+      ),
+    );
+  });
+
+  test('icloudAvailable keeps raw PlatformException behavior', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'icloudAvailable') {
+        throw PlatformException(
+          code: PlatformExceptionCode.timeout,
+          message: 'Timed out',
+          details: {
+            'category': 'timeout',
+            'operation': 'icloudAvailable',
+            'retryable': true,
+          },
+        );
+      }
+      return null;
+    });
+
+    await expectLater(
+      platform.icloudAvailable,
+      throwsA(isA<PlatformException>()),
+    );
+  });
+
+  test(
+    'getContainerPath maps request response PlatformException '
+    'to ICloudContainerAccessException',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        throw PlatformException(
+          code: PlatformExceptionCode.iCloudConnectionOrPermission,
+          message: 'Container unavailable',
+          details: {
+            'category': 'containerAccess',
+            'operation': 'getContainerPath',
+            'retryable': false,
+          },
+        );
+      });
+
+      await expectLater(
+        () => platform.getContainerPath(containerId: containerId),
+        throwsA(isA<ICloudContainerAccessException>()),
+      );
+    },
+  );
+
+  test(
+    'legacy code only getContainerPath PlatformException is preserved',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        throw PlatformException(
+          code: PlatformExceptionCode.iCloudConnectionOrPermission,
+          message: 'Legacy container failure',
+        );
+      });
+
+      await expectLater(
+        () => platform.getContainerPath(containerId: containerId),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            PlatformExceptionCode.iCloudConnectionOrPermission,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('request response APIs use typed mapping', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'readInPlace') {
+        throw PlatformException(
+          code: PlatformExceptionCode.timeout,
+          message: 'Timed out',
+          details: {
+            'category': 'timeout',
+            'operation': 'readInPlace',
+            'retryable': true,
+            'relativePath': 'Documents/test.json',
+          },
+        );
+      }
+      return null;
+    });
+
+    await expectLater(
+      () => platform.readInPlace(
+        containerId: containerId,
+        relativePath: 'Documents/test.json',
+      ),
+      throwsA(isA<ICloudTimeoutException>()),
+    );
+  });
+
+  test('legacy code only listContents PlatformException is preserved',
+      () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (methodCall) async {
+      if (methodCall.method == 'listContents') {
+        throw PlatformException(
+          code: PlatformExceptionCode.timeout,
+          message: 'Legacy timeout',
+        );
+      }
+      return null;
+    });
+
+    await expectLater(
+      () => platform.listContents(containerId: containerId),
+      throwsA(
+        isA<PlatformException>().having(
+          (error) => error.code,
+          'code',
+          PlatformExceptionCode.timeout,
+        ),
+      ),
+    );
+  });
+
+  test(
+    'transfer progress stream errors remain PlatformException based',
+    () async {
+      mockStreamHandler = MockStreamHandler.inline(
+        onListen: (arguments, events) {
+          events.error(
+            code: PlatformExceptionCode.timeout,
+            message: 'Timed out',
+            details: {
+              'category': 'timeout',
+              'operation': 'downloadFile',
+              'retryable': true,
+            },
+          );
+        },
+      );
+
+      late Stream<ICloudTransferProgress> progressStream;
+
+      await platform.downloadFile(
+        containerId: containerId,
+        cloudRelativePath: 'file',
+        localPath: '/tmp/file',
+        onProgress: (stream) {
+          progressStream = stream;
+        },
+      );
+
+      final events = await progressStream.toList();
+      expect(events, hasLength(1));
+      expect(events.first.exception, isA<PlatformException>());
+      expect(events.first.exception, isNot(isA<ICloudTimeoutException>()));
+    },
+  );
 }

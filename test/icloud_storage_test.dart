@@ -36,6 +36,15 @@ class MockICloudStoragePlatform
   String get writeInPlaceContents => _writeInPlaceContents;
 
   bool documentExistsResult = true;
+  Map<String, dynamic>? itemMetadataResult = {
+    'relativePath': 'Documents/test.pdf',
+    'isDirectory': false,
+    'sizeInBytes': 1024,
+    'creationDate': 1638288000.0,
+    'contentChangeDate': 1638374400.0,
+    'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
+    'hasUnresolvedConflicts': false,
+  };
   Map<String, dynamic>? documentMetadataResult = {
     'relativePath': 'Documents/test.pdf',
     'isDirectory': false,
@@ -181,6 +190,15 @@ class MockICloudStoragePlatform
   }
 
   @override
+  Future<Map<String, dynamic>?> getItemMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    _calls.add('getItemMetadata');
+    return itemMetadataResult;
+  }
+
+  @override
   Future<List<ContainerItem>> listContents({
     required String containerId,
     String? relativePath,
@@ -192,12 +210,59 @@ class MockICloudStoragePlatform
   List<ContainerItem> listContentsResult = [];
 }
 
+class LegacyDocumentMetadataPlatform extends ICloudStoragePlatform
+    with MockPlatformInterfaceMixin {
+  @override
+  Future<Map<String, dynamic>?> getDocumentMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    return {
+      'relativePath': relativePath,
+      'isDirectory': false,
+      'downloadStatus': 'current',
+    };
+  }
+}
+
 void main() {
   final initialPlatform = ICloudStoragePlatform.instance;
 
   test('$MethodChannelICloudStorage is the default instance', () {
     expect(initialPlatform, isInstanceOf<MethodChannelICloudStorage>());
   });
+
+  test('barrel exports DownloadStatus and ICloudItemMetadata', () {
+    final metadata = ICloudItemMetadata.fromMap(const {
+      'relativePath': 'Documents/test.pdf',
+      'downloadStatus': 'current',
+    });
+
+    expect(metadata.downloadStatus, DownloadStatus.current);
+    expect(metadata.isLocal, isTrue);
+  });
+
+  test(
+    'getItemMetadata works with platforms that only override '
+    'getDocumentMetadata',
+    () async {
+      final previousPlatform = ICloudStoragePlatform.instance;
+      ICloudStoragePlatform.instance = LegacyDocumentMetadataPlatform();
+
+      addTearDown(() {
+        ICloudStoragePlatform.instance = previousPlatform;
+      });
+
+      final metadata = await ICloudStorage.getItemMetadata(
+        containerId: 'containerId',
+        relativePath: 'Documents/legacy.txt',
+      );
+
+      expect(metadata, isNotNull);
+      expect(metadata?.relativePath, 'Documents/legacy.txt');
+      expect(metadata?.downloadStatus, DownloadStatus.current);
+    },
+  );
 
   group('ICloudStorage static functions:', () {
     const containerId = 'containerId';
@@ -207,6 +272,15 @@ void main() {
     setUp(() {
       fakePlatform
         ..documentExistsResult = true
+        ..itemMetadataResult = {
+          'relativePath': 'Documents/test.pdf',
+          'isDirectory': false,
+          'sizeInBytes': 1024,
+          'creationDate': 1638288000.0,
+          'contentChangeDate': 1638374400.0,
+          'downloadStatus': 'NSMetadataUbiquitousItemDownloadingStatusCurrent',
+          'hasUnresolvedConflicts': false,
+        }
         ..documentMetadataResult = {
           'relativePath': 'Documents/test.pdf',
           'isDirectory': false,
@@ -468,30 +542,44 @@ void main() {
       expect(fakePlatform.calls.last, 'delete');
     });
 
-    test('getMetadata accepts trailing slash', () async {
-      await ICloudStorage.getMetadata(
+    test('getItemMetadata accepts trailing slash', () async {
+      await ICloudStorage.getItemMetadata(
         containerId: containerId,
         relativePath: 'Documents/folder/',
       );
-      expect(fakePlatform.calls.last, 'getDocumentMetadata');
+      expect(fakePlatform.calls.last, 'getItemMetadata');
     });
 
-    test('getMetadata returns ICloudFile', () async {
-      final metadata = await ICloudStorage.getMetadata(
+    test('getItemMetadata returns typed metadata for an existing item',
+        () async {
+      final metadata = await ICloudStorage.getItemMetadata(
         containerId: containerId,
         relativePath: 'Documents/test.pdf',
       );
+
+      expect(metadata, isA<ICloudItemMetadata>());
       expect(metadata?.relativePath, 'Documents/test.pdf');
     });
 
-    test('getMetadata maps NSURL download status constants', () async {
-      fakePlatform.documentMetadataResult = {
+    test('getItemMetadata returns null for a missing item', () async {
+      fakePlatform.itemMetadataResult = null;
+
+      final metadata = await ICloudStorage.getItemMetadata(
+        containerId: containerId,
+        relativePath: 'Documents/missing.pdf',
+      );
+
+      expect(metadata, isNull);
+    });
+
+    test('getItemMetadata maps NSURL download status constants', () async {
+      fakePlatform.itemMetadataResult = {
         'relativePath': 'Documents/test.pdf',
         'isDirectory': false,
         'downloadStatus': 'NSURLUbiquitousItemDownloadingStatusCurrent',
       };
 
-      final metadata = await ICloudStorage.getMetadata(
+      final metadata = await ICloudStorage.getItemMetadata(
         containerId: containerId,
         relativePath: 'Documents/test.pdf',
       );
@@ -499,12 +587,21 @@ void main() {
       expect(metadata?.downloadStatus, DownloadStatus.current);
     });
 
-    test('getDocumentMetadata returns raw map', () async {
+    test('getDocumentMetadata returns raw map without status normalization',
+        () async {
       final metadata = await ICloudStorage.getDocumentMetadata(
         containerId: containerId,
         relativePath: 'Documents/test.pdf',
       );
+
       expect(metadata?['relativePath'], 'Documents/test.pdf');
+      expect(
+        metadata?['downloadStatus'],
+        'NSMetadataUbiquitousItemDownloadingStatusCurrent',
+      );
+      expect(metadata?['sizeInBytes'], 1024);
+      expect(metadata?['isDirectory'], isFalse);
+      expect(metadata?['hasUnresolvedConflicts'], isFalse);
     });
 
     group('listContents tests:', () {
