@@ -1278,6 +1278,46 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
     let toURL = containerURL.appendingPathComponent(toRelativePath)
     let fileCoordinator = NSFileCoordinator(filePresenter: nil)
+    var handledExistingDestination = false
+    var overwriteError: Error?
+
+    fileCoordinator.coordinate(
+      readingItemAt: fromURL,
+      options: .withoutChanges,
+      error: nil
+    ) { fromReadingURL in
+      do {
+        handledExistingDestination = try CoordinatedReplaceWriter.live
+          .copyItemOverwritingExistingItem(
+            from: fromReadingURL,
+            to: toURL
+          ) { sourceURL, replacementURL in
+            let toDirURL = replacementURL.deletingLastPathComponent()
+            if !FileManager.default.fileExists(atPath: toDirURL.path) {
+              try FileManager.default.createDirectory(
+                at: toDirURL,
+                withIntermediateDirectories: true,
+                attributes: nil
+              )
+            }
+
+            try FileManager.default.copyItem(at: sourceURL, to: replacementURL)
+          }
+      } catch {
+        overwriteError = error
+      }
+    }
+
+    if let overwriteError {
+      DebugHelper.log("copy error: \(overwriteError.localizedDescription)")
+      result(nativeCodeError(overwriteError))
+      return
+    }
+
+    if handledExistingDestination {
+      result(nil)
+      return
+    }
 
     // Use reading coordination for source and writing coordination for destination
     fileCoordinator.coordinate(

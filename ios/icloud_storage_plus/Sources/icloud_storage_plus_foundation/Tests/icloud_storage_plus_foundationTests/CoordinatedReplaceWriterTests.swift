@@ -3,6 +3,43 @@ import XCTest
 @testable import icloud_storage_plus_foundation
 
 final class CoordinatedReplaceWriterTests: XCTestCase {
+    func testCopyItemOverwritingExistingItemCopiesIntoReplacementURL() throws {
+        let sourceURL = URL(fileURLWithPath: "/tmp/source.json")
+        let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
+        let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
+        let replacementURL = replacementDirectory
+            .appendingPathComponent(destinationURL.lastPathComponent)
+        var copiedSourceURL: URL?
+        var copiedReplacementURL: URL?
+        var replacedDestinationURL: URL?
+        var replacedItemURL: URL?
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            createReplacementDirectory: { _ in replacementDirectory },
+            coordinateReplace: { url, accessor in try accessor(url) },
+            replaceItem: { destinationURL, replacementURL in
+                replacedDestinationURL = destinationURL
+                replacedItemURL = replacementURL
+            },
+            removeItem: { _ in }
+        )
+
+        let handled = try writer.copyItemOverwritingExistingItem(
+            from: sourceURL,
+            to: destinationURL
+        ) { sourceURL, replacementURL in
+            copiedSourceURL = sourceURL
+            copiedReplacementURL = replacementURL
+        }
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(copiedSourceURL, sourceURL)
+        XCTAssertEqual(copiedReplacementURL, replacementURL)
+        XCTAssertEqual(replacedDestinationURL, destinationURL)
+        XCTAssertEqual(replacedItemURL, replacementURL)
+    }
+
     func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() throws {
         var preparedReplacement = false
 

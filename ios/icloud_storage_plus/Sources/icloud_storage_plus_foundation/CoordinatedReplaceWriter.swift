@@ -38,4 +38,14 @@ struct CoordinatedReplaceWriter {
         try? removeItem(replacementDirectory)
         return true
     }
+
+    func copyItemOverwritingExistingItem(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        copyItem: (URL, URL) throws -> Void
+    ) throws -> Bool {
+        try overwriteExistingItem(at: destinationURL) { replacementURL in
+            try copyItem(sourceURL, replacementURL)
+        }
+    }
 }
