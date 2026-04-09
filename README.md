@@ -79,13 +79,19 @@ There are four “tiers” of API in this plugin:
    channel; loads full contents in memory)
    - `readInPlace`, `readInPlaceBytes`
    - `writeInPlace`, `writeInPlaceBytes`
-   - On Darwin, existing-file writes use coordinated atomic replacement so the
+   - On iOS and macOS, existing-file writes use coordinated atomic replacement so the
      destination path stays stable during overwrite.
+   - On iOS and macOS, these file-write overwrite paths reject an existing directory
+     destination instead of replacing it, and they only replace ubiquitous
+     items that are currently up to date.
 3. **File management and queries**
-     - `delete`, `move`, `copy`, `rename`
-     - `documentExists`, `getItemMetadata`, `getDocumentMetadata`
-     - On Darwin, copying onto an existing destination also uses coordinated
-       atomic replacement rather than remove-then-copy behavior.
+   - `delete`, `move`, `copy`, `rename`
+   - `documentExists`, `getItemMetadata`, `getDocumentMetadata`
+   - On iOS and macOS, copying onto an existing destination also uses coordinated
+     atomic replacement rather than remove-then-copy behavior.
+   - `copy()` keeps its file-or-directory behavior for existing destinations;
+     the stricter file-only overwrite rules apply to file-write APIs such as
+     `uploadFile`, `writeInPlace`, and `writeInPlaceBytes`.
 4. **Container listing** (two complementary approaches)
    - `gather` — NSMetadataQuery-based; sees remote files and document promises;
      provides real-time change notifications and download progress; eventually
@@ -217,6 +223,11 @@ File-centric operations reject trailing slashes (they require a file path):
 
 - `uploadFile`, `downloadFile`
 - `readInPlace`, `readInPlaceBytes`, `writeInPlace`, `writeInPlaceBytes`
+
+On iOS and macOS, file-centric overwrite operations also reject an existing directory
+destination instead of replacing it. If you need to replace an existing
+directory tree, use the directory-aware `copy()` APIs rather than a file-write
+operation.
 
 ### Path validation
 
@@ -417,11 +428,15 @@ exceptions in `2.0.0`:
 - `ICloudTimeoutException`
 - `ICloudUnknownNativeException`
 
+For iOS and macOS file-write overwrite operations, trying to overwrite an existing
+directory target is treated as an invalid argument rather than as a successful
+replacement.
+
 These exceptions expose `operation`, `retryable`, `relativePath`, and native
 error context when the platform provides it.
 
 `ICloudCoordinationException` is reserved for structured coordination failures.
-Current Darwin native implementations still classify some lower-level
+Current iOS and macOS native implementations still classify some lower-level
 coordination problems as `ICloudUnknownNativeException` when they do not yet
 emit an explicit `coordination` category.
 

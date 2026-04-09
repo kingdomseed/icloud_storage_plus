@@ -37,9 +37,12 @@ macOS.
 - iOS and macOS existing-destination writes and copies continue to use
   coordinated atomic replacement, with release-facing docs updated to match the
   final API behavior.
-- Darwin coordinated replacement logic now has standalone Foundation-level Swift
-  test seams on iOS and macOS, with helper XCTest coverage for overwrite and
-  existing-destination copy replacement behavior.
+- On iOS and macOS, file-write overwrite APIs and `copy()` now document
+  separate existing-destination semantics: file writes target files only,
+  while `copy()` preserves file-or-directory copy behavior.
+- The iOS and macOS coordinated replacement logic now has standalone
+  Foundation-level Swift test seams, with helper XCTest coverage for overwrite
+  and existing-destination copy replacement behavior.
 - Repository documentation now points to the hosted DeepWiki site instead of
   keeping a checked-in export under `doc/deepwiki/`.
 
@@ -47,6 +50,11 @@ macOS.
 - iOS and macOS existing-file `writeDocument`, `writeInPlace`, and
   `writeInPlaceBytes` now stage replacement content outside the ubiquity
   container and replace the destination through coordinated atomic replacement.
+- On iOS and macOS, file-write overwrite APIs now reject existing directory
+  destinations instead of replacing them.
+- On iOS and macOS, existing ubiquitous items must be `.current` before
+  replacement;
+  `.downloaded` is now rejected as not yet replace-safe.
 - iOS and macOS `copy()` now keep existing destinations inside coordinated
   atomic replacement flows instead of removing the destination before copying.
 
