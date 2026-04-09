@@ -41,3 +41,20 @@
 - Fresh local evidence from this review session: `swift test` passed in both
   `ios/.../icloud_storage_plus_foundation` and
   `macos/.../icloud_storage_plus_foundation` (5 helper tests each, 0 failures).
+- User approved a breaking-cleanup direction for the next slice rather than a
+  deprecated compatibility wrapper.
+- The written spec chooses these contract boundaries:
+  - `ICloudFile` stays the discovery model for `gather()`
+  - a new `ICloudItemMetadata` model becomes the typed known-path metadata model
+  - `getMetadata(...) -> ICloudFile?` is removed as ambiguous API debt
+  - `getItemMetadata(...) -> ICloudItemMetadata?` becomes the replacement typed
+    API
+  - `getDocumentMetadata(...)` remains the raw map escape hatch
+- The written spec also locks the normalized caller-visible download-status
+  vocabulary to `notDownloaded`, `downloaded`, and `current`, and it treats raw
+  Apple status strings as implementation-only migration details rather than part
+  of the intended public contract.
+- Planned Dart exception categories in the spec are explicit and branchable:
+  not-found, container unavailable, conflict, not-downloaded,
+  download-in-progress, invalid-path, coordination, permission, and unknown
+  native fallback.
