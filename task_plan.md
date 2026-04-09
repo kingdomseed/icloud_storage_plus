@@ -13,7 +13,8 @@ download-status normalization in an Apple-aligned way.
 | 3. Compare with senior Swift/iCloud standards | complete | Priorities and anti-patterns distilled |
 | 4. Address review follow-ups | complete | Fixed iOS overwrite queueing and tightened helper-test parity |
 | 5. Design combined API-hardening slice | complete | User approved the design direction and design sections |
-| 6. Write and commit design spec | in_progress | Spec written to `docs/superpowers/specs/2026-04-09-icloud-api-hardening-design.md`; awaiting user review |
+| 6. Write and commit design spec | complete | Spec written and committed to `docs/superpowers/specs/2026-04-09-icloud-api-hardening-design.md` |
+| 7. External spec review and revision | complete | Revised through multiple review passes; final external review found no material issues |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

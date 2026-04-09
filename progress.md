@@ -13,3 +13,9 @@
   with the production writer source.
 - Wrote the approved combined API-hardening spec to
   `docs/superpowers/specs/2026-04-09-icloud-api-hardening-design.md`.
+- Requested an independent agent review of the written spec. The review found
+  material follow-up issues around contract consistency, native error transport,
+  `getDocumentMetadata()` raw-vs-normalized behavior, transfer-progress error
+  modeling, and migration-scope completeness.
+- Revised the spec through multiple review rounds until the external review
+  reported no material findings.

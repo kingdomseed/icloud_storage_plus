@@ -14,6 +14,8 @@ related problems together:
    represents metadata-query discovery state rather than known-URL state
 3. download status values are normalized inconsistently across discovery,
    listing, and known-path metadata APIs
+4. iCloud document paths are too easy to reason about as ordinary local
+   filesystem paths instead of stateful, coordinated ubiquity items
 
 The design intentionally follows Apple iCloud document constraints rather than
 ordinary filesystem assumptions. It keeps discovery and known-path metadata as
@@ -35,6 +37,8 @@ typed APIs instead of leaving deprecated compatibility debt behind.
 - Replace `NSMetadataQuery` discovery with raw filesystem enumeration.
 - Eliminate the raw `getDocumentMetadata()` map escape hatch in this slice.
 - Solve manual real-device iCloud validation inside this design slice.
+- Change transfer-progress stream payloads away from their current
+  `PlatformException`-based error model.
 
 ## Current Problems
 
@@ -83,6 +87,31 @@ The plugin should expose three distinct typed models with explicit meanings:
 This keeps native truth surfaces visible instead of flattening them into one
 ambiguous type.
 
+#### `ICloudItemMetadata` Fields
+
+`ICloudItemMetadata` should be a concrete Dart model with these fields:
+
+- `relativePath`: `String`
+- `isDirectory`: `bool`
+- `sizeInBytes`: `int?`
+- `creationDate`: `DateTime?`
+- `contentChangeDate`: `DateTime?`
+- `downloadStatus`: `DownloadStatus?`
+- `isDownloading`: `bool`
+- `isUploading`: `bool`
+- `isUploaded`: `bool`
+- `hasUnresolvedConflicts`: `bool`
+
+Derived convenience:
+
+- `isLocal`: `bool`
+  - true when `downloadStatus` is `DownloadStatus.downloaded` or
+    `DownloadStatus.current`
+
+This intentionally mirrors the immediately-available known-path state already
+surfaced by native metadata and keeps conflict/download/locality information
+in-band for inspection callers.
+
 ### Public API Changes
 
 This slice allows a breaking cleanup.
@@ -99,10 +128,18 @@ The typed metadata API is corrected in place rather than preserved behind a
 deprecated wrapper, because preserving the wrapper would deliberately leave the
 main semantic debt in the public surface.
 
+`getDocumentMetadata(...)` remains truly raw. It is not the semantic contract
+for normalized caller-facing metadata, and it should not be partially normalized
+in ways that blur its purpose as the low-level escape hatch.
+
+`getItemMetadata(...)` is an inspection API. It should report conflict and
+download/locality state in-band on the returned `ICloudItemMetadata` model
+rather than throwing typed state exceptions for those conditions.
+
 ### Status Normalization
 
-All caller-visible Apple download-status values should be normalized before they
-reach Dart.
+All typed, caller-facing semantic metadata APIs should normalize Apple
+download-status values before they reach Dart.
 
 Normalized values:
 
@@ -121,6 +158,8 @@ Rules:
 - Raw Apple status strings may be tolerated only inside short-lived private
   migration adapters during implementation. They are not part of the intended
   post-slice contract.
+- `getDocumentMetadata(...)` is excluded from this normalization guarantee
+  because it remains the explicit raw-map escape hatch.
 
 ### Typed Errors
 
@@ -130,14 +169,21 @@ failures.
 Planned Dart exception categories:
 
 - `ICloudItemNotFoundException`
-- `ICloudContainerUnavailableException`
+- `ICloudContainerAccessException`
 - `ICloudConflictException`
 - `ICloudItemNotDownloadedException`
 - `ICloudDownloadInProgressException`
-- `ICloudInvalidPathException`
+- `ICloudTimeoutException`
 - `ICloudCoordinationException`
-- `ICloudPermissionException`
 - `ICloudUnknownNativeException`
+
+Notes:
+
+- `InvalidArgumentException` remains the Dart-side pre-channel validation error
+  for invalid relative paths and similar caller mistakes.
+- This slice intentionally does not split container-unavailable vs permission
+  failures because the current cross-platform native signals are not precise
+  enough to promise that distinction as a stable contract.
 
 Rules:
 
@@ -148,6 +194,53 @@ Rules:
   error details differ.
 - Treat conflict, placeholder, and in-progress download states as explicit
   iCloud conditions rather than generic read/write failures.
+
+### Error Transport
+
+Typed Dart exceptions in this slice must be backed by structured native channel
+errors rather than Dart-side string parsing over generic native failures.
+
+Rules:
+
+- Add stable native error codes for branchable iCloud categories.
+- Include machine-readable `details` fields that preserve native context.
+- Map those structured channel errors to typed Dart exceptions.
+- Keep a single unknown-native fallback for unclassified failures.
+- Do not rely on localized `NSError` descriptions as the primary contract.
+
+Required channel contract:
+
+- `FlutterError.code`
+  - stable plugin error code string emitted by native code
+  - low-level transport identifier for compatibility, logging, and debugging
+  - not the authoritative Dart branching discriminator
+- `FlutterError.details`
+  - machine-readable map with these required keys:
+    - `category`: stable enum-like string that Dart may branch on
+    - `operation`: stable operation identifier such as `getItemMetadata`,
+      `writeInPlace`, `copy`, `move`, `delete`, or `download`
+    - `retryable`: boolean
+  - optional keys:
+    - `relativePath`
+    - `nativeDomain`
+    - `nativeCode`
+    - `nativeDescription`
+    - `underlying`
+
+Dart may branch only on `details.category`. All other fields are diagnostic.
+
+Allowed `details.category` vocabulary and Dart mapping:
+
+- `itemNotFound` -> `ICloudItemNotFoundException`
+- `containerAccess` -> `ICloudContainerAccessException`
+- `conflict` -> `ICloudConflictException`
+- `itemNotDownloaded` -> `ICloudItemNotDownloadedException`
+- `downloadInProgress` -> `ICloudDownloadInProgressException`
+- `timeout` -> `ICloudTimeoutException`
+- `coordination` -> `ICloudCoordinationException`
+- `unknownNative` -> `ICloudUnknownNativeException`
+
+No other `category` values are part of the contract in this slice.
 
 ### Native Boundaries
 
@@ -163,6 +256,84 @@ The native implementation should continue to respect the Apple platform model.
 - Keep discovery from `NSMetadataQuery`.
 - Do not introduce a generic raw-file abstraction that hides iCloud-specific
   constraints.
+
+### Exception Scope
+
+Typed conflict and download-state exceptions should apply where surfacing state
+is the safest and most stable behavior.
+
+They apply to:
+
+- overwrite and preflight flows
+- direct known-path mutation APIs where callers need to react to stateful iCloud
+  failures
+- operations that require locality or coordination and cannot safely recover in
+  place
+
+They do not automatically replace current recovery behavior in APIs that
+intentionally recover today.
+
+- `getItemMetadata(...)`
+  - returns `null` when the item is not found
+  - returns in-band state for conflict, not-downloaded, and
+    download-in-progress conditions
+  - may still surface container-access or unknown-native failures
+- `getItemMetadata(...)` should return state in-band rather than throwing for
+  conflict, not-downloaded, or download-in-progress conditions.
+- Existing read/download flows that currently auto-start downloads and wait for
+  locality may keep that behavior in this slice.
+- Existing document flows that intentionally preserve current success semantics
+  should not be changed to fail eagerly unless a later release explicitly
+  chooses a broader behavior change.
+
+### Public API Behavior Map
+
+The public API should follow these behavior rules:
+
+- `icloudAvailable()`
+  - remains a boolean availability probe
+  - does not adopt typed exceptions in this slice
+- `getContainerPath()`
+  - remains a nullable path lookup at the type level for compatibility
+  - on current Darwin implementations, container lookup failure surfaces as a
+    typed container-access failure rather than `null`
+  - `null` remains reserved for platforms that explicitly choose to return no
+    path without treating it as an error
+- `gather()`
+  - returns discovery state in-band via `ICloudFile`
+  - does not use typed state exceptions for ordinary item-status reporting
+- `documentExists()`
+  - remains a non-throwing existence probe for missing items
+  - may still surface container-access or unknown-native failures
+- `getItemMetadata()`
+  - returns `ICloudItemMetadata?`
+  - returns `null` for not-found
+  - reports conflict/download/locality state in-band
+  - throws only for container-access or unknown-native failures
+- `getDocumentMetadata()`
+  - returns raw map data or `null`
+  - remains outside the normalized semantic contract
+- `listContents()`
+  - returns normalized `ContainerItem` state in-band
+- `readInPlace()` / `readInPlaceBytes()`
+  - preserve current recovery behavior for auto-download/wait flows in this
+    slice
+  - may surface typed not-found, container-access, timeout, coordination, or
+    unknown native failures when recovery does not succeed
+  - `ICloudTimeoutException` is used only after the configured or default
+    idle-watchdog attempts are exhausted without successful completion
+  - the existence of idle-timeout and retry-backoff controls is part of the
+    public contract, but the exact default schedules remain implementation
+    details so they can be tuned without another breaking release
+- `downloadFile()`
+  - preserves current download-and-wait behavior
+  - may surface typed not-found, container-access, timeout, coordination, or
+    unknown native failures
+- `writeInPlace()` / `writeInPlaceBytes()` / `uploadFile()` / `copy()` /
+  `move()` / `rename()` / `delete()`
+  - use typed exceptions for stateful iCloud failures where callers must react,
+    including conflict, not-downloaded, download-in-progress, coordination,
+    not-found, container-access, and unknown-native fallback as applicable
 
 ### Platform Rules the API Must Reflect
 
@@ -187,6 +358,7 @@ This is an intentional breaking cleanup.
   genuinely needed.
 - Update exception handling to branch on typed exceptions rather than broad
   `PlatformException` categories where practical.
+- Keep existing transfer-progress stream listeners unchanged in this slice.
 
 ### Documentation Changes
 
@@ -195,6 +367,12 @@ This is an intentional breaking cleanup.
 - Public docs must describe the normalized download-status vocabulary.
 - Public docs must describe the typed iCloud exception categories and the
   situations that produce them.
+- Public docs must explicitly note that `getDocumentMetadata(...)` remains a raw
+  map API.
+- Public docs must explicitly note that `getItemMetadata(...)` reports state
+  in-band rather than throwing for conflict/download-status conditions.
+- Public docs must explicitly note that transfer-progress stream errors remain
+  `PlatformException`-based in this release.
 
 ## Testing Strategy
 
@@ -205,6 +383,8 @@ This is an intentional breaking cleanup.
   surfaces.
 - Add exception-mapping tests for each typed iCloud failure category.
 - Update any tests that assumed `getMetadata()` returned `ICloudFile`.
+- Leave transfer-progress stream tests on the current `PlatformException`
+  contract in this slice.
 
 ### Native
 
@@ -229,6 +409,22 @@ Darwin validation remains required on a real signed environment.
   exceptions.
 - Native error mapping can become overly specific if it branches on unstable
   Cocoa details instead of stable iCloud categories.
+- The repo-owned migration scope is broad and must include public docs,
+  example code, changelog notes, and existing method-channel/model tests, not
+  only production source changes.
+
+## Release Plan
+
+This design requires a semver-major package release.
+
+- Bump the package from `1.x` to `2.0.0` when this slice ships.
+- Publish a migration guide covering:
+  - `getMetadata(...)` removal
+  - `getItemMetadata(...)` adoption
+  - `ICloudItemMetadata` model usage
+  - typed exception handling changes
+  - the explicit decision that progress-stream errors remain
+    `PlatformException`-based in `2.0.0`
 
 ## Recommendation
 

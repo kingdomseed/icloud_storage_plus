@@ -58,3 +58,40 @@
   not-found, container unavailable, conflict, not-downloaded,
   download-in-progress, invalid-path, coordination, permission, and unknown
   native fallback.
+- External review of the written spec found 5 material issues to resolve before
+  implementation planning:
+  - The spec currently promises typed conflict/download exceptions while also
+    preserving document flows that still auto-download and auto-resolve some of
+    those states. That makes the caller contract internally inconsistent unless
+    the affected API surfaces are scoped more precisely.
+  - The typed-exception design does not yet define the transport-layer plan.
+    Today most native failures still collapse into broad `E_NAT` channel errors,
+    so stable Dart-side exception categories require new structured native error
+    codes/details rather than string matching on generic native failures.
+  - The spec is ambiguous about whether `getDocumentMetadata()` remains truly
+    raw. Keeping it raw conflicts with the current wording that all
+    caller-visible download-status values are normalized before reaching Dart.
+  - The spec does not yet account for transfer progress stream errors, which are
+    currently modeled around `PlatformException` in both the stream payload type
+    and the documented contract.
+  - The migration/testing section understates the repo-owned blast radius:
+    README, changelog, example code, public tests, and model tests all assume
+    the old `getMetadata()` / `ICloudFile` / `PlatformException` contract.
+- Follow-up spec revisions resolved the external review findings. The final
+  review reported no material contradictions.
+- Final contract decisions locked into the spec:
+  - `getItemMetadata()` is a non-throwing state-inspection API for
+    conflict/download/locality state and returns `null` for not-found.
+  - `getDocumentMetadata()` remains truly raw.
+  - `details.category` is the sole authoritative Dart branching discriminator
+    for native typed exceptions.
+  - Transfer-progress stream errors remain `PlatformException`-based in this
+    breaking release.
+  - The package release for this cleanup must be semver-major (`2.0.0`).
+- Residual non-blocking review risks:
+  - current method-channel timeout transport truncates `Duration` values to
+    whole seconds, so sub-second/zero/negative semantics should be documented or
+    tested during implementation
+  - some existing repo docs/comments still describe the pre-revision
+    `getContainerPath()` and timeout contract and must be updated during the
+    implementation slice
