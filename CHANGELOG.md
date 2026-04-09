@@ -34,9 +34,9 @@ macOS.
 - Transfer-progress streams continue to emit `PlatformException`-based error
   payloads in `2.0.0`; only request/response APIs use the new typed exception
   mapping.
-- iOS and macOS existing-destination writes and copies continue to use
-  coordinated atomic replacement, with release-facing docs updated to match the
-  final API behavior.
+- README, changelog, and public Dart doc comments now describe the final iOS
+  and macOS coordinated replacement behavior for existing-destination writes
+  and copies.
 - On iOS and macOS, file-write overwrite APIs and `copy()` now document
   separate existing-destination semantics: file writes target files only,
   while `copy()` preserves file-or-directory copy behavior.
@@ -53,8 +53,7 @@ macOS.
 - On iOS and macOS, file-write overwrite APIs now reject existing directory
   destinations instead of replacing them.
 - On iOS and macOS, existing ubiquitous items must be `.current` before
-  replacement;
-  `.downloaded` is now rejected as not yet replace-safe.
+  replacement, and `.downloaded` is now rejected as not yet replace-safe.
 - iOS and macOS `copy()` now keep existing destinations inside coordinated
   atomic replacement flows instead of removing the destination before copying.
 

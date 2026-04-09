@@ -124,3 +124,29 @@
   - example macOS `xcodebuild` with signing disabled: `BUILD SUCCEEDED`
   - example iOS simulator `xcodebuild` with signing disabled:
     `BUILD SUCCEEDED`
+- Later review follow-up findings:
+  - The later Copilot changelog/README comments were real wording issues, not
+    behavioral bugs. Those doc fixes are now applied locally.
+  - The later Sentry `copy()` comment was materially correct: both iOS and macOS
+    `copy()` paths were discarding `NSFileCoordinator` errors in the initial
+    source-read coordination and in the combined fallback read/write
+    coordination.
+  - The practical risk is silent coordination failure and incorrect fallthrough,
+    not just the narrower overwrite-loss scenario described in the bot comment.
+  - Both plugin implementations now capture and surface those coordination
+    errors locally, and helper-package regression tests assert the required error
+    handling hooks are present in the production plugin sources.
+  - Live PR state after recheck: all fetched review threads for PR `#23` are
+    resolved. The only remaining gating step is whether to commit and push the
+    latest local fixes.
+  - The later dead-code flag in `replaceReadyStateError` was also real on both
+    iOS and macOS: after the early `.current` return, the later
+    `if downloadStatus != .current` guard was redundant and the trailing
+    `return nil` was unreachable.
+  - That cleanup is now applied locally in the production and mirrored helper
+    sources, with helper regressions proving the redundant guard is gone.
+  - The separate "macOS should share the iOS overwrite helper" architecture flag
+    is not compelling enough to implement. iOS needs the helper because
+    `UIDocument` fallback must hop back to the main queue, while macOS can keep
+    the overwrite-or-fallback path on the background queue because
+    `NSDocument.write()` is synchronous there.

@@ -42,6 +42,69 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(helperSource.contains("copyItemOverwritingExistingItem"))
     }
 
+    func testHelperSourceDoesNotKeepRedundantNonCurrentGuard() throws {
+        let helperSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Tests/icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/CoordinatedReplaceWriter.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(
+            helperSource.contains("if downloadStatus != .current"),
+            "replaceReadyStateError should not keep a non-current guard after "
+                + "the earlier .current return."
+        )
+    }
+
+    func testMacOSCopyPropagatesSourceReadCoordinationErrors() throws {
+        let pluginSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
+                        + "icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/Sources/icloud_storage_plus/"
+                        + "macOSICloudStoragePlugin.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            pluginSource.contains("var sourceCoordinationError: NSError?"),
+            "copy() should capture read coordination failures before "
+                + "falling through to destination handling."
+        )
+        XCTAssertTrue(
+            pluginSource.contains("error: &sourceCoordinationError"),
+            "copy() should pass a read coordination error pointer instead "
+                + "of discarding coordination failures."
+        )
+        XCTAssertTrue(
+            pluginSource.contains("if let sourceCoordinationError"),
+            "copy() should surface a failed source read coordination "
+                + "instead of continuing silently."
+        )
+        XCTAssertTrue(
+            pluginSource.contains("var copyCoordinationError: NSError?"),
+            "copy() should also capture read/write coordination failures in "
+                + "the non-overwrite path."
+        )
+        XCTAssertTrue(
+            pluginSource.contains("error: &copyCoordinationError"),
+            "copy() should not discard the combined read/write "
+                + "coordination error."
+        )
+        XCTAssertTrue(
+            pluginSource.contains("if let copyCoordinationError"),
+            "copy() should surface a failed combined coordination instead "
+                + "of leaving the Flutter call without a result."
+        )
+    }
+
     func testMacOSCopyFailuresReportDestinationRelativePath() throws {
         let pluginSource = try String(
             contentsOfFile: #filePath
@@ -59,9 +122,10 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             pluginSource.components(
                 separatedBy: "relativePath: toRelativePath"
             ).count - 1,
-            2,
+            3,
             "copy() should surface the blocked destination path for both "
-                + "destination-side failure branches."
+                + "destination-side failure branches, including coordination "
+                + "errors in the combined read/write path."
         )
     }
 

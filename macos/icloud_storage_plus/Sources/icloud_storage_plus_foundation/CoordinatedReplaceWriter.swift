@@ -102,18 +102,14 @@ extension CoordinatedReplaceWriter {
             )
         }
 
-        if downloadStatus != .current {
-            return NSError(
-                domain: replaceStateErrorDomain,
-                code: itemNotDownloadedReplaceStateCode,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "Cannot replace a nonlocal iCloud item until it is fully downloaded.",
-                ]
-            )
-        }
-
-        return nil
+        return NSError(
+            domain: replaceStateErrorDomain,
+            code: itemNotDownloadedReplaceStateCode,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Cannot replace a nonlocal iCloud item until it is fully downloaded.",
+            ]
+        )
     }
 
     static func verifyExistingDestinationCanBeReplaced(

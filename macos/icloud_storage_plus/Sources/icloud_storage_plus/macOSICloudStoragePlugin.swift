@@ -1463,11 +1463,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     let fileCoordinator = NSFileCoordinator(filePresenter: nil)
     var handledExistingDestination = false
     var overwriteError: Error?
+    var sourceCoordinationError: NSError?
 
     fileCoordinator.coordinate(
       readingItemAt: fromURL,
       options: .withoutChanges,
-      error: nil
+      error: &sourceCoordinationError
     ) { fromReadingURL in
       do {
         handledExistingDestination = try copyOverwritingExistingItem(
@@ -1477,6 +1478,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       } catch {
         overwriteError = error
       }
+    }
+
+    if let sourceCoordinationError {
+      DebugHelper.log("copy source coordination error: \(sourceCoordinationError.localizedDescription)")
+      result(nativeCodeError(
+        sourceCoordinationError,
+        operation: "copy",
+        relativePath: fromRelativePath
+      ))
+      return
     }
 
     if let overwriteError {
@@ -1495,12 +1506,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     // Use reading coordination for source and writing coordination for destination
+    var copyCoordinationError: NSError?
     fileCoordinator.coordinate(
       readingItemAt: fromURL,
       options: .withoutChanges,
       writingItemAt: toURL,
       options: .forReplacing,
-      error: nil
+      error: &copyCoordinationError
     ) { fromReadingURL, toWritingURL in
       do {
         // Create destination directory if needed
@@ -1529,6 +1541,15 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           relativePath: toRelativePath
         ))
       }
+    }
+
+    if let copyCoordinationError {
+      DebugHelper.log("copy coordination error: \(copyCoordinationError.localizedDescription)")
+      result(nativeCodeError(
+        copyCoordinationError,
+        operation: "copy",
+        relativePath: toRelativePath
+      ))
     }
   }
 

@@ -355,7 +355,7 @@ class ICloudItemMetadata {
   final bool hasUnresolvedConflicts;
 
   /// Whether the item has local content available.
-  bool get isLocal => ...;
+  // bool get isLocal => <computed>;
 }
 ```
 
@@ -398,7 +398,7 @@ class ContainerItem {
   final bool hasUnresolvedConflicts;
 
   /// Whether the item has local content available.
-  bool get isDownloaded => ...;
+  // bool get isDownloaded => <computed>;
 }
 ```
 

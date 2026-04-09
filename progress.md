@@ -37,3 +37,13 @@
 - Re-ran helper `swift test` suites, root `flutter test`, root
   `flutter analyze`, and direct example `xcodebuild` compiles for macOS and iOS
   simulator with signing disabled.
+- Rechecked PR `#23` review threads after the later follow-up round and found no
+  unresolved threads.
+- Kept the latest local fixes uncommitted by user choice so the external
+  analysis state is not reset.
+- Synced the branch-local planning files to capture the later local review
+  follow-ups.
+- Verified the later dead-code review flag in `replaceReadyStateError`, added a
+  source-level regression in both helper test suites, removed the redundant
+  non-`.current` guard from the mirrored helper and production sources, and
+  reran both helper `swift test` suites successfully.
