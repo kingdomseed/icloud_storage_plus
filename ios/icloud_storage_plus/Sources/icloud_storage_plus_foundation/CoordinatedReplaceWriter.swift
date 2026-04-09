@@ -2,12 +2,14 @@ import Foundation
 
 struct CoordinatedReplaceWriter {
     typealias FileExists = (String) -> Bool
+    typealias VerifyDestinationState = (URL) throws -> Void
     typealias CreateReplacementDirectory = (URL) throws -> URL
     typealias CoordinateReplace = (URL, (URL) throws -> Void) throws -> Void
     typealias ReplaceItem = (URL, URL) throws -> Void
     typealias RemoveItem = (URL) throws -> Void
 
     let fileExists: FileExists
+    let verifyDestinationState: VerifyDestinationState
     let createReplacementDirectory: CreateReplacementDirectory
     let coordinateReplace: CoordinateReplace
     let replaceItem: ReplaceItem
@@ -20,6 +22,8 @@ struct CoordinatedReplaceWriter {
         guard fileExists(destinationURL.path) else {
             return false
         }
+
+        try verifyDestinationState(destinationURL)
 
         let replacementDirectory = try createReplacementDirectory(destinationURL)
         let replacementURL = replacementDirectory

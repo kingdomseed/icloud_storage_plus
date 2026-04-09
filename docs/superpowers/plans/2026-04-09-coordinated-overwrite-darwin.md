@@ -20,6 +20,9 @@ Completed on this branch:
   coordinated atomic replacement on both Darwin platforms.
 - Added standalone Foundation Swift packages on iOS and macOS for helper-level
   XCTest coverage.
+- Helper XCTest coverage verifies replacement orchestration and preflight
+  contract behavior; live iCloud conflict/download integration still relies on
+  manual validation.
 - Updated public Dart docs to describe Darwin overwrite behavior accurately.
 
 Fresh verification completed:
@@ -32,7 +35,6 @@ Fresh verification completed:
 
 Remaining follow-ups:
 
-- Add conflict/nonlocal placeholder preflight before replacement.
 - Run targeted manual iCloud validation on real Darwin environments.
 - Keep changelog and repo docs aligned with the shipped Darwin behavior.
 

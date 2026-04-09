@@ -2,12 +2,14 @@ import Foundation
 
 struct CoordinatedReplaceWriter {
     typealias FileExists = (String) -> Bool
+    typealias VerifyDestinationState = (URL) throws -> Void
     typealias CreateReplacementDirectory = (URL) throws -> URL
     typealias CoordinateReplace = (URL, (URL) throws -> Void) throws -> Void
     typealias ReplaceItem = (URL, URL) throws -> Void
     typealias RemoveItem = (URL) throws -> Void
 
     let fileExists: FileExists
+    let verifyDestinationState: VerifyDestinationState
     let createReplacementDirectory: CreateReplacementDirectory
     let coordinateReplace: CoordinateReplace
     let replaceItem: ReplaceItem
@@ -20,6 +22,8 @@ struct CoordinatedReplaceWriter {
         guard fileExists(destinationURL.path) else {
             return false
         }
+
+        try verifyDestinationState(destinationURL)
 
         let replacementDirectory = try createReplacementDirectory(destinationURL)
         let replacementURL = replacementDirectory
@@ -51,8 +55,59 @@ struct CoordinatedReplaceWriter {
 }
 
 extension CoordinatedReplaceWriter {
+    private static func verifyReplaceReadyState(for destinationURL: URL) throws {
+        if let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(
+            at: destinationURL
+        ), !conflictVersions.isEmpty {
+            throw NSError(
+                domain: "ICloudStoragePlusErrorDomain",
+                code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Cannot replace an iCloud item with unresolved conflict versions.",
+                ]
+            )
+        }
+
+        let values = try destinationURL.resourceValues(forKeys: [
+            .isUbiquitousItemKey,
+            .ubiquitousItemDownloadingStatusKey,
+            .ubiquitousItemIsDownloadingKey,
+            .ubiquitousItemDownloadingErrorKey,
+        ])
+
+        if let downloadError = values.ubiquitousItemDownloadingError {
+            throw downloadError
+        }
+
+        guard values.isUbiquitousItem == true else {
+            return
+        }
+
+        let downloadStatus = values.ubiquitousItemDownloadingStatus
+
+        if downloadStatus == .current {
+            return
+        }
+
+        if values.ubiquitousItemIsDownloading == true
+            || downloadStatus == .notDownloaded {
+            throw NSError(
+                domain: "ICloudStoragePlusErrorDomain",
+                code: 2,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Cannot replace a nonlocal iCloud item until it is fully downloaded.",
+                ]
+            )
+        }
+    }
+
     static let live = CoordinatedReplaceWriter(
         fileExists: { FileManager.default.fileExists(atPath: $0) },
+        verifyDestinationState: { destinationURL in
+            try verifyReplaceReadyState(for: destinationURL)
+        },
         createReplacementDirectory: { destinationURL in
             try FileManager.default.url(
                 for: .itemReplacementDirectory,
