@@ -50,6 +50,9 @@ macOS.
 - iOS and macOS existing-file `writeDocument`, `writeInPlace`, and
   `writeInPlaceBytes` now stage replacement content outside the ubiquity
   container and replace the destination through coordinated atomic replacement.
+- iOS and macOS keep the `1.2.2` download-wait completion fix that dispatches
+  `UIDocument` completion back onto `DispatchQueue.main`, avoiding the
+  `_os_object_retain` resurrection crash from short-lived local queues.
 - On iOS and macOS, file-write overwrite APIs now reject existing directory
   destinations instead of replacing them.
 - On iOS and macOS, existing ubiquitous items must be `.current` before
