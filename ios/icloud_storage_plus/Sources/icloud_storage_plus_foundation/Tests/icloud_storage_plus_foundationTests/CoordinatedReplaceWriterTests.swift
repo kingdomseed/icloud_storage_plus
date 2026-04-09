@@ -3,6 +3,70 @@ import XCTest
 @testable import icloud_storage_plus_foundation
 
 final class CoordinatedReplaceWriterTests: XCTestCase {
+    func testHelperSourceMatchesProductionSource() throws {
+        let helperSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Tests/icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/CoordinatedReplaceWriter.swift"
+                ),
+            encoding: .utf8
+        )
+        let productionSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
+                        + "icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/Sources/icloud_storage_plus/"
+                        + "CoordinatedReplaceWriter.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertEqual(helperSource, productionSource)
+    }
+
+    func testLiveWriterReplacesExistingLocalFile() throws {
+        let temporaryDirectory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let destinationURL = temporaryDirectory.appendingPathComponent("file.json")
+        try Data("old".utf8).write(to: destinationURL)
+
+        let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+            at: destinationURL
+        ) { replacementURL in
+            try Data("new".utf8).write(to: replacementURL)
+        }
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(try String(contentsOf: destinationURL), "new")
+    }
+
+    func testLiveWriterCopiesOverExistingLocalFile() throws {
+        let temporaryDirectory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let sourceURL = temporaryDirectory.appendingPathComponent("source.json")
+        let destinationURL = temporaryDirectory.appendingPathComponent(
+            "destination.json"
+        )
+        try Data("source".utf8).write(to: sourceURL)
+        try Data("destination".utf8).write(to: destinationURL)
+
+        let handled = try CoordinatedReplaceWriter.live
+            .copyItemOverwritingExistingItem(
+                from: sourceURL,
+                to: destinationURL,
+                copyItem: FileManager.default.copyItem(at:to:)
+            )
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(try String(contentsOf: destinationURL), "source")
+    }
+
     func testCopyItemOverwritingExistingItemCopiesIntoReplacementURL() throws {
         let sourceURL = URL(fileURLWithPath: "/tmp/source.json")
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
@@ -187,5 +251,15 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertNotNil(cleanedURL)
+    }
+
+    private func makeTemporaryDirectory() throws -> URL {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        return temporaryDirectory
     }
 }
