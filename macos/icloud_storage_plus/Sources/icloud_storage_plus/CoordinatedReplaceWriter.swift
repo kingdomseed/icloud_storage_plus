@@ -55,18 +55,67 @@ struct CoordinatedReplaceWriter {
 }
 
 extension CoordinatedReplaceWriter {
-    private static func verifyReplaceReadyState(for destinationURL: URL) throws {
-        if let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(
-            at: destinationURL
-        ), !conflictVersions.isEmpty {
-            throw NSError(
-                domain: "ICloudStoragePlusErrorDomain",
-                code: 1,
+    static let replaceStateErrorDomain = "ICloudStoragePlusErrorDomain"
+    static let conflictReplaceStateCode = 1
+    static let itemNotDownloadedReplaceStateCode = 2
+    static let downloadInProgressReplaceStateCode = 3
+
+    static func replaceReadyStateError(
+        hasConflicts: Bool,
+        isUbiquitousItem: Bool,
+        downloadStatus: URLUbiquitousItemDownloadingStatus?,
+        isDownloading: Bool
+    ) -> NSError? {
+        if hasConflicts {
+            return NSError(
+                domain: replaceStateErrorDomain,
+                code: conflictReplaceStateCode,
                 userInfo: [
                     NSLocalizedDescriptionKey:
                         "Cannot replace an iCloud item with unresolved conflict versions.",
                 ]
             )
+        }
+
+        guard isUbiquitousItem else {
+            return nil
+        }
+
+        if downloadStatus == .current {
+            return nil
+        }
+
+        if isDownloading {
+            return NSError(
+                domain: replaceStateErrorDomain,
+                code: downloadInProgressReplaceStateCode,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Cannot replace an iCloud item while it is downloading.",
+                ]
+            )
+        }
+
+        if downloadStatus == .notDownloaded {
+            return NSError(
+                domain: replaceStateErrorDomain,
+                code: itemNotDownloadedReplaceStateCode,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Cannot replace a nonlocal iCloud item until it is fully downloaded.",
+                ]
+            )
+        }
+
+        return nil
+    }
+
+    private static func verifyReplaceReadyState(for destinationURL: URL) throws {
+        let hasConflicts = if let conflictVersions =
+            NSFileVersion.unresolvedConflictVersionsOfItem(at: destinationURL) {
+            !conflictVersions.isEmpty
+        } else {
+            false
         }
 
         let values = try destinationURL.resourceValues(forKeys: [
@@ -80,26 +129,13 @@ extension CoordinatedReplaceWriter {
             throw downloadError
         }
 
-        guard values.isUbiquitousItem == true else {
-            return
-        }
-
-        let downloadStatus = values.ubiquitousItemDownloadingStatus
-
-        if downloadStatus == .current {
-            return
-        }
-
-        if values.ubiquitousItemIsDownloading == true
-            || downloadStatus == .notDownloaded {
-            throw NSError(
-                domain: "ICloudStoragePlusErrorDomain",
-                code: 2,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "Cannot replace a nonlocal iCloud item until it is fully downloaded.",
-                ]
-            )
+        if let replaceStateError = replaceReadyStateError(
+            hasConflicts: hasConflicts,
+            isUbiquitousItem: values.isUbiquitousItem == true,
+            downloadStatus: values.ubiquitousItemDownloadingStatus,
+            isDownloading: values.ubiquitousItemIsDownloading == true
+        ) {
+            throw replaceStateError
         }
     }
 

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-09
+
+Breaking release that hardens the Dart API contract around known-path metadata,
+typed request/response failures, and coordinated overwrite behavior on iOS and
+macOS.
+
+### BREAKING CHANGES
+- Removed the old typed `getMetadata()` API in favor of `getItemMetadata()`.
+- Structured native request/response failures now map to typed
+  `ICloudOperationException` subclasses across the Dart API.
+- `getDocumentMetadata()` remains the raw metadata escape hatch and preserves
+  raw `PlatformException` behavior.
+
+### Added
+- `ICloudItemMetadata` as the typed known-path metadata model returned by
+  `getItemMetadata()`.
+- Typed request/response exception mapping for structured native payloads,
+  including container access, not found, conflict, download-in-progress, item
+  not downloaded, and timeout cases.
+
+### Changed
+- README, example code, and public Dart doc comments now document the `2.0.0`
+  contract explicitly, including the separation between `ICloudItemMetadata`,
+  `ICloudFile`, and raw `getDocumentMetadata()` payloads.
+- Transfer-progress streams continue to emit `PlatformException`-based error
+  payloads in `2.0.0`; only request/response APIs use the new typed exception
+  mapping.
+- iOS and macOS existing-destination writes and copies continue to use
+  coordinated atomic replacement, with release-facing docs updated to match the
+  final API behavior.
+
 ### Fixed
 - iOS and macOS existing-file `writeDocument`, `writeInPlace`, and
   `writeInPlaceBytes` now stage replacement content outside the ubiquity

@@ -28,6 +28,55 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertEqual(helperSource, productionSource)
     }
 
+    func testMacOSCopyFailuresReportDestinationRelativePath() throws {
+        let pluginSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
+                        + "icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/Sources/icloud_storage_plus/"
+                        + "macOSICloudStoragePlugin.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertEqual(
+            pluginSource.components(
+                separatedBy: "relativePath: toRelativePath"
+            ).count - 1,
+            2,
+            "copy() should surface the blocked destination path for both "
+                + "destination-side failure branches."
+        )
+    }
+
+    func testMacOSUploadProgressFailuresReportCloudRelativePath() throws {
+        let pluginSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
+                        + "icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/Sources/icloud_storage_plus/"
+                        + "macOSICloudStoragePlugin.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            pluginSource.contains(
+                "streamHandler.setEvent(nativeCodeError(\n"
+                    + "        error,\n"
+                    + "        operation: \"uploadFile\",\n"
+                    + "        relativePath: cloudRelativePath\n"
+                    + "      ))"
+            ),
+            "upload progress failures should surface cloudRelativePath in "
+                + "the structured error payload."
+        )
+    }
+
     func testLiveWriterReplacesExistingLocalFile() throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
@@ -189,6 +238,22 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertFalse(preparedReplacement)
+    }
+
+    func testReplaceReadyStateErrorReturnsDistinctDownloadInProgressCode() {
+        let error = CoordinatedReplaceWriter.replaceReadyStateError(
+            hasConflicts: false,
+            isUbiquitousItem: true,
+            downloadStatus: URLUbiquitousItemDownloadingStatus.downloaded,
+            isDownloading: true
+        ) as NSError?
+
+        XCTAssertEqual(error?.domain, "ICloudStoragePlusErrorDomain")
+        XCTAssertEqual(error?.code, 3)
+        XCTAssertEqual(
+            error?.localizedDescription,
+            "Cannot replace an iCloud item while it is downloading."
+        )
     }
 
     func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() throws {

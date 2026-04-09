@@ -191,6 +191,22 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(preparedReplacement)
     }
 
+    func testReplaceReadyStateErrorReturnsDistinctDownloadInProgressCode() {
+        let error = CoordinatedReplaceWriter.replaceReadyStateError(
+            hasConflicts: false,
+            isUbiquitousItem: true,
+            downloadStatus: URLUbiquitousItemDownloadingStatus.downloaded,
+            isDownloading: true
+        ) as NSError?
+
+        XCTAssertEqual(error?.domain, "ICloudStoragePlusErrorDomain")
+        XCTAssertEqual(error?.code, 3)
+        XCTAssertEqual(
+            error?.localizedDescription,
+            "Cannot replace an iCloud item while it is downloading."
+        )
+    }
+
     func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() throws {
         var preparedReplacement = false
         var verifiedDestinationState = false

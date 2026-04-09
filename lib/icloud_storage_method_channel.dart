@@ -35,7 +35,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
         : _generateEventChannelName('gather', containerId);
 
     if (onUpdate != null) {
-      await methodChannel.invokeMethod(
+      await _invokeMethod<void>(
         'createEventChannel',
         {'eventChannelName': eventChannelName},
       );
@@ -51,7 +51,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       onUpdate(stream);
     }
 
-    final mapList = await methodChannel.invokeListMethod<dynamic>('gather', {
+    final mapList = await _invokeListMethod<dynamic>('gather', {
       'containerId': containerId,
       'eventChannelName': eventChannelName,
     });
@@ -61,7 +61,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
 
   @override
   Future<String?> getContainerPath({required String containerId}) async {
-    final result = await methodChannel.invokeMethod<String>(
+    final result = await _invokeMethod<String>(
       'getContainerPath',
       {'containerId': containerId},
     );
@@ -80,7 +80,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     if (onProgress != null) {
       eventChannelName = _generateEventChannelName('uploadFile', containerId);
 
-      await methodChannel.invokeMethod(
+      await _invokeMethod<void>(
         'createEventChannel',
         {'eventChannelName': eventChannelName},
       );
@@ -91,7 +91,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       onProgress(stream);
     }
 
-    await methodChannel.invokeMethod('uploadFile', {
+    await _invokeMethod<void>('uploadFile', {
       'containerId': containerId,
       'localFilePath': localPath,
       'cloudRelativePath': cloudRelativePath,
@@ -111,7 +111,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     if (onProgress != null) {
       eventChannelName = _generateEventChannelName('downloadFile', containerId);
 
-      await methodChannel.invokeMethod(
+      await _invokeMethod<void>(
         'createEventChannel',
         {'eventChannelName': eventChannelName},
       );
@@ -122,7 +122,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
       onProgress(stream);
     }
 
-    await methodChannel.invokeMethod('downloadFile', {
+    await _invokeMethod<void>('downloadFile', {
       'containerId': containerId,
       'cloudRelativePath': cloudRelativePath,
       'localFilePath': localPath,
@@ -137,7 +137,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     List<Duration>? idleTimeouts,
     List<Duration>? retryBackoff,
   }) async {
-    final result = await methodChannel.invokeMethod<String>(
+    final result = await _invokeMethod<String>(
       'readInPlace',
       {
         'containerId': containerId,
@@ -163,7 +163,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     List<Duration>? idleTimeouts,
     List<Duration>? retryBackoff,
   }) async {
-    final result = await methodChannel.invokeMethod<Uint8List>(
+    final result = await _invokeMethod<Uint8List>(
       'readInPlaceBytes',
       {
         'containerId': containerId,
@@ -188,7 +188,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String relativePath,
     required String contents,
   }) async {
-    await methodChannel.invokeMethod('writeInPlace', {
+    await _invokeMethod<void>('writeInPlace', {
       'containerId': containerId,
       'relativePath': relativePath,
       'contents': contents,
@@ -201,7 +201,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String relativePath,
     required Uint8List contents,
   }) async {
-    await methodChannel.invokeMethod('writeInPlaceBytes', {
+    await _invokeMethod<void>('writeInPlaceBytes', {
       'containerId': containerId,
       'relativePath': relativePath,
       'contents': contents,
@@ -213,7 +213,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String containerId,
     required String relativePath,
   }) async {
-    await methodChannel.invokeMethod('delete', {
+    await _invokeMethod<void>('delete', {
       'containerId': containerId,
       'relativePath': relativePath,
     });
@@ -225,7 +225,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String fromRelativePath,
     required String toRelativePath,
   }) async {
-    await methodChannel.invokeMethod('move', {
+    await _invokeMethod<void>('move', {
       'containerId': containerId,
       'atRelativePath': fromRelativePath,
       'toRelativePath': toRelativePath,
@@ -238,7 +238,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String fromRelativePath,
     required String toRelativePath,
   }) async {
-    await methodChannel.invokeMethod('copy', {
+    await _invokeMethod<void>('copy', {
       'containerId': containerId,
       'fromRelativePath': fromRelativePath,
       'toRelativePath': toRelativePath,
@@ -250,7 +250,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String containerId,
     required String relativePath,
   }) async {
-    final result = await methodChannel.invokeMethod<bool>('documentExists', {
+    final result = await _invokeMethod<bool>('documentExists', {
       'containerId': containerId,
       'relativePath': relativePath,
     });
@@ -262,16 +262,130 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String containerId,
     required String relativePath,
   }) async {
-    final result = await methodChannel
-        .invokeMethod<Map<dynamic, dynamic>?>('getDocumentMetadata', {
-      'containerId': containerId,
-      'relativePath': relativePath,
-    });
+    return _invokeMetadataMethodRaw(
+      'getDocumentMetadata',
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getItemMetadata({
+    required String containerId,
+    required String relativePath,
+  }) async {
+    try {
+      return await _invokeNormalizedMetadataMethod(
+        'getItemMetadata',
+        containerId: containerId,
+        relativePath: relativePath,
+      );
+    } on MissingPluginException {
+      return _invokeNormalizedMetadataMethod(
+        'getDocumentMetadata',
+        containerId: containerId,
+        relativePath: relativePath,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> _invokeNormalizedMetadataMethod(
+    String method, {
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final metadata = await _invokeMetadataMethod(
+      method,
+      containerId: containerId,
+      relativePath: relativePath,
+    );
+    if (metadata == null) return null;
+    return _normalizeMetadataMap(metadata);
+  }
+
+  Future<Map<String, dynamic>?> _invokeMetadataMethod(
+    String method, {
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final result = await _invokeMethod<Map<dynamic, dynamic>?>(
+      method,
+      {
+        'containerId': containerId,
+        'relativePath': relativePath,
+      },
+    );
 
     if (result == null) return null;
 
-    // Convert dynamic map to properly typed map
     return result.map((key, value) => MapEntry(key.toString(), value));
+  }
+
+  Future<Map<String, dynamic>?> _invokeMetadataMethodRaw(
+    String method, {
+    required String containerId,
+    required String relativePath,
+  }) async {
+    final result = await methodChannel.invokeMethod<Map<dynamic, dynamic>?>(
+      method,
+      {
+        'containerId': containerId,
+        'relativePath': relativePath,
+      },
+    );
+
+    if (result == null) return null;
+
+    return result.map((key, value) => MapEntry(key.toString(), value));
+  }
+
+  Map<String, dynamic> _normalizeMetadataMap(Map<String, dynamic> metadata) {
+    final normalized = Map<String, dynamic>.from(metadata);
+    final downloadStatus = normalized['downloadStatus'];
+    if (downloadStatus is String) {
+      normalized['downloadStatus'] = switch (downloadStatus) {
+        'NSMetadataUbiquitousItemDownloadingStatusNotDownloaded' ||
+        'NSURLUbiquitousItemDownloadingStatusNotDownloaded' =>
+          'notDownloaded',
+        'NSMetadataUbiquitousItemDownloadingStatusDownloaded' ||
+        'NSURLUbiquitousItemDownloadingStatusDownloaded' =>
+          'downloaded',
+        'NSMetadataUbiquitousItemDownloadingStatusCurrent' ||
+        'NSURLUbiquitousItemDownloadingStatusCurrent' =>
+          'current',
+        _ => downloadStatus,
+      };
+    }
+    return normalized;
+  }
+
+  Future<T?> _invokeMethod<T>(String method, [Object? arguments]) async {
+    try {
+      return await methodChannel.invokeMethod<T>(method, arguments);
+    } on PlatformException catch (error) {
+      throw _mapStructuredPlatformException(error);
+    }
+  }
+
+  Future<List<T>?> _invokeListMethod<T>(
+    String method, [
+    Object? arguments,
+  ]) async {
+    try {
+      return await methodChannel.invokeListMethod<T>(method, arguments);
+    } on PlatformException catch (error) {
+      throw _mapStructuredPlatformException(error);
+    }
+  }
+
+  Exception _mapStructuredPlatformException(PlatformException error) {
+    final details = error.details;
+    final category = details is Map ? details['category'] : null;
+    if (category is! String) {
+      return error;
+    }
+
+    return mapICloudPlatformException(error);
   }
 
   /// Creates a progress stream backed by the native event channel.
@@ -342,8 +456,7 @@ class MethodChannelICloudStorage extends ICloudStoragePlatform {
     required String containerId,
     String? relativePath,
   }) async {
-    final mapList =
-        await methodChannel.invokeListMethod<dynamic>('listContents', {
+    final mapList = await _invokeListMethod<dynamic>('listContents', {
       'containerId': containerId,
       if (relativePath != null) 'relativePath': relativePath,
     });
