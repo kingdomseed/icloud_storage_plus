@@ -48,7 +48,7 @@ Remaining follow-ups:
 - Modify: `macos/icloud_storage_plus/Package.swift`
 - Create: `macos/icloud_storage_plus/Tests/icloud_storage_plusTests/CoordinatedReplaceWriterTests.swift`
 
-- [ ] **Step 1: Add Swift test targets to both native packages**
+- [x] **Step 1: Add Swift test targets to both native packages**
 
 ```swift
 // ios/icloud_storage_plus/Package.swift and macos/icloud_storage_plus/Package.swift
@@ -68,7 +68,7 @@ targets: [
 ]
 ```
 
-- [ ] **Step 2: Write the failing iOS helper tests**
+- [x] **Step 2: Write the failing iOS helper tests**
 
 ```swift
 import XCTest
@@ -123,14 +123,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 3: Copy the same failing tests to macOS**
+- [x] **Step 3: Copy the same failing tests to macOS**
 
 ```swift
 // macos/icloud_storage_plus/Tests/icloud_storage_plusTests/CoordinatedReplaceWriterTests.swift
 // Same test body as the iOS version.
 ```
 
-- [ ] **Step 4: Run native tests to verify RED**
+- [x] **Step 4: Run native tests to verify RED**
 
 Run:
 `swift test --package-path ios/icloud_storage_plus && swift test --package-path macos/icloud_storage_plus`
@@ -144,7 +144,7 @@ Expected:
 - Create: `ios/icloud_storage_plus/Sources/icloud_storage_plus/CoordinatedReplaceWriter.swift`
 - Modify: `ios/icloud_storage_plus/Sources/icloud_storage_plus/ICloudDocument.swift`
 
-- [ ] **Step 1: Add the failing helper type in iOS**
+- [x] **Step 1: Add the failing helper type in iOS**
 
 ```swift
 import Foundation
@@ -171,7 +171,7 @@ struct CoordinatedReplaceWriter {
 }
 ```
 
-- [ ] **Step 2: Implement minimal helper behavior to pass the tests**
+- [x] **Step 2: Implement minimal helper behavior to pass the tests**
 
 ```swift
 func overwriteExistingItem(
@@ -208,7 +208,7 @@ func overwriteExistingItem(
 }
 ```
 
-- [ ] **Step 3: Add the production iOS helper factory**
+- [x] **Step 3: Add the production iOS helper factory**
 
 ```swift
 extension CoordinatedReplaceWriter {
@@ -262,7 +262,7 @@ extension CoordinatedReplaceWriter {
 }
 ```
 
-- [ ] **Step 4: Run iOS native tests to verify GREEN**
+- [x] **Step 4: Run iOS native tests to verify GREEN**
 
 Run:
 `swift test --package-path ios/icloud_storage_plus`
@@ -275,7 +275,7 @@ Expected:
 **Files:**
 - Modify: `ios/icloud_storage_plus/Sources/icloud_storage_plus/ICloudDocument.swift`
 
-- [ ] **Step 1: Add a small staging helper for in-memory and file-backed payloads**
+- [x] **Step 1: Add a small staging helper for in-memory and file-backed payloads**
 
 ```swift
 private func writeText(_ contents: String, to url: URL) throws {
@@ -287,7 +287,7 @@ private func writeData(_ contents: Data, to url: URL) throws {
 }
 ```
 
-- [ ] **Step 2: Update `writeDocument` to use coordinated replace for existing files**
+- [x] **Step 2: Update `writeDocument` to use coordinated replace for existing files**
 
 ```swift
 func writeDocument(
@@ -317,7 +317,7 @@ func writeDocument(
 }
 ```
 
-- [ ] **Step 3: Update `writeInPlaceDocument` and `writeInPlaceBinaryDocument` the same way**
+- [x] **Step 3: Update `writeInPlaceDocument` and `writeInPlaceBinaryDocument` the same way**
 
 ```swift
 let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(at: url) {
@@ -329,7 +329,7 @@ let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(at: url) {
 }
 ```
 
-- [ ] **Step 4: Run iOS package tests again**
+- [x] **Step 4: Run iOS package tests again**
 
 Run:
 `swift test --package-path ios/icloud_storage_plus`
@@ -343,13 +343,13 @@ Expected:
 - Create: `macos/icloud_storage_plus/Sources/icloud_storage_plus/CoordinatedReplaceWriter.swift`
 - Modify: `macos/icloud_storage_plus/Sources/icloud_storage_plus/ICloudDocument.swift`
 
-- [ ] **Step 1: Copy the helper implementation into the macOS package**
+- [x] **Step 1: Copy the helper implementation into the macOS package**
 
 ```swift
 // macOS helper matches the iOS helper API and behavior.
 ```
 
-- [ ] **Step 2: Route macOS existing-file `writeDocument`, `writeInPlaceDocument`, and `writeInPlaceBinaryDocument` through the helper**
+- [x] **Step 2: Route macOS existing-file `writeDocument`, `writeInPlaceDocument`, and `writeInPlaceBinaryDocument` through the helper**
 
 ```swift
 let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(at: url) {
@@ -365,7 +365,7 @@ let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(at: url) {
 }
 ```
 
-- [ ] **Step 3: Run macOS native tests to verify GREEN**
+- [x] **Step 3: Run macOS native tests to verify GREEN**
 
 Run:
 `swift test --package-path macos/icloud_storage_plus`
@@ -381,7 +381,7 @@ Expected:
 - Test: `test/icloud_storage_test.dart`
 - Test: `test/icloud_storage_method_channel_test.dart`
 
-- [ ] **Step 1: Update public docs to describe coordinated overwrite accurately**
+- [x] **Step 1: Update public docs to describe coordinated overwrite accurately**
 
 ```dart
 /// Write a file in place inside the iCloud container using coordinated
@@ -392,7 +392,7 @@ Expected:
 /// New-file creation remains on the platform document create path.
 ```
 
-- [ ] **Step 2: Run Dart tests to verify no public API regression**
+- [x] **Step 2: Run Dart tests to verify no public API regression**
 
 Run:
 `flutter test`
@@ -400,7 +400,7 @@ Run:
 Expected:
 - All Dart tests pass.
 
-- [ ] **Step 3: Run native package tests together**
+- [x] **Step 3: Run native package tests together**
 
 Run:
 `swift test --package-path ios/icloud_storage_plus && swift test --package-path macos/icloud_storage_plus`
@@ -408,7 +408,7 @@ Run:
 Expected:
 - Both native packages pass.
 
-- [ ] **Step 4: Run static verification**
+- [x] **Step 4: Run static verification**
 
 Run:
 `flutter analyze`

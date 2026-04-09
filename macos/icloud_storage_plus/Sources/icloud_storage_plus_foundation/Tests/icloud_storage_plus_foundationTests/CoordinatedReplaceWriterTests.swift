@@ -28,6 +28,20 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertEqual(helperSource, productionSource)
     }
 
+    func testHelperSourceDoesNotExposeCopyOverwriteEntryPoint() throws {
+        let helperSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Tests/icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/CoordinatedReplaceWriter.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(helperSource.contains("copyItemOverwritingExistingItem"))
+    }
+
     func testMacOSCopyFailuresReportDestinationRelativePath() throws {
         let pluginSource = try String(
             contentsOfFile: #filePath
@@ -94,64 +108,31 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destinationURL), "new")
     }
 
-    func testLiveWriterCopiesOverExistingLocalFile() throws {
+    func testLiveWriterRejectsExistingDirectoryDestination() throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-        let sourceURL = temporaryDirectory.appendingPathComponent("source.json")
         let destinationURL = temporaryDirectory.appendingPathComponent(
-            "destination.json"
+            "folder",
+            isDirectory: true
         )
-        try Data("source".utf8).write(to: sourceURL)
-        try Data("destination".utf8).write(to: destinationURL)
+        try FileManager.default.createDirectory(
+            at: destinationURL,
+            withIntermediateDirectories: true
+        )
 
-        let handled = try CoordinatedReplaceWriter.live
-            .copyItemOverwritingExistingItem(
-                from: sourceURL,
-                to: destinationURL,
-                copyItem: FileManager.default.copyItem(at:to:)
+        XCTAssertThrowsError(
+            try CoordinatedReplaceWriter.live.overwriteExistingItem(
+                at: destinationURL
+            ) { replacementURL in
+                try Data("new".utf8).write(to: replacementURL)
+            }
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Cannot replace an existing directory with file content."
             )
-
-        XCTAssertTrue(handled)
-        XCTAssertEqual(try String(contentsOf: destinationURL), "source")
-    }
-
-    func testCopyItemOverwritingExistingItemCopiesIntoReplacementURL() throws {
-        let sourceURL = URL(fileURLWithPath: "/tmp/source.json")
-        let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
-        let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
-        let replacementURL = replacementDirectory
-            .appendingPathComponent(destinationURL.lastPathComponent)
-        var copiedSourceURL: URL?
-        var copiedReplacementURL: URL?
-        var replacedDestinationURL: URL?
-        var replacedItemURL: URL?
-
-        let writer = CoordinatedReplaceWriter(
-            fileExists: { _ in true },
-            verifyDestinationState: { _ in },
-            createReplacementDirectory: { _ in replacementDirectory },
-            coordinateReplace: { url, accessor in try accessor(url) },
-            replaceItem: { destinationURL, replacementURL in
-                replacedDestinationURL = destinationURL
-                replacedItemURL = replacementURL
-            },
-            removeItem: { _ in }
-        )
-
-        let handled = try writer.copyItemOverwritingExistingItem(
-            from: sourceURL,
-            to: destinationURL
-        ) { sourceURL, replacementURL in
-            copiedSourceURL = sourceURL
-            copiedReplacementURL = replacementURL
         }
-
-        XCTAssertTrue(handled)
-        XCTAssertEqual(copiedSourceURL, sourceURL)
-        XCTAssertEqual(copiedReplacementURL, replacementURL)
-        XCTAssertEqual(replacedDestinationURL, destinationURL)
-        XCTAssertEqual(replacedItemURL, replacementURL)
     }
 
     func testOverwriteExistingItemThrowsWhenDestinationHasUnresolvedConflicts() {
@@ -160,7 +141,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
-            verifyDestinationState: { _ in
+            verifyDestination: { _ in
                 throw NSError(
                     domain: "ICloudStoragePlusErrorDomain",
                     code: 1,
@@ -203,7 +184,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
-            verifyDestinationState: { _ in
+            verifyDestination: { _ in
                 throw NSError(
                     domain: "ICloudStoragePlusErrorDomain",
                     code: 2,
@@ -256,13 +237,29 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         )
     }
 
+    func testReplaceReadyStateErrorRejectsDownloadedButNotCurrentItems() {
+        let error = CoordinatedReplaceWriter.replaceReadyStateError(
+            hasConflicts: false,
+            isUbiquitousItem: true,
+            downloadStatus: URLUbiquitousItemDownloadingStatus.downloaded,
+            isDownloading: false
+        ) as NSError?
+
+        XCTAssertEqual(error?.domain, "ICloudStoragePlusErrorDomain")
+        XCTAssertEqual(error?.code, 2)
+        XCTAssertEqual(
+            error?.localizedDescription,
+            "Cannot replace a nonlocal iCloud item until it is fully downloaded."
+        )
+    }
+
     func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() throws {
         var preparedReplacement = false
         var verifiedDestinationState = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in false },
-            verifyDestinationState: { _ in
+            verifyDestination: { _ in
                 verifiedDestinationState = true
             },
             createReplacementDirectory: { _ in
@@ -297,7 +294,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
-            verifyDestinationState: { _ in },
+            verifyDestination: { _ in },
             createReplacementDirectory: { _ in replacementDirectory },
             coordinateReplace: { url, accessor in try accessor(url) },
             replaceItem: { _, _ in throw expectedError },

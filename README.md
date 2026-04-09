@@ -81,11 +81,11 @@ There are four “tiers” of API in this plugin:
    - `writeInPlace`, `writeInPlaceBytes`
    - On Darwin, existing-file writes use coordinated atomic replacement so the
      destination path stays stable during overwrite.
-3. **File management** (filesystem operations)
-    - `delete`, `move`, `copy`, `rename`
-    - `documentExists`, `getItemMetadata`, `getDocumentMetadata`
-    - On Darwin, copying onto an existing destination also uses coordinated
-      atomic replacement rather than remove-then-copy behavior.
+3. **File management and queries**
+     - `delete`, `move`, `copy`, `rename`
+     - `documentExists`, `getItemMetadata`, `getDocumentMetadata`
+     - On Darwin, copying onto an existing destination also uses coordinated
+       atomic replacement rather than remove-then-copy behavior.
 4. **Container listing** (two complementary approaches)
    - `gather` — NSMetadataQuery-based; sees remote files and document promises;
      provides real-time change notifications and download progress; eventually

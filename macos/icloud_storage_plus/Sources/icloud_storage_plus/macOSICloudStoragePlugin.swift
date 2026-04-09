@@ -1470,22 +1470,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       error: nil
     ) { fromReadingURL in
       do {
-        handledExistingDestination = try CoordinatedReplaceWriter.live
-          .copyItemOverwritingExistingItem(
-            from: fromReadingURL,
-            to: toURL
-          ) { sourceURL, replacementURL in
-            let toDirURL = replacementURL.deletingLastPathComponent()
-            if !FileManager.default.fileExists(atPath: toDirURL.path) {
-              try FileManager.default.createDirectory(
-                at: toDirURL,
-                withIntermediateDirectories: true,
-                attributes: nil
-              )
-            }
-
-            try FileManager.default.copyItem(at: sourceURL, to: replacementURL)
-          }
+        handledExistingDestination = try copyOverwritingExistingItem(
+          from: fromReadingURL,
+          to: toURL
+        )
       } catch {
         overwriteError = error
       }
@@ -1542,6 +1530,67 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         ))
       }
     }
+  }
+
+  private func copyOverwritingExistingItem(
+    from sourceURL: URL,
+    to destinationURL: URL
+  ) throws -> Bool {
+    guard FileManager.default.fileExists(atPath: destinationURL.path) else {
+      return false
+    }
+
+    try CoordinatedReplaceWriter.verifyExistingDestinationCanBeReplaced(
+      at: destinationURL
+    )
+
+    let replacementDirectory = try FileManager.default.url(
+      for: .itemReplacementDirectory,
+      in: .userDomainMask,
+      appropriateFor: destinationURL,
+      create: true
+    )
+    let replacementURL = replacementDirectory.appendingPathComponent(
+      destinationURL.lastPathComponent,
+      isDirectory: sourceURL.hasDirectoryPath
+    )
+
+    do {
+      try FileManager.default.copyItem(at: sourceURL, to: replacementURL)
+
+      let coordinator = NSFileCoordinator(filePresenter: nil)
+      var coordinationError: NSError?
+      var accessError: Error?
+
+      coordinator.coordinate(
+        writingItemAt: destinationURL,
+        options: .forReplacing,
+        error: &coordinationError
+      ) { coordinatedURL in
+        do {
+          _ = try FileManager.default.replaceItemAt(
+            coordinatedURL,
+            withItemAt: replacementURL
+          )
+        } catch {
+          accessError = error
+        }
+      }
+
+      if let coordinationError {
+        throw coordinationError
+      }
+
+      if let accessError {
+        throw accessError
+      }
+    } catch {
+      try? FileManager.default.removeItem(at: replacementDirectory)
+      throw error
+    }
+
+    try? FileManager.default.removeItem(at: replacementDirectory)
+    return true
   }
   
   /// Adds an observers for a metadata query.
@@ -1817,6 +1866,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           category: "downloadInProgress",
           operation: operation,
           retryable: true,
+          relativePath: relativePath,
+          nativeError: nsError
+        )
+      case CoordinatedReplaceWriter.directoryReplaceStateCode:
+        return flutterError(
+          code: "E_ARG",
+          message: nsError.localizedDescription,
+          category: "invalidArgument",
+          operation: operation,
+          retryable: false,
           relativePath: relativePath,
           nativeError: nsError
         )

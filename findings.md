@@ -95,3 +95,32 @@
   - some existing repo docs/comments still describe the pre-revision
     `getContainerPath()` and timeout contract and must be updated during the
     implementation slice
+- PR `#23` review triage findings:
+  - Documentation/process cleanup comments that are still open in the branch:
+    duplicate `### Changed` heading in `CHANGELOG.md`, README grouping of query
+    APIs under file management, and unchecked execution boxes in the shipped
+    overwrite plan doc. These are now fixed locally in the worktree.
+  - Substantive code comments that are still open in the branch:
+    `CoordinatedReplaceWriter` does not explicitly reject directory destinations,
+    and it still allows replacement when a ubiquitous item reports
+    `downloadStatus == .downloaded`.
+  - The bot suggestion to move the unresolved-conflict check after the
+    `isUbiquitousItem` guard is not currently justified enough to implement.
+- The cleaner resolution to those substantive comments is to separate
+  file-overwrite semantics from copy semantics rather than keep growing one
+  shared helper contract.
+- That branch-local cleanup is now implemented:
+  - `CoordinatedReplaceWriter` is file-overwrite-only.
+  - Existing directory destinations are rejected for file writes.
+  - Existing-destination `copy()` replacement moved into platform-specific
+    plugin code so directory copy semantics stay intact.
+  - Ubiquitous replacement readiness now requires `.current`; `.downloaded`
+    is rejected as not yet replace-safe.
+- Fresh verification after the cleanup:
+  - iOS helper `swift test`: pass
+  - macOS helper `swift test`: pass
+  - root `flutter test`: pass
+  - root `flutter analyze`: pass
+  - example macOS `xcodebuild` with signing disabled: `BUILD SUCCEEDED`
+  - example iOS simulator `xcodebuild` with signing disabled:
+    `BUILD SUCCEEDED`

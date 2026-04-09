@@ -2,14 +2,14 @@ import Foundation
 
 struct CoordinatedReplaceWriter {
     typealias FileExists = (String) -> Bool
-    typealias VerifyDestinationState = (URL) throws -> Void
+    typealias VerifyDestination = (URL) throws -> Void
     typealias CreateReplacementDirectory = (URL) throws -> URL
     typealias CoordinateReplace = (URL, (URL) throws -> Void) throws -> Void
     typealias ReplaceItem = (URL, URL) throws -> Void
     typealias RemoveItem = (URL) throws -> Void
 
     let fileExists: FileExists
-    let verifyDestinationState: VerifyDestinationState
+    let verifyDestination: VerifyDestination
     let createReplacementDirectory: CreateReplacementDirectory
     let coordinateReplace: CoordinateReplace
     let replaceItem: ReplaceItem
@@ -23,7 +23,7 @@ struct CoordinatedReplaceWriter {
             return false
         }
 
-        try verifyDestinationState(destinationURL)
+        try verifyDestination(destinationURL)
 
         let replacementDirectory = try createReplacementDirectory(destinationURL)
         let replacementURL = replacementDirectory
@@ -42,16 +42,6 @@ struct CoordinatedReplaceWriter {
         try? removeItem(replacementDirectory)
         return true
     }
-
-    func copyItemOverwritingExistingItem(
-        from sourceURL: URL,
-        to destinationURL: URL,
-        copyItem: (URL, URL) throws -> Void
-    ) throws -> Bool {
-        try overwriteExistingItem(at: destinationURL) { replacementURL in
-            try copyItem(sourceURL, replacementURL)
-        }
-    }
 }
 
 extension CoordinatedReplaceWriter {
@@ -59,6 +49,22 @@ extension CoordinatedReplaceWriter {
     static let conflictReplaceStateCode = 1
     static let itemNotDownloadedReplaceStateCode = 2
     static let downloadInProgressReplaceStateCode = 3
+    static let directoryReplaceStateCode = 4
+
+    static func fileDestinationError(isDirectory: Bool) -> NSError? {
+        guard isDirectory else {
+            return nil
+        }
+
+        return NSError(
+            domain: replaceStateErrorDomain,
+            code: directoryReplaceStateCode,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Cannot replace an existing directory with file content.",
+            ]
+        )
+    }
 
     static func replaceReadyStateError(
         hasConflicts: Bool,
@@ -96,7 +102,7 @@ extension CoordinatedReplaceWriter {
             )
         }
 
-        if downloadStatus == .notDownloaded {
+        if downloadStatus != .current {
             return NSError(
                 domain: replaceStateErrorDomain,
                 code: itemNotDownloadedReplaceStateCode,
@@ -110,7 +116,9 @@ extension CoordinatedReplaceWriter {
         return nil
     }
 
-    private static func verifyReplaceReadyState(for destinationURL: URL) throws {
+    static func verifyExistingDestinationCanBeReplaced(
+        at destinationURL: URL
+    ) throws {
         let hasConflicts = if let conflictVersions =
             NSFileVersion.unresolvedConflictVersionsOfItem(at: destinationURL) {
             !conflictVersions.isEmpty
@@ -139,10 +147,24 @@ extension CoordinatedReplaceWriter {
         }
     }
 
+    private static func verifyFileDestinationCanBeOverwritten(
+        at destinationURL: URL
+    ) throws {
+        let values = try destinationURL.resourceValues(forKeys: [.isDirectoryKey])
+
+        if let destinationError = fileDestinationError(
+            isDirectory: values.isDirectory == true
+        ) {
+            throw destinationError
+        }
+
+        try verifyExistingDestinationCanBeReplaced(at: destinationURL)
+    }
+
     static let live = CoordinatedReplaceWriter(
         fileExists: { FileManager.default.fileExists(atPath: $0) },
-        verifyDestinationState: { destinationURL in
-            try verifyReplaceReadyState(for: destinationURL)
+        verifyDestination: { destinationURL in
+            try verifyFileDestinationCanBeOverwritten(at: destinationURL)
         },
         createReplacementDirectory: { destinationURL in
             try FileManager.default.url(

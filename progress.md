@@ -19,3 +19,21 @@
   modeling, and migration-scope completeness.
 - Revised the spec through multiple review rounds until the external review
   reported no material findings.
+- Executed the approved `2.0.0` implementation tasks, verified the full branch,
+  and opened PR `#23`.
+- Pulled the PR `#23` review surface to prepare merge-readiness triage.
+- Verified that the main documentation/process cleanup comments are still open
+  in the current branch and that the two substantive overwrite-helper concerns
+  are still present in the current iOS/macOS writer implementations.
+- Fixed the low-risk review cleanup items locally and verified that the
+  unresolved-conflict guard ordering suggestion does not need implementation.
+- Confirmed with the user that the cleaner direction is to stop sharing file
+  overwrite and copy-replacement semantics inside one helper.
+- Added RED helper tests for directory-target rejection, `.downloaded`
+  replacement rejection, and helper API narrowing.
+- Narrowed `CoordinatedReplaceWriter` to file-overwrite-only behavior and moved
+  existing-destination `copy()` replacement into platform-specific iOS/macOS
+  plugin helpers.
+- Re-ran helper `swift test` suites, root `flutter test`, root
+  `flutter analyze`, and direct example `xcodebuild` compiles for macOS and iOS
+  simulator with signing disabled.
