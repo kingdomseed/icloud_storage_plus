@@ -8,6 +8,34 @@
 
 **Tech Stack:** Flutter plugin, Dart tests, Swift Package Manager, XCTest, Foundation, UIKit/AppKit, `NSFileCoordinator`, `FileManager.replaceItemAt(...)`
 
+## Status Update: 2026-04-09
+
+Completed on this branch:
+
+- Added `CoordinatedReplaceWriter` and file-write helper seams on iOS and macOS.
+- Routed existing-file `writeDocument`, `writeInPlaceDocument`, and
+  `writeInPlaceBinaryDocument` through coordinated atomic replacement on both
+  Darwin platforms.
+- Added a follow-up helper path so existing-destination `copy()` also uses
+  coordinated atomic replacement on both Darwin platforms.
+- Added standalone Foundation Swift packages on iOS and macOS for helper-level
+  XCTest coverage.
+- Updated public Dart docs to describe Darwin overwrite behavior accurately.
+
+Fresh verification completed:
+
+- `swift test` in both Darwin Foundation helper packages
+- `flutter test`
+- `flutter analyze`
+- macOS example debug build via `xcodebuild`
+- iOS simulator build via `flutter build ios --simulator --no-codesign`
+
+Remaining follow-ups:
+
+- Add conflict/nonlocal placeholder preflight before replacement.
+- Run targeted manual iCloud validation on real Darwin environments.
+- Keep changelog and repo docs aligned with the shipped Darwin behavior.
+
 ---
 
 ### Task 1: Add Native Test Seams for Coordinated Overwrite

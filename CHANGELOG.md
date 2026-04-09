@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- iOS and macOS existing-file `writeDocument`, `writeInPlace`, and
+  `writeInPlaceBytes` now stage replacement content outside the ubiquity
+  container and replace the destination through coordinated atomic replacement.
+- iOS and macOS `copy()` now keep existing destinations inside coordinated
+  atomic replacement flows instead of removing the destination before copying.
+
+### Changed
+- Darwin coordinated replacement logic now has standalone Foundation-level Swift
+  test seams on iOS and macOS, with helper XCTest coverage for overwrite and
+  existing-destination copy replacement behavior.
+- Repository documentation now points to the hosted DeepWiki site instead of
+  keeping a checked-in export under `doc/deepwiki/`.
+
 ## [1.2.2] - 2026-03-30
 
 ### Fixed

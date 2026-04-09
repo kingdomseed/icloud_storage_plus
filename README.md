@@ -11,6 +11,9 @@
 Flutter plugin for iCloud document storage (iOS/macOS) with coordinated file
 access and optional Files app (iCloud Drive) visibility.
 
+Hosted reference docs are available on DeepWiki:
+https://deepwiki.com/kingdomseed/icloud_storage_plus
+
 This package operates inside your app’s iCloud ubiquity container. You choose
 which container to use via the `containerId` you configured in Apple Developer
 Portal / Xcode.
@@ -76,9 +79,13 @@ There are four “tiers” of API in this plugin:
    channel; loads full contents in memory)
    - `readInPlace`, `readInPlaceBytes`
    - `writeInPlace`, `writeInPlaceBytes`
+   - On Darwin, existing-file writes use coordinated atomic replacement so the
+     destination path stays stable during overwrite.
 3. **File management** (filesystem operations)
    - `delete`, `move`, `copy`, `rename`
    - `documentExists`, `getMetadata`, `getDocumentMetadata`
+   - On Darwin, copying onto an existing destination also uses coordinated
+     atomic replacement rather than remove-then-copy behavior.
 4. **Container listing** (two complementary approaches)
    - `gather` — NSMetadataQuery-based; sees remote files and document promises;
      provides real-time change notifications and download progress; eventually
@@ -396,8 +403,8 @@ Thrown for container problems, file-not-found, read/write failures, etc.
 
 ## Documentation
 
-- Deeper implementation notes are available under `doc/`:
-  - `doc/README.md`
+- Hosted DeepWiki reference: https://deepwiki.com/kingdomseed/icloud_storage_plus
+- Local notes index: `doc/README.md`
 
 ## License
 
