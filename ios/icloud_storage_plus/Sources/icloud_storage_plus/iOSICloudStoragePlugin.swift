@@ -1067,13 +1067,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         )
 
         let containerPath = containerURL.standardizedFileURL.path
+        let keysSet = Set(keys)
+        let parentRelative = self.relativePath(
+          for: listURL, containerPath: containerPath
+        )
         var items: [[String: Any?]] = []
 
         for fileURL in contents {
-          let values = try fileURL.resourceValues(
-            forKeys: Set(keys)
-          )
-
           let diskName = fileURL.lastPathComponent
           let resolvedName = self.resolveICloudPlaceholderName(diskName)
 
@@ -1082,12 +1082,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           // to their real name, so they pass through this filter.
           if resolvedName.hasPrefix(".") { continue }
 
+          let values = try fileURL.resourceValues(
+            forKeys: keysSet
+          )
+
           // Build relative path from the container root so the
           // result is usable with other plugin methods.
-          let parentURL = fileURL.deletingLastPathComponent()
-          let parentRelative = self.relativePath(
-            for: parentURL, containerPath: containerPath
-          )
           let itemRelativePath = parentRelative.isEmpty
             ? resolvedName
             : parentRelative + "/" + resolvedName
