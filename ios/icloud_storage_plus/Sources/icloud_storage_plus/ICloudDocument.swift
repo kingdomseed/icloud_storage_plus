@@ -92,7 +92,17 @@ class ICloudDocument: UIDocument {
 
     @objc private func documentStateChanged() {
         if documentState.contains(.inConflict) {
-            resolveConflicts()
+            let targetURL = fileURL
+            Task { [weak self] in
+                do {
+                    try await resolveUnresolvedConflicts(at: targetURL)
+                } catch {
+                    DebugHelper.log(
+                        "Failed to resolve conflicts: \(error.localizedDescription)"
+                    )
+                    self?.lastError = error
+                }
+            }
         }
 
         if documentState.contains(.savingError) {
@@ -101,41 +111,6 @@ class ICloudDocument: UIDocument {
 
         if documentState.contains(.editingDisabled) {
             DebugHelper.log("Document editing disabled: \(fileURL.lastPathComponent)")
-        }
-    }
-
-    private func resolveConflicts() {
-        let fileURL = self.fileURL
-
-        DebugHelper.log("Resolving conflicts for: \(fileURL.lastPathComponent)")
-
-        if let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL),
-           !conflictVersions.isEmpty {
-
-            let sortedVersions = conflictVersions.sorted { version1, version2 in
-                let date1 = version1.modificationDate ?? Date.distantPast
-                let date2 = version2.modificationDate ?? Date.distantPast
-                return date1 > date2
-            }
-
-            if let mostRecentVersion = sortedVersions.first {
-                do {
-                    try mostRecentVersion.replaceItem(at: fileURL)
-
-                    for version in conflictVersions {
-                        version.isResolved = true
-                    }
-
-                    try NSFileVersion.removeOtherVersionsOfItem(at: fileURL)
-
-                    DebugHelper.log(
-                        "Conflicts resolved using version from: \(mostRecentVersion.modificationDate?.description ?? "unknown")"
-                    )
-                } catch {
-                    DebugHelper.log("Failed to resolve conflicts: \(error.localizedDescription)")
-                    lastError = error
-                }
-            }
         }
     }
 

@@ -5,6 +5,7 @@ import PackageDescription
 let package = Package(
     name: "icloud_storage_plus_foundation",
     platforms: [
+        .iOS("13.0"),
         .macOS("10.15"),
     ],
     products: [

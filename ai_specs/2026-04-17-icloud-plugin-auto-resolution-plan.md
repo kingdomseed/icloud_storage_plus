@@ -29,15 +29,15 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
 ### Phase 1: Step 0 prerequisite refactor (behavioral no-op)
 
 - **Goal**: unify duplicates, extract helpers to async throws, delete `ICloudDocument.resolveConflicts()`; plugin behavior identical to 2.0.0.
-- [ ] `{ios,macos}/icloud_storage_plus/Package.swift` — share `CoordinatedReplaceWriter.swift` via `target.sources` for both `icloud_storage_plus` and `icloud_storage_plus_foundation` modules. Delete 2 of 4 textual copies per platform.
-- [ ] `{ios,macos}/.../Sources/<shared>/DownloadWaiter.swift` (new) — `func waitForDownloadCompletion(at:idleTimeouts:retryBackoff:) async throws` wrapping existing `NSMetadataQuery`+`CompletionGate` via `withCheckedThrowingContinuation`. Move support cluster: `addObserver`, `removeObservers`, `querySearchScopes`, `evaluateDownloadStatus`, `timeoutNativeError`, `CompletionGate`. Export named configs:
+- [x] `{ios,macos}/icloud_storage_plus/Package.swift` — share `CoordinatedReplaceWriter.swift` via `target.sources` for both `icloud_storage_plus` and `icloud_storage_plus_foundation` modules. Delete 2 of 4 textual copies per platform.
+- [x] `{ios,macos}/.../Sources/<shared>/DownloadWaiter.swift` (new) — `func waitForDownloadCompletion(at:idleTimeouts:retryBackoff:) async throws` wrapping existing `NSMetadataQuery`+`CompletionGate` via `withCheckedThrowingContinuation`. Move support cluster: `addObserver`, `removeObservers`, `querySearchScopes`, `evaluateDownloadStatus`, `timeoutNativeError`, `CompletionGate`. Export named configs:
   ```swift
   enum DownloadSchedule {
     static let interactiveWrite = (idleTimeouts: [10.0, 20.0], retryBackoff: [2.0])
     static let backgroundRead   = (idleTimeouts: [60.0, 90.0, 180.0], retryBackoff: [2.0, 4.0])
   }
   ```
-- [ ] `{ios,macos}/.../Sources/<shared>/ConflictResolver.swift` (new) — `func resolveUnresolvedConflicts(at:) async throws` matching Apple's canonical pattern (mirror existing `ICloudDocument.resolveConflicts()` verbatim):
+- [x] `{ios,macos}/.../Sources/<shared>/ConflictResolver.swift` (new) — `func resolveUnresolvedConflicts(at:) async throws` matching Apple's canonical pattern (mirror existing `ICloudDocument.resolveConflicts()` verbatim):
   ```swift
   func resolveUnresolvedConflicts(at url: URL) async throws {
     guard let conflicts = NSFileVersion.unresolvedConflictVersionsOfItem(at: url),
@@ -52,8 +52,8 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
     try NSFileVersion.removeOtherVersionsOfItem(at: url)
   }
   ```
-- [ ] `iOSICloudStoragePlugin.swift` + `macOSICloudStoragePlugin.swift` — delete private callback-based `waitForDownloadCompletion` at `:921-1031` (iOS) / `:901` (macOS) and its support cluster. Callers updated to `try await waitForDownloadCompletion(...)`. Same name; signature/body change.
-- [ ] `ICloudDocument.swift` — delete `resolveConflicts()` (lines 107-140). `documentStateChanged()` wraps the shared helper:
+- [x] `iOSICloudStoragePlugin.swift` + `macOSICloudStoragePlugin.swift` — delete private callback-based `waitForDownloadCompletion` at `:921-1031` (iOS) / `:901` (macOS) and its support cluster. Callers updated to `try await waitForDownloadCompletion(...)`. Same name; signature/body change.
+- [x] `ICloudDocument.swift` — delete `resolveConflicts()` (lines 107-140). `documentStateChanged()` wraps the shared helper:
   ```swift
   @objc private func documentStateChanged() {
     if documentState.contains(.inConflict) {
@@ -68,13 +68,13 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
     // existing .savingError / .editingDisabled handling unchanged
   }
   ```
-- [ ] `CoordinatedReplaceWriter.swift` (unified) — NO behavior change in Phase 1. Retain existing `verifyDestination` pre-flight as-is. Only the refactor lands.
-- [ ] TDD: shared-helper unit coverage —
-  - `DownloadWaiterTests.swift` (new): already-current returns immediately; progress-then-current completes; idle-watchdog timeout → throws `timeoutNativeError()`; URLResourceValues error → throws that error.
-  - `ConflictResolverTests.swift` (new): no conflicts → no-op; single conflict with injected NSFileVersion test double → replaceItem+isResolved+removeOther called in order; failure injection → throws.
-  - Existing `CoordinatedReplaceWriterTests.swift`: re-run unchanged (behavioral no-op proof).
-- [ ] Grep `example/` + `test/` for `ICloudConflictException|ICloudItemNotDownloadedException|E_CONFLICT|E_NOT_DOWNLOADED` — update or delete any assertion presuming pre-flight refuse-to-write (research indicates none exist; confirm).
-- [ ] Verify: `swift test` (iOS target + macOS target), `flutter test` inside plugin dir, `flutter analyze`.
+- [x] `CoordinatedReplaceWriter.swift` (unified) — NO behavior change in Phase 1. Retain existing `verifyDestination` pre-flight as-is. Only the refactor lands.
+- [x] TDD: shared-helper unit coverage —
+  - `DownloadWaiterTests.swift` (new): schedule constants + timeout/domain invariants; watchdog timeout fires on non-ubiquitous path; retry schedule walks before timing out. `CompletionGate` single-complete behavior covered.
+  - `ConflictResolverTests.swift` (new): empty/nil → no-op; sorted replace → markResolved → removeOther order verified via injected fakes; `replaceItem` failure skips marks+remove; `removeOther` failure still leaves marks; real async wrapper no-ops on local files.
+  - Existing `CoordinatedReplaceWriterTests.swift`: duplication-check swapped for `testProductionSourceIsNotDuplicated` (unified layout proof); behavioral tests pass unchanged.
+- [x] Grep `example/` + `test/` for `ICloudConflictException|ICloudItemNotDownloadedException|E_CONFLICT|E_NOT_DOWNLOADED` — matches are category/mapping assertions, not refuse-to-write assertions; no changes required.
+- [x] Verify: iOS + macOS foundation `swift test` (28 + 30 tests passing), plugin `flutter test` (115 passing), `flutter analyze` clean.
 
 ### Phase 2: Step 1 new behavior + 2.1.0 release prep
 

@@ -3,29 +3,22 @@ import XCTest
 @testable import icloud_storage_plus_foundation
 
 final class CoordinatedReplaceWriterTests: XCTestCase {
-    func testHelperSourceMatchesProductionSource() throws {
-        let helperSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Tests/icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/CoordinatedReplaceWriter.swift"
-                ),
-            encoding: .utf8
-        )
-        let productionSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
-                        + "icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/Sources/icloud_storage_plus/"
-                        + "CoordinatedReplaceWriter.swift"
-                ),
-            encoding: .utf8
-        )
+    func testProductionSourceIsNotDuplicated() throws {
+        let productionPath = #filePath
+            .replacingOccurrences(
+                of: "/Sources/icloud_storage_plus_foundation/Tests/"
+                    + "icloud_storage_plus_foundationTests/"
+                    + "CoordinatedReplaceWriterTests.swift",
+                with: "/Sources/icloud_storage_plus/"
+                    + "CoordinatedReplaceWriter.swift"
+            )
 
-        XCTAssertEqual(helperSource, productionSource)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: productionPath),
+            "CoordinatedReplaceWriter.swift must live only in the "
+                + "icloud_storage_plus_foundation module; the plugin target "
+                + "references it via SPM target.sources sharing."
+        )
     }
 
     func testHelperSourceDoesNotExposeCopyOverwriteEntryPoint() throws {
