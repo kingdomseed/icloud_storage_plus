@@ -521,12 +521,13 @@ private func performBackgroundOverwriteIfNeeded(
     completion: @escaping (Error?) -> Void,
     fallbackCreate: @escaping () -> Void
 ) {
-    DispatchQueue.global(qos: .userInitiated).async {
+    Task.detached(priority: .userInitiated) {
         do {
-            let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                at: url,
-                prepareReplacementFile: prepareReplacementFile
-            )
+            let handled = try await CoordinatedReplaceWriter.live
+                .overwriteExistingItem(
+                    at: url,
+                    prepareReplacementFile: prepareReplacementFile
+                )
 
             if handled {
                 DispatchQueue.main.async {

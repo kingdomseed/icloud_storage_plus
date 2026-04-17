@@ -79,13 +79,13 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
 ### Phase 2: Step 1 new behavior + 2.1.0 release prep
 
 - **Goal**: `writeInPlace` symmetric with `readInPlace` — auto-download + auto-resolve. Prepare 2.1.0 for publish.
-- [ ] `CoordinatedReplaceWriter.swift` (unified) — add async-throws seams:
+- [x] `CoordinatedReplaceWriter.swift` (unified) — add async-throws seams:
   ```swift
   typealias EnsureDownloaded = (URL) async throws -> Void
   typealias ResolveConflicts = (URL) async throws -> Void
   ```
   Convert `overwriteExistingItem` to `async throws`. Call `ensureDownloaded(url)` before existing pre-flight. Inside the coordinator write block (use `coordinateReplaceAsync` or bridge the existing closure), call `resolveConflicts(coordinatedURL)` before `replaceItem`. Existing pre-flight remains as last-resort guard. Add comment at the `resolveConflicts` call site noting the next `replaceItem` line clobbers the resolve output — acknowledging the canonical-Apple-pattern micro-cost to keep one way.
-- [ ] `CoordinatedReplaceWriter.live` — bind `ensureDownloaded`:
+- [x] `CoordinatedReplaceWriter.live` — bind `ensureDownloaded`:
   ```swift
   ensureDownloaded: { url in
     let values = try url.resourceValues(forKeys: [
@@ -104,8 +104,8 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
   }
   ```
   and `resolveConflicts: { url in try await resolveUnresolvedConflicts(at: url) }`. If the static-let closure-async binding fails to compile, promote `live` to `static var` or `static func make()` — keep DI-via-closures idiom, do not introduce a second instantiation pattern.
-- [ ] `iOSICloudStoragePlugin.swift` + `macOSICloudStoragePlugin.swift` — method-channel handlers calling `overwriteExistingItem` wrap in `Task { do { try await ...; result(value) } catch { result(FlutterError(code:, message:, details:)) } }`. Mirror existing async-bridge shape.
-- [ ] TDD: inject closure test doubles into `CoordinatedReplaceWriter` for:
+- [x] `iOSICloudStoragePlugin.swift` + `macOSICloudStoragePlugin.swift` — method-channel handlers calling `overwriteExistingItem` wrap in `Task.detached { do { try await ...; result(...) } catch { result(error) } }`. Converted `performBackgroundOverwriteIfNeeded` (iOS) and three inline write paths (macOS) from `DispatchQueue.global` to `Task.detached(priority: .userInitiated)`.
+- [x] TDD: inject closure test doubles into `CoordinatedReplaceWriter` for:
   - (a) happy-path (already-current, no conflicts) → write succeeds; pre-flight last-resort NOT fired.
   - (b) download-needed success → `ensureDownloaded` invoked exactly once, write completes.
   - (c) download-fails → seam throws → `overwriteExistingItem` rethrows typed; write NOT attempted.
@@ -114,7 +114,7 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
   - (f) no-op when already `.current` (ubiquitous but current) → `ensureDownloaded` returns without calling `startDownloadingUbiquitousItem`.
   - (g) no-op when no conflicts → `resolveConflicts` returns silently.
   - Pre-flight last-resort path MUST NOT fire in (a)–(d).
-- [ ] `CHANGELOG.md` — add `[2.1.0] - <release date>` under `[Unreleased]`:
+- [x] `CHANGELOG.md` — add `[2.1.0] - <release date>` under `[Unreleased]`:
   ```
   ### Changed
   - `writeInPlace` now proactively downloads non-current iCloud items and
@@ -130,9 +130,9 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
     callback to Swift Concurrency). Public Dart API unchanged.
   ```
   Non-breaking — public API unchanged; only internal behavior.
-- [ ] `pubspec.yaml` — bump `version: 2.0.0` → `2.1.0`.
-- [ ] `flutter pub publish --dry-run` clean. (Actual publish is user's call.)
-- [ ] Verify: `swift test`, `flutter test`, `flutter analyze`, dry-run clean.
+- [x] `pubspec.yaml` — bump `version: 2.0.0` → `2.1.0`.
+- [x] `flutter pub publish --dry-run` clean (only the expected uncommitted-files warning). Actual publish is user's call.
+- [x] Verify: foundation `swift test` 36/36 (macOS) and 34/34 (iOS) passing, plugin `flutter test` 115/115 passing, `flutter analyze` clean, dry-run clean.
 
 ## Risks / Out of scope
 

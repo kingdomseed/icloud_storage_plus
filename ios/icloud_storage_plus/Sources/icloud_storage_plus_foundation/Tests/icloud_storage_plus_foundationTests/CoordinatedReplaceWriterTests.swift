@@ -98,14 +98,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         )
     }
 
-    func testLiveWriterReplacesExistingLocalFile() throws {
+    func testLiveWriterReplacesExistingLocalFile() async throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
         let destinationURL = temporaryDirectory.appendingPathComponent("file.json")
         try Data("old".utf8).write(to: destinationURL)
 
-        let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+        let handled = try await CoordinatedReplaceWriter.live.overwriteExistingItem(
             at: destinationURL
         ) { replacementURL in
             try Data("new".utf8).write(to: replacementURL)
@@ -115,7 +115,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destinationURL), "new")
     }
 
-    func testLiveWriterRejectsExistingDirectoryDestination() throws {
+    func testLiveWriterRejectsExistingDirectoryDestination() async throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
@@ -128,13 +128,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             withIntermediateDirectories: true
         )
 
-        XCTAssertThrowsError(
-            try CoordinatedReplaceWriter.live.overwriteExistingItem(
+        do {
+            _ = try await CoordinatedReplaceWriter.live.overwriteExistingItem(
                 at: destinationURL
             ) { replacementURL in
                 try Data("new".utf8).write(to: replacementURL)
             }
-        ) { error in
+            XCTFail("expected directory-rejection error")
+        } catch {
             XCTAssertEqual(
                 error.localizedDescription,
                 "Cannot replace an existing directory with file content."
@@ -142,12 +143,13 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
     }
 
-    func testOverwriteExistingItemThrowsWhenDestinationHasUnresolvedConflicts() {
+    func testOverwriteExistingItemThrowsWhenDestinationHasUnresolvedConflicts() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         var preparedReplacement = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in
                 throw NSError(
                     domain: "ICloudStoragePlusErrorDomain",
@@ -165,17 +167,21 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { _, _ in
                 XCTFail("should not coordinate replace")
             },
+            resolveConflicts: { _ in
+                XCTFail("should not resolve conflicts")
+            },
             replaceItem: { _, _ in
                 XCTFail("should not replace item")
             },
             removeItem: { _ in }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { _ in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in
                 preparedReplacement = true
             }
-        ) { error in
+            XCTFail("expected conflict error")
+        } catch {
             XCTAssertEqual(
                 error.localizedDescription,
                 "Cannot replace an iCloud item with unresolved conflict versions."
@@ -185,12 +191,13 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(preparedReplacement)
     }
 
-    func testOverwriteExistingItemThrowsWhenDestinationIsNotFullyLocal() {
+    func testOverwriteExistingItemThrowsWhenDestinationIsNotFullyLocal() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         var preparedReplacement = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in
                 throw NSError(
                     domain: "ICloudStoragePlusErrorDomain",
@@ -208,17 +215,21 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { _, _ in
                 XCTFail("should not coordinate replace")
             },
+            resolveConflicts: { _ in
+                XCTFail("should not resolve conflicts")
+            },
             replaceItem: { _, _ in
                 XCTFail("should not replace item")
             },
             removeItem: { _ in }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { _ in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in
                 preparedReplacement = true
             }
-        ) { error in
+            XCTFail("expected not-downloaded error")
+        } catch {
             XCTAssertEqual(
                 error.localizedDescription,
                 "Cannot replace a nonlocal iCloud item until it is fully downloaded."
@@ -260,12 +271,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         )
     }
 
-    func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() throws {
+    func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() async throws {
         var preparedReplacement = false
         var verifiedDestinationState = false
+        var ensuredDownload = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in false },
+            ensureDownloaded: { _ in ensuredDownload = true },
             verifyDestination: { _ in
                 verifiedDestinationState = true
             },
@@ -276,13 +289,16 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { _, _ in
                 XCTFail("should not coordinate replace")
             },
+            resolveConflicts: { _ in
+                XCTFail("should not resolve conflicts")
+            },
             replaceItem: { _, _ in
                 XCTFail("should not replace item")
             },
             removeItem: { _ in }
         )
 
-        let handled = try writer.overwriteExistingItem(
+        let handled = try await writer.overwriteExistingItem(
             at: URL(fileURLWithPath: "/tmp/file.json")
         ) { _ in
             preparedReplacement = true
@@ -291,9 +307,10 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(handled)
         XCTAssertFalse(preparedReplacement)
         XCTAssertFalse(verifiedDestinationState)
+        XCTAssertFalse(ensuredDownload)
     }
 
-    func testOverwriteExistingItemCleansUpReplacementArtifactWhenReplaceFails() {
+    func testOverwriteExistingItemCleansUpReplacementArtifactWhenReplaceFails() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
         let expectedError = NSError(domain: NSCocoaErrorDomain, code: 512)
@@ -301,25 +318,268 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in },
             createReplacementDirectory: { _ in replacementDirectory },
-            coordinateReplace: { url, accessor in try accessor(url) },
+            coordinateReplace: { url, accessor in try await accessor(url) },
+            resolveConflicts: { _ in },
             replaceItem: { _, _ in throw expectedError },
             removeItem: { cleanedURL = $0 }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { url in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { url in
                 XCTAssertEqual(
                     url.deletingLastPathComponent().path,
                     replacementDirectory.path
                 )
             }
-        ) { error in
+            XCTFail("expected replace failure to bubble")
+        } catch {
             XCTAssertEqual((error as NSError).code, expectedError.code)
         }
 
         XCTAssertNotNil(cleanedURL)
+    }
+
+    // MARK: - Phase 2: auto-download + auto-resolve behavior
+
+    private func makeWriter(
+        fileExists: @escaping CoordinatedReplaceWriter.FileExists = { _ in true },
+        ensureDownloaded: @escaping CoordinatedReplaceWriter.EnsureDownloaded = { _ in },
+        verifyDestination: @escaping CoordinatedReplaceWriter.VerifyDestination = { _ in
+            XCTFail("verifyDestination should not fire in happy path")
+        },
+        coordinateReplace: @escaping CoordinatedReplaceWriter.CoordinateReplace = {
+            url, accessor in try await accessor(url)
+        },
+        resolveConflicts: @escaping CoordinatedReplaceWriter.ResolveConflicts = { _ in },
+        replaceItem: @escaping CoordinatedReplaceWriter.ReplaceItem = { _, _ in },
+        createReplacementDirectory: @escaping CoordinatedReplaceWriter.CreateReplacementDirectory
+            = { _ in URL(fileURLWithPath: "/tmp/replacement") },
+        removeItem: @escaping CoordinatedReplaceWriter.RemoveItem = { _ in }
+    ) -> CoordinatedReplaceWriter {
+        CoordinatedReplaceWriter(
+            fileExists: fileExists,
+            ensureDownloaded: ensureDownloaded,
+            verifyDestination: verifyDestination,
+            createReplacementDirectory: createReplacementDirectory,
+            coordinateReplace: coordinateReplace,
+            resolveConflicts: resolveConflicts,
+            replaceItem: replaceItem,
+            removeItem: removeItem
+        )
+    }
+
+    func testHappyPathDoesNotReinvokePreFlight() async throws {
+        actor Callbacks {
+            var ensureDownloadCount = 0
+            var resolveConflictsCount = 0
+            var replaceItemCount = 0
+            var verifyDestinationCount = 0
+            func bumpEnsure() { ensureDownloadCount += 1 }
+            func bumpResolve() { resolveConflictsCount += 1 }
+            func bumpReplace() { replaceItemCount += 1 }
+            func bumpVerify() { verifyDestinationCount += 1 }
+        }
+        let callbacks = Callbacks()
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            ensureDownloaded: { _ in await callbacks.bumpEnsure() },
+            verifyDestination: { _ in
+                Task { await callbacks.bumpVerify() }
+            },
+            createReplacementDirectory: { _ in URL(fileURLWithPath: "/tmp/r") },
+            coordinateReplace: { url, accessor in try await accessor(url) },
+            resolveConflicts: { _ in await callbacks.bumpResolve() },
+            replaceItem: { _, _ in
+                Task { await callbacks.bumpReplace() }
+            },
+            removeItem: { _ in }
+        )
+
+        let handled = try await writer.overwriteExistingItem(
+            at: URL(fileURLWithPath: "/tmp/file.json")
+        ) { _ in }
+
+        XCTAssertTrue(handled)
+        let ensureCount = await callbacks.ensureDownloadCount
+        let resolveCount = await callbacks.resolveConflictsCount
+        XCTAssertEqual(ensureCount, 1, "ensureDownloaded must run exactly once")
+        XCTAssertEqual(resolveCount, 1, "resolveConflicts must run exactly once")
+    }
+
+    func testEnsureDownloadedRunsBeforeVerifyDestination() async throws {
+        actor CallLog {
+            var events: [String] = []
+            func append(_ event: String) { events.append(event) }
+        }
+        let log = CallLog()
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            ensureDownloaded: { _ in await log.append("ensureDownloaded") },
+            verifyDestination: { _ in
+                let sema = DispatchSemaphore(value: 0)
+                Task {
+                    await log.append("verifyDestination")
+                    sema.signal()
+                }
+                sema.wait()
+            },
+            createReplacementDirectory: { _ in URL(fileURLWithPath: "/tmp/r") },
+            coordinateReplace: { url, accessor in
+                await log.append("coordinateReplace")
+                try await accessor(url)
+            },
+            resolveConflicts: { _ in await log.append("resolveConflicts") },
+            replaceItem: { _, _ in
+                let sema = DispatchSemaphore(value: 0)
+                Task {
+                    await log.append("replaceItem")
+                    sema.signal()
+                }
+                sema.wait()
+            },
+            removeItem: { _ in }
+        )
+
+        _ = try await writer.overwriteExistingItem(
+            at: URL(fileURLWithPath: "/tmp/file.json")
+        ) { _ in }
+
+        let events = await log.events
+        XCTAssertEqual(
+            events,
+            [
+                "ensureDownloaded",
+                "verifyDestination",
+                "coordinateReplace",
+                "resolveConflicts",
+                "replaceItem",
+            ],
+            "step order must match spec: download → pre-flight → coord → resolve → replace"
+        )
+    }
+
+    func testEnsureDownloadedFailurePreventsWrite() async {
+        let failure = NSError(
+            domain: "ICloudStorageTimeout",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Download idle timeout"]
+        )
+
+        let writer = makeWriter(
+            ensureDownloaded: { _ in throw failure },
+            verifyDestination: { _ in
+                XCTFail("verifyDestination must not run after ensureDownloaded throws")
+            },
+            resolveConflicts: { _ in
+                XCTFail("resolveConflicts must not run after ensureDownloaded throws")
+            },
+            replaceItem: { _, _ in
+                XCTFail("replaceItem must not run after ensureDownloaded throws")
+            }
+        )
+
+        do {
+            _ = try await writer.overwriteExistingItem(
+                at: URL(fileURLWithPath: "/tmp/file.json")
+            ) { _ in
+                XCTFail("prepareReplacementFile must not run after ensureDownloaded throws")
+            }
+            XCTFail("expected ensureDownloaded failure to bubble")
+        } catch {
+            XCTAssertEqual((error as NSError).domain, "ICloudStorageTimeout")
+        }
+    }
+
+    func testResolveConflictsFailureBubblesAndBlocksReplace() async {
+        let failure = NSError(
+            domain: "ICloudStoragePlusErrorDomain",
+            code: 1,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Cannot replace an iCloud item: auto-resolution failed — disk full",
+            ]
+        )
+        var replaceItemInvoked = false
+
+        let writer = makeWriter(
+            verifyDestination: { _ in },
+            resolveConflicts: { _ in throw failure },
+            replaceItem: { _, _ in replaceItemInvoked = true }
+        )
+
+        do {
+            _ = try await writer.overwriteExistingItem(
+                at: URL(fileURLWithPath: "/tmp/file.json")
+            ) { _ in }
+            XCTFail("expected resolveConflicts failure to bubble")
+        } catch {
+            let nsError = error as NSError
+            XCTAssertEqual(nsError.domain, "ICloudStoragePlusErrorDomain")
+            XCTAssertEqual(nsError.code, 1)
+            XCTAssertTrue(
+                nsError.localizedDescription.contains(
+                    CoordinatedReplaceWriter.autoResolveFailedDescriptionMarker
+                ),
+                "localized description must distinguish auto-resolve from "
+                    + "the old pre-flight refusal."
+            )
+        }
+        XCTAssertFalse(replaceItemInvoked)
+    }
+
+    func testResolveConflictsIsNoOpWhenNoConflictsExist() async throws {
+        var resolveConflictsCount = 0
+        var replaceItemCount = 0
+
+        let writer = makeWriter(
+            verifyDestination: { _ in },
+            resolveConflicts: { _ in resolveConflictsCount += 1 },
+            replaceItem: { _, _ in replaceItemCount += 1 }
+        )
+
+        let handled = try await writer.overwriteExistingItem(
+            at: URL(fileURLWithPath: "/tmp/file.json")
+        ) { _ in }
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(resolveConflictsCount, 1)
+        XCTAssertEqual(replaceItemCount, 1)
+    }
+
+    func testLiveAutoResolveConflictErrorPreservesCoordinationDomain() {
+        let underlying = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileWriteOutOfSpaceError,
+            userInfo: [NSLocalizedDescriptionKey: "no disk space"]
+        )
+
+        let wrapped = CoordinatedReplaceWriter.autoResolveConflictError(
+            underlying: underlying
+        )
+
+        XCTAssertEqual(
+            wrapped.domain,
+            CoordinatedReplaceWriter.replaceStateErrorDomain,
+            "wrapping must keep the domain Dart consumers map to ICloudConflictException."
+        )
+        XCTAssertEqual(
+            wrapped.code,
+            CoordinatedReplaceWriter.conflictReplaceStateCode
+        )
+        XCTAssertTrue(
+            wrapped.localizedDescription.contains(
+                CoordinatedReplaceWriter.autoResolveFailedDescriptionMarker
+            )
+        )
+        XCTAssertEqual(
+            wrapped.userInfo[NSUnderlyingErrorKey] as? NSError,
+            underlying
+        )
     }
 
     private func makeTemporaryDirectory() throws -> URL {

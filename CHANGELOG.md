@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-04-17
+
+Non-breaking behavior upgrade: `writeInPlace` becomes symmetric with
+`readInPlace` by proactively downloading non-current iCloud items and
+resolving unresolved conflict versions before the coordinated replace.
+Public Dart API unchanged.
+
+### Changed
+- `writeInPlace` and the binary / streaming overwrite paths now
+  proactively call `startDownloadingUbiquitousItem` when the
+  destination is ubiquitous and not current, waiting for the download
+  using an interactive-write schedule (~32s max) before the
+  coordinated replace.
+- Inside the coordinator write block, the overwrite path now calls
+  Apple's canonical conflict-resolution pattern
+  (`NSFileVersion.unresolvedConflictVersionsOfItem` → `replaceItem` →
+  `isResolved = true` → `removeOtherVersionsOfItem`) before invoking
+  `replaceItemAt`, symmetric with the existing `readInPlace` behavior.
+- The pre-flight `E_CONFLICT`, `E_NOT_DOWNLOADED`, and
+  `E_DOWNLOAD_IN_PROGRESS` errors now fire only as last-resort
+  signals: when auto-download or auto-resolution itself fails.
+  Auto-resolution failures surface with a localized description
+  containing "auto-resolution failed" while still mapping to
+  `ICloudConflictException` on the Dart side.
+- Internal refactor: unified the four textual copies of
+  `CoordinatedReplaceWriter.swift` into a single source of truth per
+  platform (iOS and macOS) shared via SPM `target.sources`.
+- Internal refactor: extracted `waitForDownloadCompletion` and
+  `resolveUnresolvedConflicts` as shared `async throws` helpers.
+  Introduced `DownloadSchedule.interactiveWrite` and
+  `DownloadSchedule.backgroundRead` named configs so read and write
+  paths parameterize the same waiter rather than diverge.
+- `ICloudDocument.resolveConflicts()` (iOS) and the equivalent macOS
+  observer both call the shared resolver; the duplicate implementation
+  on iOS has been removed.
+
 ## [2.0.0] - 2026-04-09
 
 Breaking release that hardens the Dart API contract around known-path metadata,

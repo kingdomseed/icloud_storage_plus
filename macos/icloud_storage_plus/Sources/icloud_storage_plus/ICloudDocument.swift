@@ -259,13 +259,12 @@ extension ICloudStoragePlugin {
         sourceURL: URL,
         completion: @escaping (Error?) -> Void
     ) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task.detached(priority: .userInitiated) {
             do {
-                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                    at: url
-                ) { replacementURL in
-                    try streamCopyToURL(from: sourceURL, to: replacementURL)
-                }
+                let handled = try await CoordinatedReplaceWriter.live
+                    .overwriteExistingItem(at: url) { replacementURL in
+                        try streamCopyToURL(from: sourceURL, to: replacementURL)
+                    }
 
                 if handled {
                     DispatchQueue.main.async {
@@ -373,13 +372,12 @@ extension ICloudStoragePlugin {
         contents: String,
         completion: @escaping (Error?) -> Void
     ) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task.detached(priority: .userInitiated) {
             do {
-                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                    at: url
-                ) { replacementURL in
-                    try writeTextToURL(contents, to: replacementURL)
-                }
+                let handled = try await CoordinatedReplaceWriter.live
+                    .overwriteExistingItem(at: url) { replacementURL in
+                        try writeTextToURL(contents, to: replacementURL)
+                    }
 
                 if handled {
                     DispatchQueue.main.async {
@@ -447,13 +445,12 @@ extension ICloudStoragePlugin {
         contents: Data,
         completion: @escaping (Error?) -> Void
     ) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task.detached(priority: .userInitiated) {
             do {
-                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                    at: url
-                ) { replacementURL in
-                    try writeDataToURL(contents, to: replacementURL)
-                }
+                let handled = try await CoordinatedReplaceWriter.live
+                    .overwriteExistingItem(at: url) { replacementURL in
+                        try writeDataToURL(contents, to: replacementURL)
+                    }
 
                 if handled {
                     DispatchQueue.main.async {
