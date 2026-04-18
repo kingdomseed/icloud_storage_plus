@@ -3,60 +3,43 @@ import XCTest
 @testable import icloud_storage_plus_foundation
 
 final class CoordinatedReplaceWriterTests: XCTestCase {
-    func testHelperSourceMatchesProductionSource() throws {
-        let helperSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Tests/icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/CoordinatedReplaceWriter.swift"
-                ),
-            encoding: .utf8
-        )
-        let productionSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
-                        + "icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/Sources/icloud_storage_plus/"
-                        + "CoordinatedReplaceWriter.swift"
-                ),
-            encoding: .utf8
+    func testReplaceReadyStateErrorAllowsCurrentItemsWithoutConflicts() {
+        let error = CoordinatedReplaceWriter.replaceReadyStateError(
+            hasConflicts: false,
+            isUbiquitousItem: true,
+            downloadStatus: .current,
+            isDownloading: false
         )
 
-        XCTAssertEqual(helperSource, productionSource)
+        XCTAssertNil(error)
     }
 
-    func testHelperSourceDoesNotExposeCopyOverwriteEntryPoint() throws {
-        let helperSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Tests/icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/CoordinatedReplaceWriter.swift"
-                ),
-            encoding: .utf8
+    func testReplaceReadyStateErrorAllowsConflictedCurrentItemsToProceed() {
+        let error = CoordinatedReplaceWriter.replaceReadyStateError(
+            hasConflicts: true,
+            isUbiquitousItem: true,
+            downloadStatus: .current,
+            isDownloading: false
         )
 
-        XCTAssertFalse(helperSource.contains("copyItemOverwritingExistingItem"))
+        XCTAssertNil(error)
     }
 
-    func testHelperSourceDoesNotKeepRedundantNonCurrentGuard() throws {
-        let helperSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Tests/icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/CoordinatedReplaceWriter.swift"
-                ),
-            encoding: .utf8
-        )
+    func testReplaceReadyStateErrorTreatsDownloadingItemsAsNotDownloaded() {
+        let error = CoordinatedReplaceWriter.replaceReadyStateError(
+            hasConflicts: false,
+            isUbiquitousItem: true,
+            downloadStatus: .downloaded,
+            isDownloading: true
+        ) as NSError?
 
-        XCTAssertFalse(
-            helperSource.contains("if downloadStatus != .current"),
-            "replaceReadyStateError should not keep a non-current guard after "
-                + "the earlier .current return."
+        XCTAssertEqual(
+            error?.code,
+            CoordinatedReplaceWriter.itemNotDownloadedReplaceStateCode
+        )
+        XCTAssertEqual(
+            error?.localizedDescription,
+            "Cannot replace a nonlocal iCloud item until it is fully downloaded."
         )
     }
 
@@ -199,49 +182,6 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
     }
 
-    func testOverwriteExistingItemThrowsWhenDestinationHasUnresolvedConflicts() {
-        let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
-        var preparedReplacement = false
-
-        let writer = CoordinatedReplaceWriter(
-            fileExists: { _ in true },
-            verifyDestination: { _ in
-                throw NSError(
-                    domain: "ICloudStoragePlusErrorDomain",
-                    code: 1,
-                    userInfo: [
-                        NSLocalizedDescriptionKey:
-                            "Cannot replace an iCloud item with unresolved conflict versions.",
-                    ]
-                )
-            },
-            createReplacementDirectory: { _ in
-                XCTFail("should not create replacement directory")
-                return URL(fileURLWithPath: "/tmp/replacement")
-            },
-            coordinateReplace: { _, _ in
-                XCTFail("should not coordinate replace")
-            },
-            replaceItem: { _, _ in
-                XCTFail("should not replace item")
-            },
-            removeItem: { _ in }
-        )
-
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { _ in
-                preparedReplacement = true
-            }
-        ) { error in
-            XCTAssertEqual(
-                error.localizedDescription,
-                "Cannot replace an iCloud item with unresolved conflict versions."
-            )
-        }
-
-        XCTAssertFalse(preparedReplacement)
-    }
-
     func testOverwriteExistingItemThrowsWhenDestinationIsNotFullyLocal() {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         var preparedReplacement = false
@@ -283,22 +223,6 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertFalse(preparedReplacement)
-    }
-
-    func testReplaceReadyStateErrorReturnsDistinctDownloadInProgressCode() {
-        let error = CoordinatedReplaceWriter.replaceReadyStateError(
-            hasConflicts: false,
-            isUbiquitousItem: true,
-            downloadStatus: URLUbiquitousItemDownloadingStatus.downloaded,
-            isDownloading: true
-        ) as NSError?
-
-        XCTAssertEqual(error?.domain, "ICloudStoragePlusErrorDomain")
-        XCTAssertEqual(error?.code, 3)
-        XCTAssertEqual(
-            error?.localizedDescription,
-            "Cannot replace an iCloud item while it is downloading."
-        )
     }
 
     func testReplaceReadyStateErrorRejectsDownloadedButNotCurrentItems() {

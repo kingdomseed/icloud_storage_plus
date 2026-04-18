@@ -692,6 +692,64 @@ void main() {
     );
   });
 
+  group('writeInPlace error mapping', () {
+    test('maps directory destination to InvalidArgumentException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'writeInPlace') {
+          throw PlatformException(
+            code: PlatformExceptionCode.argumentError,
+            message: 'Cannot replace an existing directory with file content.',
+            details: {
+              'category': 'invalidArgument',
+              'operation': 'writeInPlace',
+              'retryable': false,
+              'relativePath': 'Documents/folder',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.writeInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/folder',
+          contents: '{}',
+        ),
+        throwsA(isA<InvalidArgumentException>()),
+      );
+    });
+
+    test('maps conflict recovery failure to ICloudConflictException', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'writeInPlaceBytes') {
+          throw PlatformException(
+            code: PlatformExceptionCode.conflict,
+            message: 'Cannot replace an iCloud item: auto-resolution failed',
+            details: {
+              'category': 'conflict',
+              'operation': 'writeInPlaceBytes',
+              'retryable': false,
+              'relativePath': 'Documents/file.bin',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.writeInPlaceBytes(
+          containerId: containerId,
+          relativePath: 'Documents/file.bin',
+          contents: Uint8List.fromList([1, 2, 3]),
+        ),
+        throwsA(isA<ICloudConflictException>()),
+      );
+    });
+  });
+
   test('icloudAvailable keeps raw PlatformException behavior', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (methodCall) async {
