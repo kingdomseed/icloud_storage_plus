@@ -216,6 +216,33 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(verifiedDestinationState)
     }
 
+    func testOverwriteExistingItemVerifiesDestinationAfterEnsuringDownload() async throws {
+        var downloadPrepared = false
+        var verifySawPreparedDownload = false
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            ensureDownloaded: { _ in
+                downloadPrepared = true
+            },
+            verifyDestination: { _ in
+                verifySawPreparedDownload = downloadPrepared
+                XCTAssertTrue(downloadPrepared)
+            },
+            createReplacementDirectory: { _ in try self.makeTemporaryDirectory() },
+            coordinateReplace: { url, accessor in try accessor(url) },
+            cleanupConflicts: { _ in },
+            replaceItem: { _, _ in },
+            removeItem: { _ in }
+        )
+
+        _ = try await writer.overwriteExistingItem(
+            at: URL(fileURLWithPath: "/tmp/file.json")
+        ) { _ in }
+
+        XCTAssertTrue(verifySawPreparedDownload)
+    }
+
     func testOverwriteExistingItemCleansUpReplacementArtifactWhenReplaceFails() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
@@ -248,34 +275,32 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertNotNil(cleanedURL)
     }
 
-    func testOverwriteExistingItemCleanupSeesReplacementContent() async throws {
+    func testOverwriteExistingItemCleanupSeesUpdatedDestinationState() async throws {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
-        let replacementDirectory = try makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: replacementDirectory) }
         var destinationContents = "old"
         var cleanupSawContents: String?
+        let replacementContents = "new"
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
             ensureDownloaded: { _ in },
             verifyDestination: { _ in },
-            createReplacementDirectory: { _ in replacementDirectory },
+            createReplacementDirectory: { _ in try self.makeTemporaryDirectory() },
             coordinateReplace: { url, accessor in try accessor(url) },
             cleanupConflicts: { _ in
                 cleanupSawContents = destinationContents
             },
-            replaceItem: { _, replacementURL in
-                destinationContents = try String(contentsOf: replacementURL)
+            replaceItem: { _, _ in
+                destinationContents = replacementContents
             },
             removeItem: { _ in }
         )
 
-        _ = try await writer.overwriteExistingItem(at: destinationURL) { url in
-            try "new".write(to: url, atomically: true, encoding: .utf8)
+        _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in
         }
 
-        XCTAssertEqual(destinationContents, "new")
-        XCTAssertEqual(cleanupSawContents, "new")
+        XCTAssertEqual(destinationContents, replacementContents)
+        XCTAssertEqual(cleanupSawContents, replacementContents)
     }
 
     func testOverwriteExistingItemMapsCleanupFailureToConflictError() async {
