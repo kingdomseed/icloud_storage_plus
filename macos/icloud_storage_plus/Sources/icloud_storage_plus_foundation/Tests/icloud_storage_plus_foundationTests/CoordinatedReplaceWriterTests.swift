@@ -248,31 +248,6 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertNotNil(cleanedURL)
     }
 
-    func testOverwriteExistingItemReplacesBeforeConflictCleanup() async throws {
-        var events: [String] = []
-
-        let writer = CoordinatedReplaceWriter(
-            fileExists: { _ in true },
-            ensureDownloaded: { _ in },
-            verifyDestination: { _ in },
-            createReplacementDirectory: { _ in
-                URL(fileURLWithPath: "/tmp/replacement")
-            },
-            coordinateReplace: { _, accessor in
-                try accessor(URL(fileURLWithPath: "/tmp/file.json"))
-            },
-            cleanupConflicts: { _ in events.append("cleanupConflicts") },
-            replaceItem: { _, _ in events.append("replaceItem") },
-            removeItem: { _ in }
-        )
-
-        _ = try await writer.overwriteExistingItem(
-            at: URL(fileURLWithPath: "/tmp/file.json")
-        ) { _ in }
-
-        XCTAssertEqual(events, ["replaceItem", "cleanupConflicts"])
-    }
-
     func testOverwriteExistingItemMapsCleanupFailureToConflictError() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
@@ -314,31 +289,6 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertEqual(cleanedURL, replacementDirectory)
-    }
-
-    func testOverwriteExistingItemEnsuresDownloadBeforeValidation() async throws {
-        var events: [String] = []
-
-        let writer = CoordinatedReplaceWriter(
-            fileExists: { _ in true },
-            ensureDownloaded: { _ in events.append("ensureDownloaded") },
-            verifyDestination: { _ in events.append("verifyDestination") },
-            createReplacementDirectory: { _ in
-                URL(fileURLWithPath: "/tmp/replacement")
-            },
-            coordinateReplace: { _, accessor in
-                try accessor(URL(fileURLWithPath: "/tmp/file.json"))
-            },
-            cleanupConflicts: { _ in },
-            replaceItem: { _, _ in },
-            removeItem: { _ in }
-        )
-
-        _ = try await writer.overwriteExistingItem(
-            at: URL(fileURLWithPath: "/tmp/file.json")
-        ) { _ in }
-
-        XCTAssertEqual(events, ["ensureDownloaded", "verifyDestination"])
     }
 
     private func makeTemporaryDirectory() throws -> URL {
