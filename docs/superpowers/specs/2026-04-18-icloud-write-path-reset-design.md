@@ -70,9 +70,10 @@ Concrete native file scope for the method audit and semantic rewrite:
 - the iOS and macOS plugin entrypoints only at the call sites that invoke the
   overwrite path and map native errors to Dart-visible failures
 
-The `ConflictResolver.swift` twins are target extraction files for the reset.
-In the current baseline worktree, the observer conflict winner-selection logic
-still lives inside the platform `ICloudDocument` implementations.
+If Part 2 extracts dedicated foundation conflict helpers, they are target
+extraction files for the reset rather than baseline requirements. In the
+current baseline worktree, the observer conflict winner-selection logic still
+lives inside the platform `ICloudDocument` implementations.
 
 The reset does not authorize a broad repo-wide Swift cleanup.
 
@@ -475,7 +476,8 @@ The reset is successful when all of these are true:
 
 Part 1 locks these decisions before any Swift rewrite:
 
-- the method-by-method classifications for the scoped write-path files live in
+- the detailed method inventory and keep/simplify/merge/delete
+  classifications live in
   `docs/superpowers/plans/2026-04-18-icloud-write-path-reset-contract-audit.md`
 - the write-path cleanup sequence is replacement write first, conflict cleanup
   second
