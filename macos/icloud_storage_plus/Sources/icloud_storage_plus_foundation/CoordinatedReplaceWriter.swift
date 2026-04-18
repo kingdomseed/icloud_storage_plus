@@ -62,6 +62,10 @@ extension CoordinatedReplaceWriter {
     static let itemNotDownloadedReplaceStateCode = 2
     static let directoryReplaceStateCode = 4
 
+    // Task 4 keeps foundation self-contained for tests. Task 5 replaces this
+    // placeholder at the plugin boundary with the real download/wait behavior.
+    static let foundationDefaultEnsureDownloaded: EnsureDownloaded = { _ in }
+
     static func cleanupConflictError(underlying: Error) -> NSError {
         NSError(
             domain: replaceStateErrorDomain,
@@ -153,7 +157,7 @@ extension CoordinatedReplaceWriter {
 
     static let live = CoordinatedReplaceWriter(
         fileExists: { FileManager.default.fileExists(atPath: $0) },
-        ensureDownloaded: { _ in },
+        ensureDownloaded: foundationDefaultEnsureDownloaded,
         verifyDestination: { destinationURL in
             let values = try destinationURL.resourceValues(forKeys: [.isDirectoryKey])
 
