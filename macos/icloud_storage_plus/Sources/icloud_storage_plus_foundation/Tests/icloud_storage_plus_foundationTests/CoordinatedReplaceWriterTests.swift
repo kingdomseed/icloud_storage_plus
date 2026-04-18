@@ -248,6 +248,36 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertNotNil(cleanedURL)
     }
 
+    func testOverwriteExistingItemCleanupSeesReplacementContent() async throws {
+        let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
+        let replacementDirectory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: replacementDirectory) }
+        var destinationContents = "old"
+        var cleanupSawContents: String?
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            ensureDownloaded: { _ in },
+            verifyDestination: { _ in },
+            createReplacementDirectory: { _ in replacementDirectory },
+            coordinateReplace: { url, accessor in try accessor(url) },
+            cleanupConflicts: { _ in
+                cleanupSawContents = destinationContents
+            },
+            replaceItem: { _, replacementURL in
+                destinationContents = try String(contentsOf: replacementURL)
+            },
+            removeItem: { _ in }
+        )
+
+        _ = try await writer.overwriteExistingItem(at: destinationURL) { url in
+            try "new".write(to: url, atomically: true, encoding: .utf8)
+        }
+
+        XCTAssertEqual(destinationContents, "new")
+        XCTAssertEqual(cleanupSawContents, "new")
+    }
+
     func testOverwriteExistingItemMapsCleanupFailureToConflictError() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
