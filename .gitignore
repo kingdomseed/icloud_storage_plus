@@ -21,6 +21,7 @@ docs/plans/
 .codex/
 .agentic-coding-toolkit/
 .claude/
+.worktrees/
 
 # Flutter iOS ephemeral artifacts under example/
 example/ios/Flutter/ephemeral/
