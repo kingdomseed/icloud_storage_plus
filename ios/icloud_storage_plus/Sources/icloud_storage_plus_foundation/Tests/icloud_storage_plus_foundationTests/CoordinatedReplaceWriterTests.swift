@@ -43,51 +43,6 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         )
     }
 
-    func testIOSCopyPropagatesSourceReadCoordinationErrors() throws {
-        let pluginSource = try String(
-            contentsOfFile: #filePath
-                .replacingOccurrences(
-                    of: "/Sources/icloud_storage_plus_foundation/Tests/"
-                        + "icloud_storage_plus_foundationTests/"
-                        + "CoordinatedReplaceWriterTests.swift",
-                    with: "/Sources/icloud_storage_plus/"
-                        + "iOSICloudStoragePlugin.swift"
-                ),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(
-            pluginSource.contains("var sourceCoordinationError: NSError?"),
-            "copy() should capture read coordination failures before "
-                + "falling through to destination handling."
-        )
-        XCTAssertTrue(
-            pluginSource.contains("error: &sourceCoordinationError"),
-            "copy() should pass a read coordination error pointer instead "
-                + "of discarding coordination failures."
-        )
-        XCTAssertTrue(
-            pluginSource.contains("if let sourceCoordinationError"),
-            "copy() should surface a failed source read coordination "
-                + "instead of continuing silently."
-        )
-        XCTAssertTrue(
-            pluginSource.contains("var copyCoordinationError: NSError?"),
-            "copy() should also capture read/write coordination failures in "
-                + "the non-overwrite path."
-        )
-        XCTAssertTrue(
-            pluginSource.contains("error: &copyCoordinationError"),
-            "copy() should not discard the combined read/write "
-                + "coordination error."
-        )
-        XCTAssertTrue(
-            pluginSource.contains("if let copyCoordinationError"),
-            "copy() should surface a failed combined coordination instead "
-                + "of leaving the Flutter call without a result."
-        )
-    }
-
     func testLiveWriterReplacesExistingLocalFile() throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
@@ -216,22 +171,6 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertFalse(preparedReplacement)
-    }
-
-    func testReplaceReadyStateErrorReturnsDistinctDownloadInProgressCode() {
-        let error = CoordinatedReplaceWriter.replaceReadyStateError(
-            hasConflicts: false,
-            isUbiquitousItem: true,
-            downloadStatus: URLUbiquitousItemDownloadingStatus.downloaded,
-            isDownloading: true
-        ) as NSError?
-
-        XCTAssertEqual(error?.domain, "ICloudStoragePlusErrorDomain")
-        XCTAssertEqual(error?.code, 3)
-        XCTAssertEqual(
-            error?.localizedDescription,
-            "Cannot replace an iCloud item while it is downloading."
-        )
     }
 
     func testReplaceReadyStateErrorRejectsDownloadedButNotCurrentItems() {

@@ -693,7 +693,10 @@ void main() {
   });
 
   group('writeInPlace error mapping', () {
-    test('maps directory destination to InvalidArgumentException', () async {
+    test(
+      'TODO: maps directory destination to InvalidArgumentException '
+      'instead of the current unknown-native fallback',
+      () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (methodCall) async {
         if (methodCall.method == 'writeInPlace') {
@@ -719,7 +722,8 @@ void main() {
         ),
         throwsA(isA<InvalidArgumentException>()),
       );
-    });
+      },
+    );
 
     test('maps conflict recovery failure to ICloudConflictException', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
