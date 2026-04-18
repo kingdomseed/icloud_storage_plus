@@ -715,10 +715,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
+    let writer = makeWriteEntrypointWriter()
+
     Task { [self] in
       do {
-        try await ensureWriteDestinationDownloaded(fileURL)
-        try await writeInPlaceDocument(at: fileURL, contents: contents)
+        let handled = try await writer.overwriteExistingItem(at: fileURL) {
+          try writeTextToURL(contents, to: $0)
+        }
+        if !handled {
+          try await createWriteInPlaceDocument(at: fileURL, contents: contents)
+        }
         result(nil)
       } catch {
         let mapped = mapFileNotFoundError(
@@ -857,10 +863,19 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
+    let writer = makeWriteEntrypointWriter()
+
     Task { [self] in
       do {
-        try await ensureWriteDestinationDownloaded(fileURL)
-        try await writeInPlaceBinaryDocument(at: fileURL, contents: contents.data)
+        let handled = try await writer.overwriteExistingItem(at: fileURL) {
+          try writeDataToURL(contents.data, to: $0)
+        }
+        if !handled {
+          try await createWriteInPlaceBinaryDocument(
+            at: fileURL,
+            contents: contents.data
+          )
+        }
         result(nil)
       } catch {
         let mapped = mapFileNotFoundError(
@@ -1054,40 +1069,51 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private func ensureWriteDestinationDownloaded(_ fileURL: URL) async throws {
-    guard FileManager.default.fileExists(atPath: fileURL.path) else {
-      return
-    }
-
-    let values = try fileURL.resourceValues(
-      forKeys: [
-        .isUbiquitousItemKey,
-        .ubiquitousItemDownloadingStatusKey,
-        .ubiquitousItemDownloadingErrorKey,
-      ]
+  private func makeWriteEntrypointWriter() -> WriteEntrypointWriter {
+    let live = CoordinatedReplaceWriter.live
+    let writer = CoordinatedReplaceWriter(
+      fileExists: live.fileExists,
+      verifyDestination: live.verifyDestination,
+      createReplacementDirectory: live.createReplacementDirectory,
+      coordinateReplace: live.coordinateReplace,
+      replaceItem: live.replaceItem,
+      removeItem: live.removeItem
     )
 
-    guard values.isUbiquitousItem == true else {
-      return
-    }
+    return WriteEntrypointWriter(
+      writer: writer,
+      ensureDownloaded: { [self] fileURL in
+        let values = try fileURL.resourceValues(
+          forKeys: [
+            .isUbiquitousItemKey,
+            .ubiquitousItemDownloadingStatusKey,
+            .ubiquitousItemDownloadingErrorKey,
+          ]
+        )
 
-    if let downloadError = values.ubiquitousItemDownloadingError {
-      throw downloadError
-    }
+        guard values.isUbiquitousItem == true else {
+          return
+        }
 
-    guard values.ubiquitousItemDownloadingStatus != .current else {
-      return
-    }
+        if let downloadError = values.ubiquitousItemDownloadingError {
+          throw downloadError
+        }
 
-    try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
-    try await waitForDownloadCompletion(
-      at: fileURL,
-      idleTimeouts: [10.0, 20.0],
-      retryBackoff: [2.0]
+        guard values.ubiquitousItemDownloadingStatus != .current else {
+          return
+        }
+
+        try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+        try await waitForDownloadCompletion(
+          at: fileURL,
+          idleTimeouts: [10.0, 20.0],
+          retryBackoff: [2.0]
+        )
+      }
     )
   }
 
-  private func writeInPlaceDocument(
+  private func createWriteInPlaceDocument(
     at fileURL: URL,
     contents: String
   ) async throws {
@@ -1102,7 +1128,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private func writeInPlaceBinaryDocument(
+  private func createWriteInPlaceBinaryDocument(
     at fileURL: URL,
     contents: Data
   ) async throws {
@@ -2029,6 +2055,26 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       operation: operation,
       relativePath: relativePath,
       nativeError: nsError
+    )
+  }
+}
+
+private struct WriteEntrypointWriter {
+  let writer: CoordinatedReplaceWriter
+  let ensureDownloaded: (URL) async throws -> Void
+
+  func overwriteExistingItem(
+    at destinationURL: URL,
+    prepareReplacementFile: (URL) throws -> Void
+  ) async throws -> Bool {
+    guard writer.fileExists(destinationURL.path) else {
+      return false
+    }
+
+    try await ensureDownloaded(destinationURL)
+    return try writer.overwriteExistingItem(
+      at: destinationURL,
+      prepareReplacementFile: prepareReplacementFile
     )
   }
 }
