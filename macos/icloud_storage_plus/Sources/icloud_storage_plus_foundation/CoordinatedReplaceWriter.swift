@@ -51,6 +51,7 @@ struct CoordinatedReplaceWriter {
 
 extension CoordinatedReplaceWriter {
     static let replaceStateErrorDomain = "ICloudStoragePlusErrorDomain"
+    static let conflictReplaceStateCode = 1
     static let itemNotDownloadedReplaceStateCode = 2
     static let directoryReplaceStateCode = 4
 
@@ -99,6 +100,24 @@ extension CoordinatedReplaceWriter {
     static func verifyExistingDestinationCanBeReplaced(
         at destinationURL: URL
     ) throws {
+        let hasConflicts = if let conflictVersions =
+            NSFileVersion.unresolvedConflictVersionsOfItem(at: destinationURL) {
+            !conflictVersions.isEmpty
+        } else {
+            false
+        }
+
+        if hasConflicts {
+            throw NSError(
+                domain: replaceStateErrorDomain,
+                code: conflictReplaceStateCode,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Cannot replace an iCloud item with unresolved conflict versions.",
+                ]
+            )
+        }
+
         let values = try destinationURL.resourceValues(forKeys: [
             .isUbiquitousItemKey,
             .ubiquitousItemDownloadingStatusKey,
