@@ -715,8 +715,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    writeInPlaceDocument(at: fileURL, contents: contents) { [self] error in
-      if let error = error {
+    Task { [self] in
+      do {
+        try await ensureWriteDestinationDownloaded(fileURL)
+        try await writeInPlaceDocument(at: fileURL, contents: contents)
+        result(nil)
+      } catch {
         let mapped = mapFileNotFoundError(
           error,
           operation: "writeInPlace",
@@ -727,9 +731,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           relativePath: relativePath
         )
         result(mapped)
-        return
       }
-      result(nil)
     }
   }
 
@@ -855,8 +857,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    writeInPlaceBinaryDocument(at: fileURL, contents: contents.data) { [self] error in
-      if let error = error {
+    Task { [self] in
+      do {
+        try await ensureWriteDestinationDownloaded(fileURL)
+        try await writeInPlaceBinaryDocument(at: fileURL, contents: contents.data)
+        result(nil)
+      } catch {
         let mapped = mapFileNotFoundError(
           error,
           operation: "writeInPlaceBytes",
@@ -867,9 +873,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           relativePath: relativePath
         )
         result(mapped)
-        return
       }
-      result(nil)
     }
   }
   
@@ -1028,6 +1032,89 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
 
     startAttempt(index: 0)
+  }
+
+  private func waitForDownloadCompletion(
+    at fileURL: URL,
+    idleTimeouts: [TimeInterval],
+    retryBackoff: [TimeInterval]
+  ) async throws {
+    try await withCheckedThrowingContinuation { continuation in
+      waitForDownloadCompletion(
+        fileURL: fileURL,
+        idleTimeouts: idleTimeouts,
+        retryBackoff: retryBackoff
+      ) { error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+        continuation.resume(returning: ())
+      }
+    }
+  }
+
+  private func ensureWriteDestinationDownloaded(_ fileURL: URL) async throws {
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      return
+    }
+
+    let values = try fileURL.resourceValues(
+      forKeys: [
+        .isUbiquitousItemKey,
+        .ubiquitousItemDownloadingStatusKey,
+        .ubiquitousItemDownloadingErrorKey,
+      ]
+    )
+
+    guard values.isUbiquitousItem == true else {
+      return
+    }
+
+    if let downloadError = values.ubiquitousItemDownloadingError {
+      throw downloadError
+    }
+
+    guard values.ubiquitousItemDownloadingStatus != .current else {
+      return
+    }
+
+    try FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+    try await waitForDownloadCompletion(
+      at: fileURL,
+      idleTimeouts: [10.0, 20.0],
+      retryBackoff: [2.0]
+    )
+  }
+
+  private func writeInPlaceDocument(
+    at fileURL: URL,
+    contents: String
+  ) async throws {
+    try await withCheckedThrowingContinuation { continuation in
+      writeInPlaceDocument(at: fileURL, contents: contents) { error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+        continuation.resume(returning: ())
+      }
+    }
+  }
+
+  private func writeInPlaceBinaryDocument(
+    at fileURL: URL,
+    contents: Data
+  ) async throws {
+    try await withCheckedThrowingContinuation { continuation in
+      writeInPlaceBinaryDocument(at: fileURL, contents: contents) { error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+        continuation.resume(returning: ())
+      }
+    }
   }
 
   /// Checks if the file is fully downloaded and available for access.

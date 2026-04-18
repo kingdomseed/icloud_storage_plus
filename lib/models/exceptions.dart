@@ -236,6 +236,23 @@ class ICloudCoordinationException extends ICloudOperationException {
         );
 }
 
+/// Thrown when native code reports invalid write-path arguments.
+class ICloudInvalidArgumentException extends ICloudOperationException {
+  /// Creates an invalid-argument exception.
+  ICloudInvalidArgumentException._(_ICloudOperationExceptionData data)
+      : super(
+          category: data.category,
+          operation: data.operation,
+          retryable: data.retryable,
+          message: data.message,
+          relativePath: data.relativePath,
+          nativeDomain: data.nativeDomain,
+          nativeCode: data.nativeCode,
+          nativeDescription: data.nativeDescription,
+          underlying: data.underlying,
+        );
+}
+
 /// Thrown when native code reports an unknown structured failure.
 class ICloudUnknownNativeException extends ICloudOperationException {
   /// Creates an unknown native exception.
@@ -277,6 +294,7 @@ ICloudOperationException mapICloudPlatformException(PlatformException error) {
     'downloadInProgress' => ICloudDownloadInProgressException._(data),
     'timeout' => ICloudTimeoutException._(data),
     'coordination' => ICloudCoordinationException._(data),
+    'invalidArgument' => ICloudInvalidArgumentException._(data),
     _ => ICloudUnknownNativeException._(data),
   };
 }

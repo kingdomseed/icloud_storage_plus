@@ -694,34 +694,34 @@ void main() {
 
   group('writeInPlace error mapping', () {
     test(
-      'TODO: maps directory destination to InvalidArgumentException '
-      'instead of the current unknown-native fallback',
+      'maps directory destination to ICloudInvalidArgumentException',
       () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (methodCall) async {
-        if (methodCall.method == 'writeInPlace') {
-          throw PlatformException(
-            code: PlatformExceptionCode.argumentError,
-            message: 'Cannot replace an existing directory with file content.',
-            details: {
-              'category': 'invalidArgument',
-              'operation': 'writeInPlace',
-              'retryable': false,
-              'relativePath': 'Documents/folder',
-            },
-          );
-        }
-        return null;
-      });
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (methodCall) async {
+          if (methodCall.method == 'writeInPlace') {
+            throw PlatformException(
+              code: PlatformExceptionCode.argumentError,
+              message:
+                  'Cannot replace an existing directory with file content.',
+              details: {
+                'category': 'invalidArgument',
+                'operation': 'writeInPlace',
+                'retryable': false,
+                'relativePath': 'Documents/folder',
+              },
+            );
+          }
+          return null;
+        });
 
-      await expectLater(
-        () => platform.writeInPlace(
-          containerId: containerId,
-          relativePath: 'Documents/folder',
-          contents: '{}',
-        ),
-        throwsA(isA<InvalidArgumentException>()),
-      );
+        await expectLater(
+          () => platform.writeInPlace(
+            containerId: containerId,
+            relativePath: 'Documents/folder',
+            contents: '{}',
+          ),
+          throwsA(isA<ICloudInvalidArgumentException>()),
+        );
       },
     );
 
