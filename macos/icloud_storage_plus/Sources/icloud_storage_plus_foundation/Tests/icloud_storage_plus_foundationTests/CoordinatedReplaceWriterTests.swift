@@ -28,14 +28,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         )
     }
 
-    func testLiveWriterReplacesExistingLocalFile() throws {
+    func testLiveWriterReplacesExistingLocalFile() async throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
         let destinationURL = temporaryDirectory.appendingPathComponent("file.json")
         try Data("old".utf8).write(to: destinationURL)
 
-        let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
+        let handled = try await CoordinatedReplaceWriter.live.overwriteExistingItem(
             at: destinationURL
         ) { replacementURL in
             try Data("new".utf8).write(to: replacementURL)
@@ -45,7 +45,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destinationURL), "new")
     }
 
-    func testLiveWriterRejectsExistingDirectoryDestination() throws {
+    func testLiveWriterRejectsExistingDirectoryDestination() async throws {
         let temporaryDirectory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
@@ -58,13 +58,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             withIntermediateDirectories: true
         )
 
-        XCTAssertThrowsError(
-            try CoordinatedReplaceWriter.live.overwriteExistingItem(
+        do {
+            _ = try await CoordinatedReplaceWriter.live.overwriteExistingItem(
                 at: destinationURL
             ) { replacementURL in
                 try Data("new".utf8).write(to: replacementURL)
             }
-        ) { error in
+            XCTFail("expected overwrite to throw")
+        } catch {
             XCTAssertEqual(
                 error.localizedDescription,
                 "Cannot replace an existing directory with file content."
@@ -72,12 +73,13 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
     }
 
-    func testOverwriteExistingItemThrowsWhenDestinationHasUnresolvedConflicts() {
+    func testOverwriteExistingItemThrowsWhenDestinationHasUnresolvedConflicts() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         var preparedReplacement = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in
                 throw NSError(
                     domain: "ICloudStoragePlusErrorDomain",
@@ -102,11 +104,12 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             removeItem: { _ in }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { _ in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in
                 preparedReplacement = true
             }
-        ) { error in
+            XCTFail("expected overwrite to throw")
+        } catch {
             XCTAssertEqual(
                 error.localizedDescription,
                 "Cannot replace an iCloud item with unresolved conflict versions."
@@ -116,12 +119,13 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(preparedReplacement)
     }
 
-    func testOverwriteExistingItemThrowsWhenDestinationIsNotFullyLocal() {
+    func testOverwriteExistingItemThrowsWhenDestinationIsNotFullyLocal() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         var preparedReplacement = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in
                 throw NSError(
                     domain: "ICloudStoragePlusErrorDomain",
@@ -146,11 +150,12 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             removeItem: { _ in }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { _ in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in
                 preparedReplacement = true
             }
-        ) { error in
+            XCTFail("expected overwrite to throw")
+        } catch {
             XCTAssertEqual(
                 error.localizedDescription,
                 "Cannot replace a nonlocal iCloud item until it is fully downloaded."
@@ -174,12 +179,15 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         )
     }
 
-    func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() throws {
+    func testOverwriteExistingItemReturnsFalseWhenDestinationDoesNotExist() async throws {
         var preparedReplacement = false
         var verifiedDestinationState = false
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in false },
+            ensureDownloaded: { _ in
+                XCTFail("should not ensure download")
+            },
             verifyDestination: { _ in
                 verifiedDestinationState = true
             },
@@ -197,7 +205,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             removeItem: { _ in }
         )
 
-        let handled = try writer.overwriteExistingItem(
+        let handled = try await writer.overwriteExistingItem(
             at: URL(fileURLWithPath: "/tmp/file.json")
         ) { _ in
             preparedReplacement = true
@@ -208,7 +216,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(verifiedDestinationState)
     }
 
-    func testOverwriteExistingItemCleansUpReplacementArtifactWhenReplaceFails() {
+    func testOverwriteExistingItemCleansUpReplacementArtifactWhenReplaceFails() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
         let expectedError = NSError(domain: NSCocoaErrorDomain, code: 512)
@@ -216,6 +224,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in },
             createReplacementDirectory: { _ in replacementDirectory },
             coordinateReplace: { url, accessor in try accessor(url) },
@@ -224,25 +233,27 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             removeItem: { cleanedURL = $0 }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { url in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { url in
                 XCTAssertEqual(
                     url.deletingLastPathComponent().path,
                     replacementDirectory.path
                 )
             }
-        ) { error in
+            XCTFail("expected overwrite to throw")
+        } catch {
             XCTAssertEqual((error as NSError).code, expectedError.code)
         }
 
         XCTAssertNotNil(cleanedURL)
     }
 
-    func testOverwriteExistingItemReplacesBeforeConflictCleanup() throws {
+    func testOverwriteExistingItemReplacesBeforeConflictCleanup() async throws {
         var events: [String] = []
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in },
             createReplacementDirectory: { _ in
                 URL(fileURLWithPath: "/tmp/replacement")
@@ -255,14 +266,14 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             removeItem: { _ in }
         )
 
-        _ = try writer.overwriteExistingItem(
+        _ = try await writer.overwriteExistingItem(
             at: URL(fileURLWithPath: "/tmp/file.json")
         ) { _ in }
 
         XCTAssertEqual(events, ["replaceItem", "cleanupConflicts"])
     }
 
-    func testOverwriteExistingItemMapsCleanupFailureToConflictError() {
+    func testOverwriteExistingItemMapsCleanupFailureToConflictError() async {
         let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
         let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
         let underlyingError = NSError(domain: NSCocoaErrorDomain, code: 512)
@@ -270,6 +281,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
+            ensureDownloaded: { _ in },
             verifyDestination: { _ in },
             createReplacementDirectory: { _ in replacementDirectory },
             coordinateReplace: { url, accessor in try accessor(url) },
@@ -278,9 +290,10 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             removeItem: { cleanedURL = $0 }
         )
 
-        XCTAssertThrowsError(
-            try writer.overwriteExistingItem(at: destinationURL) { _ in }
-        ) { error in
+        do {
+            _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in }
+            XCTFail("expected overwrite to throw")
+        } catch {
             let nsError = error as NSError
             XCTAssertEqual(
                 nsError.domain,
@@ -301,6 +314,31 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertEqual(cleanedURL, replacementDirectory)
+    }
+
+    func testOverwriteExistingItemEnsuresDownloadBeforeValidation() async throws {
+        var events: [String] = []
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            ensureDownloaded: { _ in events.append("ensureDownloaded") },
+            verifyDestination: { _ in events.append("verifyDestination") },
+            createReplacementDirectory: { _ in
+                URL(fileURLWithPath: "/tmp/replacement")
+            },
+            coordinateReplace: { _, accessor in
+                try accessor(URL(fileURLWithPath: "/tmp/file.json"))
+            },
+            cleanupConflicts: { _ in },
+            replaceItem: { _, _ in },
+            removeItem: { _ in }
+        )
+
+        _ = try await writer.overwriteExistingItem(
+            at: URL(fileURLWithPath: "/tmp/file.json")
+        ) { _ in }
+
+        XCTAssertEqual(events, ["ensureDownloaded", "verifyDestination"])
     }
 
     private func makeTemporaryDirectory() throws -> URL {

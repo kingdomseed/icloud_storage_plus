@@ -2,14 +2,16 @@ import Foundation
 
 struct CoordinatedReplaceWriter {
     typealias FileExists = (String) -> Bool
+    typealias EnsureDownloaded = (URL) async throws -> Void
     typealias VerifyDestination = (URL) throws -> Void
     typealias CreateReplacementDirectory = (URL) throws -> URL
-    typealias CoordinateReplace = (URL, (URL) throws -> Void) throws -> Void
+    typealias CoordinateReplace = (URL, (URL) throws -> Void) async throws -> Void
     typealias CleanupConflicts = (URL) throws -> Void
     typealias ReplaceItem = (URL, URL) throws -> Void
     typealias RemoveItem = (URL) throws -> Void
 
     let fileExists: FileExists
+    let ensureDownloaded: EnsureDownloaded
     let verifyDestination: VerifyDestination
     let createReplacementDirectory: CreateReplacementDirectory
     let coordinateReplace: CoordinateReplace
@@ -20,11 +22,12 @@ struct CoordinatedReplaceWriter {
     func overwriteExistingItem(
         at destinationURL: URL,
         prepareReplacementFile: (URL) throws -> Void
-    ) throws -> Bool {
+    ) async throws -> Bool {
         guard fileExists(destinationURL.path) else {
             return false
         }
 
+        try await ensureDownloaded(destinationURL)
         try verifyDestination(destinationURL)
 
         let replacementDirectory = try createReplacementDirectory(destinationURL)
@@ -35,7 +38,7 @@ struct CoordinatedReplaceWriter {
             try prepareReplacementFile(replacementURL)
             let cleanupConflicts = self.cleanupConflicts
             let replaceItem = self.replaceItem
-            try coordinateReplace(destinationURL) { coordinatedURL in
+            try await coordinateReplace(destinationURL) { coordinatedURL in
                 try replaceItem(coordinatedURL, replacementURL)
                 do {
                     try cleanupConflicts(coordinatedURL)
@@ -150,6 +153,7 @@ extension CoordinatedReplaceWriter {
 
     static let live = CoordinatedReplaceWriter(
         fileExists: { FileManager.default.fileExists(atPath: $0) },
+        ensureDownloaded: { _ in },
         verifyDestination: { destinationURL in
             let values = try destinationURL.resourceValues(forKeys: [.isDirectoryKey])
 
