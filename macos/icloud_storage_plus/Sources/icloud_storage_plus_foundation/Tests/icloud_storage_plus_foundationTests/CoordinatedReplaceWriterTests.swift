@@ -219,6 +219,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
     func testOverwriteExistingItemVerifiesDestinationAfterEnsuringDownload() async throws {
         var downloadPrepared = false
         var verifySawPreparedDownload = false
+        let fileManager = FileManager.default
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
@@ -233,7 +234,11 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { url, accessor in try accessor(url) },
             cleanupConflicts: { _ in },
             replaceItem: { _, _ in },
-            removeItem: { _ in }
+            removeItem: { url in
+                if fileManager.fileExists(atPath: url.path) {
+                    try fileManager.removeItem(at: url)
+                }
+            }
         )
 
         _ = try await writer.overwriteExistingItem(
@@ -280,6 +285,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         var destinationContents = "old"
         var cleanupSawContents: String?
         let replacementContents = "new"
+        let fileManager = FileManager.default
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
@@ -293,7 +299,11 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             replaceItem: { _, _ in
                 destinationContents = replacementContents
             },
-            removeItem: { _ in }
+            removeItem: { url in
+                if fileManager.fileExists(atPath: url.path) {
+                    try fileManager.removeItem(at: url)
+                }
+            }
         )
 
         _ = try await writer.overwriteExistingItem(at: destinationURL) { _ in
