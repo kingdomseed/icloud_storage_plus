@@ -37,7 +37,11 @@ struct CoordinatedReplaceWriter {
             let replaceItem = self.replaceItem
             try coordinateReplace(destinationURL) { coordinatedURL in
                 try replaceItem(coordinatedURL, replacementURL)
-                try cleanupConflicts(coordinatedURL)
+                do {
+                    try cleanupConflicts(coordinatedURL)
+                } catch {
+                    throw Self.cleanupConflictError(underlying: error)
+                }
             }
         } catch {
             try? removeItem(replacementDirectory)
@@ -55,6 +59,18 @@ extension CoordinatedReplaceWriter {
     static let itemNotDownloadedReplaceStateCode = 2
     static let directoryReplaceStateCode = 4
 
+    static func cleanupConflictError(underlying: Error) -> NSError {
+        NSError(
+            domain: replaceStateErrorDomain,
+            code: conflictReplaceStateCode,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Cannot replace an iCloud item: auto-resolution failed.",
+                NSUnderlyingErrorKey: underlying as NSError,
+            ]
+        )
+    }
+
     static func fileDestinationError(isDirectory: Bool) -> NSError? {
         guard isDirectory else {
             return nil
@@ -70,15 +86,10 @@ extension CoordinatedReplaceWriter {
         )
     }
 
-    static func replaceReadyStateError(
-        hasConflicts: Bool,
+    static func copyDestinationReadyStateError(
         isUbiquitousItem: Bool,
-        downloadStatus: URLUbiquitousItemDownloadingStatus?,
-        isDownloading: Bool
+        downloadStatus: URLUbiquitousItemDownloadingStatus?
     ) -> NSError? {
-        _ = hasConflicts
-        _ = isDownloading
-
         guard isUbiquitousItem else {
             return nil
         }
@@ -129,11 +140,9 @@ extension CoordinatedReplaceWriter {
             throw downloadError
         }
 
-        if let replaceStateError = replaceReadyStateError(
-            hasConflicts: false,
+        if let replaceStateError = copyDestinationReadyStateError(
             isUbiquitousItem: values.isUbiquitousItem == true,
-            downloadStatus: values.ubiquitousItemDownloadingStatus,
-            isDownloading: values.ubiquitousItemIsDownloading == true
+            downloadStatus: values.ubiquitousItemDownloadingStatus
         ) {
             throw replaceStateError
         }

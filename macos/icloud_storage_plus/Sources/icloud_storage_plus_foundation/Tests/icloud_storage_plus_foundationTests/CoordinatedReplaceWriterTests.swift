@@ -3,34 +3,19 @@ import XCTest
 @testable import icloud_storage_plus_foundation
 
 final class CoordinatedReplaceWriterTests: XCTestCase {
-    func testReplaceReadyStateErrorAllowsCurrentItemsWithoutConflicts() {
-        let error = CoordinatedReplaceWriter.replaceReadyStateError(
-            hasConflicts: false,
+    func testCopyDestinationReadyStateErrorAllowsCurrentItems() {
+        let error = CoordinatedReplaceWriter.copyDestinationReadyStateError(
             isUbiquitousItem: true,
-            downloadStatus: .current,
-            isDownloading: false
+            downloadStatus: .current
         )
 
         XCTAssertNil(error)
     }
 
-    func testReplaceReadyStateErrorAllowsConflictedCurrentItemsToProceed() {
-        let error = CoordinatedReplaceWriter.replaceReadyStateError(
-            hasConflicts: true,
+    func testCopyDestinationReadyStateErrorRejectsNotDownloadedItems() {
+        let error = CoordinatedReplaceWriter.copyDestinationReadyStateError(
             isUbiquitousItem: true,
-            downloadStatus: .current,
-            isDownloading: false
-        )
-
-        XCTAssertNil(error)
-    }
-
-    func testReplaceReadyStateErrorTreatsDownloadingItemsAsNotDownloaded() {
-        let error = CoordinatedReplaceWriter.replaceReadyStateError(
-            hasConflicts: false,
-            isUbiquitousItem: true,
-            downloadStatus: .downloaded,
-            isDownloading: true
+            downloadStatus: .notDownloaded
         ) as NSError?
 
         XCTAssertEqual(
@@ -175,12 +160,10 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertFalse(preparedReplacement)
     }
 
-    func testReplaceReadyStateErrorRejectsDownloadedButNotCurrentItems() {
-        let error = CoordinatedReplaceWriter.replaceReadyStateError(
-            hasConflicts: false,
+    func testCopyDestinationReadyStateErrorRejectsDownloadedButNotCurrentItems() {
+        let error = CoordinatedReplaceWriter.copyDestinationReadyStateError(
             isUbiquitousItem: true,
-            downloadStatus: URLUbiquitousItemDownloadingStatus.downloaded,
-            isDownloading: false
+            downloadStatus: .downloaded
         ) as NSError?
 
         XCTAssertEqual(error?.domain, "ICloudStoragePlusErrorDomain")
@@ -277,6 +260,47 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         ) { _ in }
 
         XCTAssertEqual(events, ["replaceItem", "cleanupConflicts"])
+    }
+
+    func testOverwriteExistingItemMapsCleanupFailureToConflictError() {
+        let destinationURL = URL(fileURLWithPath: "/tmp/file.json")
+        let replacementDirectory = URL(fileURLWithPath: "/tmp/replacement")
+        let underlyingError = NSError(domain: NSCocoaErrorDomain, code: 512)
+        var cleanedURL: URL?
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            verifyDestination: { _ in },
+            createReplacementDirectory: { _ in replacementDirectory },
+            coordinateReplace: { url, accessor in try accessor(url) },
+            cleanupConflicts: { _ in throw underlyingError },
+            replaceItem: { _, _ in },
+            removeItem: { cleanedURL = $0 }
+        )
+
+        XCTAssertThrowsError(
+            try writer.overwriteExistingItem(at: destinationURL) { _ in }
+        ) { error in
+            let nsError = error as NSError
+            XCTAssertEqual(
+                nsError.domain,
+                CoordinatedReplaceWriter.replaceStateErrorDomain
+            )
+            XCTAssertEqual(
+                nsError.code,
+                CoordinatedReplaceWriter.conflictReplaceStateCode
+            )
+            XCTAssertEqual(
+                nsError.localizedDescription,
+                "Cannot replace an iCloud item: auto-resolution failed."
+            )
+            XCTAssertEqual(
+                (nsError.userInfo[NSUnderlyingErrorKey] as? NSError)?.code,
+                underlyingError.code
+            )
+        }
+
+        XCTAssertEqual(cleanedURL, replacementDirectory)
     }
 
     private func makeTemporaryDirectory() throws -> URL {
