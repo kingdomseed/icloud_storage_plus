@@ -110,6 +110,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { _, _ in
                 XCTFail("should not coordinate replace")
             },
+            cleanupConflicts: { _ in },
             replaceItem: { _, _ in
                 XCTFail("should not replace item")
             },
@@ -153,6 +154,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { _, _ in
                 XCTFail("should not coordinate replace")
             },
+            cleanupConflicts: { _ in },
             replaceItem: { _, _ in
                 XCTFail("should not replace item")
             },
@@ -205,6 +207,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             coordinateReplace: { _, _ in
                 XCTFail("should not coordinate replace")
             },
+            cleanupConflicts: { _ in },
             replaceItem: { _, _ in
                 XCTFail("should not replace item")
             },
@@ -233,6 +236,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             verifyDestination: { _ in },
             createReplacementDirectory: { _ in replacementDirectory },
             coordinateReplace: { url, accessor in try accessor(url) },
+            cleanupConflicts: { _ in },
             replaceItem: { _, _ in throw expectedError },
             removeItem: { cleanedURL = $0 }
         )
@@ -249,6 +253,30 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         }
 
         XCTAssertNotNil(cleanedURL)
+    }
+
+    func testOverwriteExistingItemReplacesBeforeConflictCleanup() throws {
+        var events: [String] = []
+
+        let writer = CoordinatedReplaceWriter(
+            fileExists: { _ in true },
+            verifyDestination: { _ in },
+            createReplacementDirectory: { _ in
+                URL(fileURLWithPath: "/tmp/replacement")
+            },
+            coordinateReplace: { _, accessor in
+                try accessor(URL(fileURLWithPath: "/tmp/file.json"))
+            },
+            cleanupConflicts: { _ in events.append("cleanupConflicts") },
+            replaceItem: { _, _ in events.append("replaceItem") },
+            removeItem: { _ in }
+        )
+
+        _ = try writer.overwriteExistingItem(
+            at: URL(fileURLWithPath: "/tmp/file.json")
+        ) { _ in }
+
+        XCTAssertEqual(events, ["replaceItem", "cleanupConflicts"])
     }
 
     private func makeTemporaryDirectory() throws -> URL {

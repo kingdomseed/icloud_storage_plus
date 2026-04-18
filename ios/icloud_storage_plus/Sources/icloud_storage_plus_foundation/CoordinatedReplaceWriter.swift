@@ -5,6 +5,7 @@ struct CoordinatedReplaceWriter {
     typealias VerifyDestination = (URL) throws -> Void
     typealias CreateReplacementDirectory = (URL) throws -> URL
     typealias CoordinateReplace = (URL, (URL) throws -> Void) throws -> Void
+    typealias CleanupConflicts = (URL) throws -> Void
     typealias ReplaceItem = (URL, URL) throws -> Void
     typealias RemoveItem = (URL) throws -> Void
 
@@ -12,6 +13,7 @@ struct CoordinatedReplaceWriter {
     let verifyDestination: VerifyDestination
     let createReplacementDirectory: CreateReplacementDirectory
     let coordinateReplace: CoordinateReplace
+    let cleanupConflicts: CleanupConflicts
     let replaceItem: ReplaceItem
     let removeItem: RemoveItem
 
@@ -31,8 +33,11 @@ struct CoordinatedReplaceWriter {
 
         do {
             try prepareReplacementFile(replacementURL)
+            let cleanupConflicts = self.cleanupConflicts
+            let replaceItem = self.replaceItem
             try coordinateReplace(destinationURL) { coordinatedURL in
                 try replaceItem(coordinatedURL, replacementURL)
+                try cleanupConflicts(coordinatedURL)
             }
         } catch {
             try? removeItem(replacementDirectory)
@@ -46,9 +51,7 @@ struct CoordinatedReplaceWriter {
 
 extension CoordinatedReplaceWriter {
     static let replaceStateErrorDomain = "ICloudStoragePlusErrorDomain"
-    static let conflictReplaceStateCode = 1
     static let itemNotDownloadedReplaceStateCode = 2
-    static let downloadInProgressReplaceStateCode = 3
     static let directoryReplaceStateCode = 4
 
     static func fileDestinationError(isDirectory: Bool) -> NSError? {
@@ -72,16 +75,8 @@ extension CoordinatedReplaceWriter {
         downloadStatus: URLUbiquitousItemDownloadingStatus?,
         isDownloading: Bool
     ) -> NSError? {
-        if hasConflicts {
-            return NSError(
-                domain: replaceStateErrorDomain,
-                code: conflictReplaceStateCode,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "Cannot replace an iCloud item with unresolved conflict versions.",
-                ]
-            )
-        }
+        _ = hasConflicts
+        _ = isDownloading
 
         guard isUbiquitousItem else {
             return nil
@@ -89,17 +84,6 @@ extension CoordinatedReplaceWriter {
 
         if downloadStatus == .current {
             return nil
-        }
-
-        if isDownloading {
-            return NSError(
-                domain: replaceStateErrorDomain,
-                code: downloadInProgressReplaceStateCode,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "Cannot replace an iCloud item while it is downloading.",
-                ]
-            )
         }
 
         return NSError(
@@ -115,13 +99,6 @@ extension CoordinatedReplaceWriter {
     static func verifyExistingDestinationCanBeReplaced(
         at destinationURL: URL
     ) throws {
-        let hasConflicts = if let conflictVersions =
-            NSFileVersion.unresolvedConflictVersionsOfItem(at: destinationURL) {
-            !conflictVersions.isEmpty
-        } else {
-            false
-        }
-
         let values = try destinationURL.resourceValues(forKeys: [
             .isUbiquitousItemKey,
             .ubiquitousItemDownloadingStatusKey,
@@ -134,7 +111,7 @@ extension CoordinatedReplaceWriter {
         }
 
         if let replaceStateError = replaceReadyStateError(
-            hasConflicts: hasConflicts,
+            hasConflicts: false,
             isUbiquitousItem: values.isUbiquitousItem == true,
             downloadStatus: values.ubiquitousItemDownloadingStatus,
             isDownloading: values.ubiquitousItemIsDownloading == true
@@ -143,24 +120,16 @@ extension CoordinatedReplaceWriter {
         }
     }
 
-    private static func verifyFileDestinationCanBeOverwritten(
-        at destinationURL: URL
-    ) throws {
-        let values = try destinationURL.resourceValues(forKeys: [.isDirectoryKey])
-
-        if let destinationError = fileDestinationError(
-            isDirectory: values.isDirectory == true
-        ) {
-            throw destinationError
-        }
-
-        try verifyExistingDestinationCanBeReplaced(at: destinationURL)
-    }
-
     static let live = CoordinatedReplaceWriter(
         fileExists: { FileManager.default.fileExists(atPath: $0) },
         verifyDestination: { destinationURL in
-            try verifyFileDestinationCanBeOverwritten(at: destinationURL)
+            let values = try destinationURL.resourceValues(forKeys: [.isDirectoryKey])
+
+            if let destinationError = fileDestinationError(
+                isDirectory: values.isDirectory == true
+            ) {
+                throw destinationError
+            }
         },
         createReplacementDirectory: { destinationURL in
             try FileManager.default.url(
@@ -195,6 +164,7 @@ extension CoordinatedReplaceWriter {
                 throw accessError
             }
         },
+        cleanupConflicts: cleanupConflictsAfterOverwrite,
         replaceItem: { destinationURL, replacementURL in
             _ = try FileManager.default.replaceItemAt(
                 destinationURL,
