@@ -97,6 +97,23 @@ Scope: Part 1 contract lock for the reset worktree
 - The write path should get a separate cleanup helper that marks conflicts
   resolved and removes other versions without restoring an older winner.
 
+### `ios/.../icloud_storage_plus_foundation/ConflictResolver.swift`
+
+- `resolvePresentedItemConflictsSync(at:)`: Keep as the observer-specific
+  winner-selection helper extracted from `ICloudDocument.resolveConflicts()`.
+- `resolvePresentedItemConflicts(at:)`: Keep as the async wrapper only if
+  observer call sites still need an async surface after extraction; otherwise
+  merge into the sync helper's call sites.
+- `cleanupConflictsAfterOverwrite(at:)`: Keep as a write-path-specific cleanup
+  helper that marks conflicts resolved and removes other versions without
+  restoring an older winner.
+- Any attempt to reuse observer winner-selection for save-path cleanup:
+  Delete.
+
+### `macos/.../icloud_storage_plus_foundation/ConflictResolver.swift`
+
+- Mirror the iOS decisions exactly. Contract divergence is not allowed.
+
 ## Scope Guard
 
 - This audit is doc-only and does not authorize Swift or Dart implementation
