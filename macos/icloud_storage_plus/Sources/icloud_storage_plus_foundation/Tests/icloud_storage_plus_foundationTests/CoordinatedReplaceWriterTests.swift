@@ -601,6 +601,87 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         XCTAssertEqual(replaceItemCount, 1)
     }
 
+    // MARK: - Slice A: pre-flight reduction
+
+    func testLiveWriterDoesNotInvokeFullLegacyPreflight() throws {
+        let writerSource = try String(
+            contentsOfFile: #filePath
+                .replacingOccurrences(
+                    of: "/Tests/icloud_storage_plus_foundationTests/"
+                        + "CoordinatedReplaceWriterTests.swift",
+                    with: "/CoordinatedReplaceWriter.swift"
+                ),
+            encoding: .utf8
+        )
+
+        // The `live` binding's verifyDestination must be the new
+        // directory-only helper, NOT the legacy full pre-flight that
+        // refuses on hasConflicts. Auto-resolve runs inside the
+        // coordinator block; pre-flight refusal would fire first and
+        // make the auto-resolve seam unreachable.
+        XCTAssertFalse(
+            writerSource.contains("verifyFileDestinationCanBeOverwritten"),
+            "live.verifyDestination must NOT route through "
+                + "verifyFileDestinationCanBeOverwritten — that helper "
+                + "transitively refuses on hasConflicts and would block "
+                + "auto-resolution before it can run."
+        )
+        XCTAssertTrue(
+            writerSource.contains("verifyOverwriteDestinationIsFile"),
+            "live.verifyDestination must use the directory-only "
+                + "verifyOverwriteDestinationIsFile helper introduced by "
+                + "Slice A of the PR #25 architectural correction."
+        )
+    }
+
+    func testVerifyOverwriteDestinationIsFileRejectsDirectory() throws {
+        let temporaryDirectory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let nestedDirectory = temporaryDirectory
+            .appendingPathComponent("folder", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: nestedDirectory,
+            withIntermediateDirectories: true
+        )
+
+        XCTAssertThrowsError(
+            try CoordinatedReplaceWriter
+                .verifyOverwriteDestinationIsFile(at: nestedDirectory)
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Cannot replace an existing directory with file content."
+            )
+        }
+    }
+
+    func testVerifyOverwriteDestinationIsFileAcceptsRegularFile() throws {
+        let temporaryDirectory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let fileURL = temporaryDirectory.appendingPathComponent("file.json")
+        try Data("payload".utf8).write(to: fileURL)
+
+        // Must not throw — directory-only check, no conflict / download
+        // refusal logic.
+        try CoordinatedReplaceWriter
+            .verifyOverwriteDestinationIsFile(at: fileURL)
+    }
+
+    func testLegacyFullPreflightStillExistsForCopyPath() {
+        // Copy() in iOSICloudStoragePlugin / macOSICloudStoragePlugin
+        // continues to call the legacy full pre-flight. This Slice A
+        // change must NOT delete or alter that helper.
+        let directoryURL = URL(fileURLWithPath: "/tmp/dir-\(UUID().uuidString)")
+        // Just confirm the symbol is callable — the behavior under
+        // real conflicts is exercised by existing copy-path tests.
+        XCTAssertNoThrow(
+            try? CoordinatedReplaceWriter
+                .verifyExistingDestinationCanBeReplaced(at: directoryURL)
+        )
+    }
+
     func testLiveAutoResolveConflictErrorPreservesCoordinationDomain() {
         let underlying = NSError(
             domain: NSCocoaErrorDomain,

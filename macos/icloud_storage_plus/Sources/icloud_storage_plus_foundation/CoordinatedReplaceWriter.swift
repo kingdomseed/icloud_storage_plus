@@ -183,7 +183,15 @@ extension CoordinatedReplaceWriter {
         }
     }
 
-    private static func verifyFileDestinationCanBeOverwritten(
+    /// Directory-only pre-flight for the writeInPlace path.
+    ///
+    /// The new auto-resolve / auto-download seams handle conflict and
+    /// download states recoverably. Pre-flight refusal on those states
+    /// would block the seams from running. Only categorical
+    /// impossibilities (replacing a directory with a file) belong
+    /// here. The legacy `verifyExistingDestinationCanBeReplaced`
+    /// remains for the copy path, which still runs without recovery.
+    static func verifyOverwriteDestinationIsFile(
         at destinationURL: URL
     ) throws {
         let values = try destinationURL.resourceValues(forKeys: [.isDirectoryKey])
@@ -193,8 +201,6 @@ extension CoordinatedReplaceWriter {
         ) {
             throw destinationError
         }
-
-        try verifyExistingDestinationCanBeReplaced(at: destinationURL)
     }
 
     /// Default `ensureDownloaded` binding: no-op for non-ubiquitous
@@ -271,7 +277,7 @@ extension CoordinatedReplaceWriter {
         fileExists: { FileManager.default.fileExists(atPath: $0) },
         ensureDownloaded: liveEnsureDownloaded,
         verifyDestination: { destinationURL in
-            try verifyFileDestinationCanBeOverwritten(at: destinationURL)
+            try verifyOverwriteDestinationIsFile(at: destinationURL)
         },
         createReplacementDirectory: { destinationURL in
             try FileManager.default.url(
