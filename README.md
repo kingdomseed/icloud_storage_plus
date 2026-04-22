@@ -77,13 +77,17 @@ There are four “tiers” of API in this plugin:
    - `downloadFile` (iCloud → local)
 2. **In-place content** for small files (bytes/strings cross the platform
    channel; loads full contents in memory)
-   - `readInPlace`, `readInPlaceBytes`
-   - `writeInPlace`, `writeInPlaceBytes`
-   - On iOS and macOS, existing-file writes use coordinated atomic replacement so the
-     destination path stays stable during overwrite.
-   - On iOS and macOS, these file-write overwrite paths reject an existing directory
-     destination instead of replacing it, and they only replace ubiquitous
-     items that are currently up to date.
+    - `readInPlace`, `readInPlaceBytes`
+    - `writeInPlace`, `writeInPlaceBytes`
+    - On iOS and macOS, existing-file writes use coordinated atomic replacement so the
+      destination path stays stable during overwrite.
+    - On iOS and macOS, overwrite paths for `writeInPlace`,
+      `writeInPlaceBytes`, and `uploadFile` proactively start any needed
+      iCloud download, wait with an interactive-write timeout budget, and
+      resolve unresolved `NSFileVersion` conflicts before the coordinated
+      replace.
+    - Those file-write overwrite paths still reject an existing directory
+      destination instead of replacing it.
 3. **File management and queries**
    - `delete`, `move`, `copy`, `rename`
    - `documentExists`, `getItemMetadata`, `getDocumentMetadata`
@@ -163,7 +167,7 @@ Future<void> example() async {
     // This is a Dart-side exception (not a PlatformException).
     throw Exception(e);
   } on ICloudOperationException catch (e) {
-    // Structured request/response failures are typed in 2.0.0.
+    // Structured request/response failures are typed.
     throw Exception(e);
   } on PlatformException catch (e) {
     // Legacy unstructured native failures stay raw PlatformException values.
@@ -176,9 +180,9 @@ Future<void> example() async {
 
 Progress is delivered via an `EventChannel` as *data events* of type
 `ICloudTransferProgress`. Failures are **not** delivered via stream `onError`.
-In `2.0.0`, transfer-progress failures still carry raw `PlatformException`
-objects in `event.exception` even though structured request/response APIs now
-map to typed Dart exceptions.
+Transfer-progress failures still carry raw `PlatformException` objects in
+`event.exception` even though structured request/response APIs map to typed
+Dart exceptions.
 
 Important: the progress stream is listener-driven; start listening immediately
 in the `onProgress` callback or you may miss early events.
@@ -417,7 +421,7 @@ native code).
 
 Structured native failures from request/response APIs such as `readInPlace`,
 `writeInPlace`, `copy`, `getContainerPath`, and `getItemMetadata` map to typed
-exceptions in `2.0.0`:
+exceptions:
 
 - `ICloudContainerAccessException`
 - `ICloudItemNotFoundException`
@@ -431,6 +435,12 @@ exceptions in `2.0.0`:
 For iOS and macOS file-write overwrite operations, trying to overwrite an existing
 directory target is treated as an invalid argument rather than as a successful
 replacement.
+
+For iOS and macOS overwrite paths, conflict/download refusal is now a
+last-resort outcome rather than the default contract. Existing-file overwrites
+first try to auto-download non-current ubiquitous items and auto-resolve
+unresolved conflict versions. If the download wait exhausts its interactive
+budget, the request/response API surfaces `ICloudTimeoutException`.
 
 These exceptions expose `operation`, `retryable`, `relativePath`, and native
 error context when the platform provides it.

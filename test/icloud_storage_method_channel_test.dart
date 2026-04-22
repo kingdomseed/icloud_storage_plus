@@ -181,6 +181,34 @@ void main() {
       expect(eventChannelName, isNotNull);
       expect(eventChannelName, isNotEmpty);
     });
+
+    test('uploadFile maps structured timeout payloads', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'uploadFile') {
+          throw PlatformException(
+            code: PlatformExceptionCode.timeout,
+            message: 'Timed out',
+            details: {
+              'category': 'timeout',
+              'operation': 'uploadFile',
+              'retryable': true,
+              'relativePath': 'dest',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.uploadFile(
+          containerId: containerId,
+          localPath: '/dir/file',
+          cloudRelativePath: 'dest',
+        ),
+        throwsA(isA<ICloudTimeoutException>()),
+      );
+    });
   });
 
   group('downloadFile tests:', () {
@@ -287,6 +315,34 @@ void main() {
       expect(args['relativePath'], 'Documents/test.json');
       expect(args['contents'], '{"ok":true}');
     });
+
+    test('writeInPlace maps structured timeout payloads', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'writeInPlace') {
+          throw PlatformException(
+            code: PlatformExceptionCode.timeout,
+            message: 'Timed out',
+            details: {
+              'category': 'timeout',
+              'operation': 'writeInPlace',
+              'retryable': true,
+              'relativePath': 'Documents/test.json',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.writeInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/test.json',
+          contents: '{"ok":true}',
+        ),
+        throwsA(isA<ICloudTimeoutException>()),
+      );
+    });
   });
 
   group('writeInPlaceBytes tests:', () {
@@ -300,6 +356,34 @@ void main() {
       expect(args['containerId'], containerId);
       expect(args['relativePath'], 'Documents/data.bin');
       expect(args['contents'], Uint8List.fromList([4, 5, 6]));
+    });
+
+    test('writeInPlaceBytes maps structured timeout payloads', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'writeInPlaceBytes') {
+          throw PlatformException(
+            code: PlatformExceptionCode.timeout,
+            message: 'Timed out',
+            details: {
+              'category': 'timeout',
+              'operation': 'writeInPlaceBytes',
+              'retryable': true,
+              'relativePath': 'Documents/data.bin',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.writeInPlaceBytes(
+          containerId: containerId,
+          relativePath: 'Documents/data.bin',
+          contents: Uint8List.fromList([4, 5, 6]),
+        ),
+        throwsA(isA<ICloudTimeoutException>()),
+      );
     });
   });
 

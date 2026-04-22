@@ -9,7 +9,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
   private let streamStateQueue = DispatchQueue(
     label: "icloud_storage_plus.stream_state"
   )
-  let querySearchScopes = [NSMetadataQueryUbiquitousDataScope, NSMetadataQueryUbiquitousDocumentsScope];
+  let querySearchScopes = iCloudMetadataQuerySearchScopes
   private var queryObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
   private let queryObserversQueue = DispatchQueue(
     label: "icloud_storage_plus.query_observers"
@@ -299,11 +299,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
       writeDocument(at: cloudFileURL, sourceURL: localFileURL) { error in
         if let error = error {
-          result(self.nativeCodeError(
+          let mapped = self.mapTimeoutError(
             error,
             operation: "uploadFile",
             relativePath: cloudRelativePath
-          ))
+          ) ?? self.nativeCodeError(
+            error,
+            operation: "uploadFile",
+            relativePath: cloudRelativePath
+          )
+          result(mapped)
         } else {
           // Set up progress monitoring if needed
           if !eventChannelName.isEmpty {
@@ -607,12 +612,14 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    waitForDownloadCompletion(
-      fileURL: fileURL,
-      idleTimeouts: idleTimeouts,
-      retryBackoff: retryBackoff
-    ) { [self] error in
-      if let error {
+    Task { [self] in
+      do {
+        try await waitForDownloadCompletion(
+          at: fileURL,
+          idleTimeouts: idleTimeouts,
+          retryBackoff: retryBackoff
+        )
+      } catch {
         if let timeoutError = mapTimeoutError(
           error,
           operation: "readInPlace",
@@ -695,6 +702,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           error,
           operation: "writeInPlace",
           relativePath: relativePath
+        ) ?? mapTimeoutError(
+          error,
+          operation: "writeInPlace",
+          relativePath: relativePath
         ) ?? nativeCodeError(
           error,
           operation: "writeInPlace",
@@ -749,12 +760,14 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    waitForDownloadCompletion(
-      fileURL: fileURL,
-      idleTimeouts: idleTimeouts,
-      retryBackoff: retryBackoff
-    ) { [self] error in
-      if let error {
+    Task { [self] in
+      do {
+        try await waitForDownloadCompletion(
+          at: fileURL,
+          idleTimeouts: idleTimeouts,
+          retryBackoff: retryBackoff
+        )
+      } catch {
         if let timeoutError = mapTimeoutError(
           error,
           operation: "readInPlaceBytes",
@@ -841,6 +854,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           error,
           operation: "writeInPlaceBytes",
           relativePath: relativePath
+        ) ?? mapTimeoutError(
+          error,
+          operation: "writeInPlaceBytes",
+          relativePath: relativePath
         ) ?? nativeCodeError(
           error,
           operation: "writeInPlaceBytes",
@@ -893,151 +910,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
   }
 
-  /// Waits for an iCloud download to reach "current" or fail.
-  ///
-  /// Uses an idle watchdog timer that resets only when download progress
-  /// advances. This avoids hard timeouts while still escaping stalled
-  /// downloads.
-  private func waitForDownloadCompletion(
-    fileURL: URL,
-    idleTimeouts: [TimeInterval],
-    retryBackoff: [TimeInterval],
-    completion: @escaping (Error?) -> Void
-  ) {
-    if let values = try? fileURL.resourceValues(
-      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
-    ) {
-      if let error = values.ubiquitousItemDownloadingError {
-        completion(error)
-        return
-      }
-      if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-        completion(nil)
-        return
-      }
-    }
-
-    let idleSchedule = idleTimeouts.isEmpty ? [60, 90, 180] : idleTimeouts
-    let backoffSchedule = retryBackoff.isEmpty ? [2, 4] : retryBackoff
-
-    let completionGate = CompletionGate()
-    let completeOnce: (Error?) -> Void = { error in
-      guard completionGate.tryComplete() else {
-        return
-      }
-      DispatchQueue.main.async {
-        completion(error)
-      }
-    }
-
-    func startAttempt(index: Int) {
-      if completionGate.isCompleted { return }
-      let query = NSMetadataQuery()
-      query.operationQueue = .main
-      query.searchScopes = querySearchScopes
-      query.predicate = NSPredicate(
-        format: "%K == %@",
-        NSMetadataItemPathKey,
-        fileURL.path
-      )
-
-      var watchdogTimer: Timer?
-      var lastProgress = -1.0
-
-      let resetWatchdog: () -> Void = {
-        watchdogTimer?.invalidate()
-        watchdogTimer = Timer.scheduledTimer(
-          withTimeInterval: idleSchedule[index],
-          repeats: false
-        ) { [self] _ in
-          removeObservers(query)
-          query.stop()
-          if index < idleSchedule.count - 1 {
-            let delayIndex = min(index, backoffSchedule.count - 1)
-            let delay = backoffSchedule[delayIndex]
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-              startAttempt(index: index + 1)
-            }
-            return
-          }
-          completeOnce(timeoutNativeError())
-        }
-      }
-
-      let handleEvaluation: () -> Void = { [self] in
-        let evaluation = evaluateDownloadStatus(query: query, fileURL: fileURL)
-        if evaluation.completed {
-          watchdogTimer?.invalidate()
-          removeObservers(query)
-          query.stop()
-          completeOnce(evaluation.error)
-          return
-        }
-
-        if let item = query.results.first as? NSMetadataItem,
-           let progress = item.value(
-             forAttribute: NSMetadataUbiquitousItemPercentDownloadedKey
-           ) as? Double,
-           progress > lastProgress {
-          lastProgress = progress
-          resetWatchdog()
-        }
-      }
-
-      addObserver(
-        for: query,
-        name: NSNotification.Name.NSMetadataQueryDidFinishGathering
-      ) { _ in
-        handleEvaluation()
-      }
-
-      addObserver(
-        for: query,
-        name: NSNotification.Name.NSMetadataQueryDidUpdate
-      ) { _ in
-        handleEvaluation()
-      }
-
-      DispatchQueue.main.async {
-        guard !completionGate.isCompleted else {
-          return
-        }
-        resetWatchdog()
-        query.start()
-      }
-    }
-
-    startAttempt(index: 0)
-  }
-
-  /// Checks if the file is fully downloaded and available for access.
-  ///
-  /// Strategy:
-  /// 1) Index check: resolve via `NSMetadataQuery` results (handles recent moves/renames).
-  /// 2) Filesystem fallback: if query returns no results, use the original `fileURL`
-  ///    to avoid hanging on metadata indexing latency.
-  private func evaluateDownloadStatus(
-    query: NSMetadataQuery,
-    fileURL: URL
-  ) -> (completed: Bool, error: Error?) {
-    let resolvedURL = (query.results.first as? NSMetadataItem)
-      .flatMap { $0.value(forAttribute: NSMetadataItemURLKey) as? URL }
-      ?? fileURL
-    guard let values = try? resolvedURL.resourceValues(
-      forKeys: [.ubiquitousItemDownloadingStatusKey, .ubiquitousItemDownloadingErrorKey]
-    ) else {
-      return (false, nil)
-    }
-
-    if let error = values.ubiquitousItemDownloadingError {
-      return (true, error)
-    }
-
-    if values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current {
-      return (true, nil)
-    }
-    return (false, nil)
-  }
   
   /// Check if an item exists without downloading.
   private func documentExists(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -1917,14 +1789,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     )
   }
 
-  private func timeoutNativeError() -> NSError {
-    return NSError(
-      domain: "ICloudStorageTimeout",
-      code: 1,
-      userInfo: [NSLocalizedDescriptionKey: "Download idle timeout"]
-    )
-  }
-
   private func mapTimeoutError(
     _ error: Error,
     operation: String = "unknown",
@@ -1937,29 +1801,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       relativePath: relativePath,
       nativeError: nsError
     )
-  }
-}
-
-private final class CompletionGate {
-  private let queue = DispatchQueue(
-    label: "icloud_storage_plus.completion_gate"
-  )
-  private var completed = false
-
-  var isCompleted: Bool {
-    queue.sync {
-      completed
-    }
-  }
-
-  func tryComplete() -> Bool {
-    queue.sync {
-      if completed {
-        return false
-      }
-      completed = true
-      return true
-    }
   }
 }
 

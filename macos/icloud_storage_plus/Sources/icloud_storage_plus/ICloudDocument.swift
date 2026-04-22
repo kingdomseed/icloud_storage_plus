@@ -75,51 +75,28 @@ class ICloudDocument: NSDocument {
     override func presentedItemDidChange() {
         super.presentedItemDidChange()
 
-        if let fileURL = fileURL,
-           let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL),
-           !conflictVersions.isEmpty {
-            resolveConflicts()
+        guard let fileURL = fileURL else { return }
+        guard let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL),
+              !conflictVersions.isEmpty else {
+            return
+        }
+
+        let targetURL = fileURL
+        Task { [weak self] in
+            do {
+                try await resolveUnresolvedConflicts(at: targetURL)
+            } catch {
+                DebugHelper.log(
+                    "Failed to resolve conflicts: \(error.localizedDescription)"
+                )
+                self?.lastError = error
+            }
         }
     }
 
     override func presentedItemDidMove(to newURL: URL) {
         super.presentedItemDidMove(to: newURL)
         DebugHelper.log("Document moved to: \(newURL.lastPathComponent)")
-    }
-
-    private func resolveConflicts() {
-        guard let fileURL = fileURL else { return }
-
-        DebugHelper.log("Resolving conflicts for: \(fileURL.lastPathComponent)")
-
-        if let conflictVersions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL),
-           !conflictVersions.isEmpty {
-
-            let sortedVersions = conflictVersions.sorted { version1, version2 in
-                let date1 = version1.modificationDate ?? Date.distantPast
-                let date2 = version2.modificationDate ?? Date.distantPast
-                return date1 > date2
-            }
-
-            if let mostRecentVersion = sortedVersions.first {
-                do {
-                    try mostRecentVersion.replaceItem(at: fileURL)
-
-                    for version in conflictVersions {
-                        version.isResolved = true
-                    }
-
-                    try NSFileVersion.removeOtherVersionsOfItem(at: fileURL)
-
-                    DebugHelper.log(
-                        "Conflicts resolved using version from: \(mostRecentVersion.modificationDate?.description ?? "unknown")"
-                    )
-                } catch {
-                    DebugHelper.log("Failed to resolve conflicts: \(error.localizedDescription)")
-                    lastError = error
-                }
-            }
-        }
     }
 
     private func streamCopy(from sourceURL: URL, to destinationURL: URL) throws {
@@ -282,13 +259,12 @@ extension ICloudStoragePlugin {
         sourceURL: URL,
         completion: @escaping (Error?) -> Void
     ) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task.detached(priority: .userInitiated) {
             do {
-                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                    at: url
-                ) { replacementURL in
-                    try streamCopyToURL(from: sourceURL, to: replacementURL)
-                }
+                let handled = try await CoordinatedReplaceWriter.live
+                    .overwriteExistingItem(at: url) { replacementURL in
+                        try streamCopyToURL(from: sourceURL, to: replacementURL)
+                    }
 
                 if handled {
                     DispatchQueue.main.async {
@@ -396,13 +372,12 @@ extension ICloudStoragePlugin {
         contents: String,
         completion: @escaping (Error?) -> Void
     ) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task.detached(priority: .userInitiated) {
             do {
-                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                    at: url
-                ) { replacementURL in
-                    try writeTextToURL(contents, to: replacementURL)
-                }
+                let handled = try await CoordinatedReplaceWriter.live
+                    .overwriteExistingItem(at: url) { replacementURL in
+                        try writeTextToURL(contents, to: replacementURL)
+                    }
 
                 if handled {
                     DispatchQueue.main.async {
@@ -470,13 +445,12 @@ extension ICloudStoragePlugin {
         contents: Data,
         completion: @escaping (Error?) -> Void
     ) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task.detached(priority: .userInitiated) {
             do {
-                let handled = try CoordinatedReplaceWriter.live.overwriteExistingItem(
-                    at: url
-                ) { replacementURL in
-                    try writeDataToURL(contents, to: replacementURL)
-                }
+                let handled = try await CoordinatedReplaceWriter.live
+                    .overwriteExistingItem(at: url) { replacementURL in
+                        try writeDataToURL(contents, to: replacementURL)
+                    }
 
                 if handled {
                     DispatchQueue.main.async {

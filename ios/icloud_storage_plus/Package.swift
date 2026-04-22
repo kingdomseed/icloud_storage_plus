@@ -18,6 +18,18 @@ let package = Package(
         .target(
             name: "icloud_storage_plus",
             dependencies: [],
+            path: "Sources",
+            exclude: [
+                "icloud_storage_plus_foundation/Package.swift",
+                "icloud_storage_plus_foundation/Tests",
+                "icloud_storage_plus_foundation/Placeholder.swift",
+            ],
+            sources: [
+                "icloud_storage_plus",
+                "icloud_storage_plus_foundation/CoordinatedReplaceWriter.swift",
+                "icloud_storage_plus_foundation/DownloadWaiter.swift",
+                "icloud_storage_plus_foundation/ConflictResolver.swift",
+            ],
             resources: [
                 // If this plugin requires a privacy manifest (e.g. uses required
                 // reason APIs), add `PrivacyInfo.xcprivacy` under
@@ -25,7 +37,7 @@ let package = Package(
                 // .process("PrivacyInfo.xcprivacy"),
             ],
             cSettings: [
-                .headerSearchPath("include/icloud_storage_plus"),
+                .headerSearchPath("icloud_storage_plus/include/icloud_storage_plus"),
             ]
         ),
     ]
