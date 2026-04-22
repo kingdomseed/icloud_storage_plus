@@ -1,0 +1,9 @@
+ai_specs/
+build/
+coverage/
+diagnostic/
+docs/
+example/ios/Flutter/ephemeral/
+example/macos/build/
+AGENTS.md
+CLAUDE.md

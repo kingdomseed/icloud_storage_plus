@@ -299,11 +299,16 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
 
       writeDocument(at: cloudFileURL, sourceURL: localFileURL) { error in
         if let error = error {
-          result(self.nativeCodeError(
+          let mapped = self.mapTimeoutError(
             error,
             operation: "uploadFile",
             relativePath: cloudRelativePath
-          ))
+          ) ?? self.nativeCodeError(
+            error,
+            operation: "uploadFile",
+            relativePath: cloudRelativePath
+          )
+          result(mapped)
         } else {
           // Set up progress monitoring if needed
           if !eventChannelName.isEmpty {
@@ -697,6 +702,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           error,
           operation: "writeInPlace",
           relativePath: relativePath
+        ) ?? mapTimeoutError(
+          error,
+          operation: "writeInPlace",
+          relativePath: relativePath
         ) ?? nativeCodeError(
           error,
           operation: "writeInPlace",
@@ -842,6 +851,10 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     writeInPlaceBinaryDocument(at: fileURL, contents: contents.data) { [self] error in
       if let error = error {
         let mapped = mapFileNotFoundError(
+          error,
+          operation: "writeInPlaceBytes",
+          relativePath: relativePath
+        ) ?? mapTimeoutError(
           error,
           operation: "writeInPlaceBytes",
           relativePath: relativePath
