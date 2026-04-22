@@ -11,15 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Added `WriteEntrypointPreflight.swift` to the explicit iOS plugin
-  `Package.swift` source list so consumer builds that rely on the Swift package
-  manifest can compile the `2.1.x` write-path preflight helper correctly.
+  `Package.swift` source list so consumer builds that rely on the plugin's
+  Swift package manifest can compile the `2.1.x` write-path preflight helper.
+- This is a packaging hotfix only. The Dart API and native write-path behavior
+  introduced in `2.1.0` are unchanged.
 
-## [2.1.0] - 2026-04-17
+## [2.1.0] - 2026-04-22
 
 Non-breaking behavior upgrade: `writeInPlace` becomes symmetric with
 `readInPlace` by proactively downloading non-current iCloud items and
 resolving unresolved conflict versions before the coordinated replace.
 Public Dart API unchanged.
+
+### Added
+- Shared `WriteEntrypointPreflight` helpers and foundation tests on iOS and
+  macOS to move write-path container lookup and parent-directory creation off
+  the entry thread before coordinated writes begin.
+- Typed Dart mapping for native `invalidArgument` write failures via
+  `ICloudInvalidArgumentException`.
 
 ### Changed
 - `writeInPlace` and the binary / streaming overwrite paths now
@@ -49,6 +58,19 @@ Public Dart API unchanged.
 - `ICloudDocument.resolveConflicts()` (iOS) and the equivalent macOS
   observer both call the shared resolver; the duplicate implementation
   on iOS has been removed.
+- `listContents` on iOS and macOS now does less repeated work inside the
+  directory-enumeration loop by reusing the key set, reusing the parent
+  relative path, and skipping hidden files before metadata lookup.
+- README, package metadata, and publish/package wiring were updated to match
+  the shipped 2.1.x source layout and write-path contract.
+
+### Fixed
+- iOS and macOS overwrite-path completion handlers now preserve structured
+  timeout mapping so download-wait timeouts surface as
+  `ICloudTimeoutException` / `E_TIMEOUT` instead of degrading to
+  generic native failures.
+- CocoaPods packaging now explicitly includes the shared foundation sources
+  needed by the coordinated overwrite implementation.
 
 ## [2.0.0] - 2026-04-09
 
