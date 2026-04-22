@@ -86,6 +86,17 @@ void main() {
     );
 
     test(
+      'maps invalidArgument category to ICloudInvalidArgumentException',
+      () {
+        final exception = mapICloudPlatformException(
+          buildError('invalidArgument'),
+        );
+
+        expect(exception, isA<ICloudInvalidArgumentException>());
+      },
+    );
+
+    test(
       'maps missing category to ICloudUnknownNativeException',
       () {
         final exception = mapICloudPlatformException(buildError(null));

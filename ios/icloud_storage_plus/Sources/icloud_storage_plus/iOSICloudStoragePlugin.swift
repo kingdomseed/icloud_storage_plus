@@ -298,6 +298,35 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     return relative
   }
   
+  private func prepareWriteEntrypointURL(
+    containerId: String,
+    relativePath: String
+  ) async throws -> URL {
+    try await WriteEntrypointPreflight.live.prepare(
+      containerId: containerId,
+      relativePath: relativePath
+    )
+  }
+
+  private func mapWriteEntrypointPreflightError(
+    _ error: Error,
+    operation: String,
+    relativePath: String
+  ) -> FlutterError {
+    if WriteEntrypointPreflight.isContainerUnavailableError(error) {
+      return containerAccessError(
+        operation: operation,
+        relativePath: relativePath
+      )
+    }
+
+    return nativeCodeError(
+      error,
+      operation: operation,
+      relativePath: relativePath
+    )
+  }
+
   /// Copies a local file into the iCloud container (copy-in).
   /// iCloud uploads the container file automatically in the background.
   private func uploadFile(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -310,28 +339,25 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       result(argumentError)
       return
     }
-    
-    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-    else {
-      result(containerAccessError(operation: "uploadFile", relativePath: cloudRelativePath))
-      return
-    }
-    DebugHelper.log("containerURL: \(containerURL.path)")
-    
-    let cloudFileURL = containerURL.appendingPathComponent(cloudRelativePath)
     let localFileURL = URL(fileURLWithPath: localFilePath)
 
-    do {
-      // Create parent directories if needed
-      let cloudFileDirURL = cloudFileURL.deletingLastPathComponent()
-      if !FileManager.default.fileExists(atPath: cloudFileDirURL.path) {
-        try FileManager.default.createDirectory(
-          at: cloudFileDirURL,
-          withIntermediateDirectories: true,
-          attributes: nil
+    Task { [self] in
+      let cloudFileURL: URL
+      do {
+        cloudFileURL = try await prepareWriteEntrypointURL(
+          containerId: containerId,
+          relativePath: cloudRelativePath
         )
+      } catch {
+        result(mapWriteEntrypointPreflightError(
+          error,
+          operation: "uploadFile",
+          relativePath: cloudRelativePath
+        ))
+        return
       }
 
+      DebugHelper.log("containerURL: \(cloudFileURL.deletingLastPathComponent().path)")
       writeDocument(at: cloudFileURL, sourceURL: localFileURL) { error in
         if let error = error {
           let mapped = self.mapTimeoutError(
@@ -356,12 +382,6 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           result(nil)
         }
       }
-    } catch {
-      result(nativeCodeError(
-        error,
-        operation: "uploadFile",
-        relativePath: cloudRelativePath
-      ))
     }
   }
   
@@ -697,50 +717,42 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    guard let containerURL = FileManager.default.url(
-      forUbiquityContainerIdentifier: containerId
-    ) else {
-      result(containerAccessError(operation: "writeInPlace", relativePath: relativePath))
-      return
-    }
-
-    let fileURL = containerURL.appendingPathComponent(relativePath)
-
-    do {
-      let dirURL = fileURL.deletingLastPathComponent()
-      try FileManager.default.createDirectory(
-        at: dirURL,
-        withIntermediateDirectories: true,
-        attributes: nil
-      )
-    } catch {
-      result(nativeCodeError(
-        error,
-        operation: "writeInPlace",
-        relativePath: relativePath
-      ))
-      return
-    }
-
-    writeInPlaceDocument(at: fileURL, contents: contents) { [self] error in
-      if let error = error {
-        let mapped = mapFileNotFoundError(
-          error,
-          operation: "writeInPlace",
-          relativePath: relativePath
-        ) ?? mapTimeoutError(
-          error,
-          operation: "writeInPlace",
-          relativePath: relativePath
-        ) ?? nativeCodeError(
-          error,
-          operation: "writeInPlace",
+    Task { [self] in
+      let fileURL: URL
+      do {
+        fileURL = try await prepareWriteEntrypointURL(
+          containerId: containerId,
           relativePath: relativePath
         )
-        result(mapped)
+      } catch {
+        result(mapWriteEntrypointPreflightError(
+          error,
+          operation: "writeInPlace",
+          relativePath: relativePath
+        ))
         return
       }
-      result(nil)
+
+      writeInPlaceDocument(at: fileURL, contents: contents) { [self] error in
+        if let error = error {
+          let mapped = mapFileNotFoundError(
+            error,
+            operation: "writeInPlace",
+            relativePath: relativePath
+          ) ?? mapTimeoutError(
+            error,
+            operation: "writeInPlace",
+            relativePath: relativePath
+          ) ?? nativeCodeError(
+            error,
+            operation: "writeInPlace",
+            relativePath: relativePath
+          )
+          result(mapped)
+          return
+        }
+        result(nil)
+      }
     }
   }
 
@@ -842,51 +854,43 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: containerId)
-    else {
-      result(containerAccessError(operation: "writeInPlaceBytes", relativePath: relativePath))
-      return
-    }
-
-    let fileURL = containerURL.appendingPathComponent(relativePath)
-
-    do {
-      let dirURL = fileURL.deletingLastPathComponent()
-      if !FileManager.default.fileExists(atPath: dirURL.path) {
-        try FileManager.default.createDirectory(
-          at: dirURL,
-          withIntermediateDirectories: true,
-          attributes: nil
-        )
-      }
-    } catch {
-      result(nativeCodeError(
-        error,
-        operation: "writeInPlaceBytes",
-        relativePath: relativePath
-      ))
-      return
-    }
-
-    writeInPlaceBinaryDocument(at: fileURL, contents: contents.data) { [self] error in
-      if let error = error {
-        let mapped = mapFileNotFoundError(
-          error,
-          operation: "writeInPlaceBytes",
-          relativePath: relativePath
-        ) ?? mapTimeoutError(
-          error,
-          operation: "writeInPlaceBytes",
-          relativePath: relativePath
-        ) ?? nativeCodeError(
-          error,
-          operation: "writeInPlaceBytes",
+    Task { [self] in
+      let fileURL: URL
+      do {
+        fileURL = try await prepareWriteEntrypointURL(
+          containerId: containerId,
           relativePath: relativePath
         )
-        result(mapped)
+      } catch {
+        result(mapWriteEntrypointPreflightError(
+          error,
+          operation: "writeInPlaceBytes",
+          relativePath: relativePath
+        ))
         return
       }
-      result(nil)
+
+      writeInPlaceBinaryDocument(at: fileURL, contents: contents.data) {
+        [self] error in
+        if let error = error {
+          let mapped = mapFileNotFoundError(
+            error,
+            operation: "writeInPlaceBytes",
+            relativePath: relativePath
+          ) ?? mapTimeoutError(
+            error,
+            operation: "writeInPlaceBytes",
+            relativePath: relativePath
+          ) ?? nativeCodeError(
+            error,
+            operation: "writeInPlaceBytes",
+            relativePath: relativePath
+          )
+          result(mapped)
+          return
+        }
+        result(nil)
+      }
     }
   }
   
@@ -1107,13 +1111,13 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
         )
 
         let containerPath = containerURL.standardizedFileURL.path
+        let keysSet = Set(keys)
+        let parentRelative = self.relativePath(
+          for: listURL, containerPath: containerPath
+        )
         var items: [[String: Any?]] = []
 
         for fileURL in contents {
-          let values = try fileURL.resourceValues(
-            forKeys: Set(keys)
-          )
-
           let diskName = fileURL.lastPathComponent
           let resolvedName = self.resolveICloudPlaceholderName(diskName)
 
@@ -1122,12 +1126,12 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
           // to their real name, so they pass through this filter.
           if resolvedName.hasPrefix(".") { continue }
 
+          let values = try fileURL.resourceValues(
+            forKeys: keysSet
+          )
+
           // Build relative path from the container root so the
           // result is usable with other plugin methods.
-          let parentURL = fileURL.deletingLastPathComponent()
-          let parentRelative = self.relativePath(
-            for: parentURL, containerPath: containerPath
-          )
           let itemRelativePath = parentRelative.isEmpty
             ? resolvedName
             : parentRelative + "/" + resolvedName

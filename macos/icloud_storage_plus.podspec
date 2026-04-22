@@ -20,6 +20,7 @@ container, with document coordination via UIDocument/NSDocument.
     'icloud_storage_plus/Sources/icloud_storage_plus_foundation/CoordinatedReplaceWriter.swift',
     'icloud_storage_plus/Sources/icloud_storage_plus_foundation/DownloadWaiter.swift',
     'icloud_storage_plus/Sources/icloud_storage_plus_foundation/ConflictResolver.swift',
+    'icloud_storage_plus/Sources/icloud_storage_plus_foundation/WriteEntrypointPreflight.swift',
   ]
   s.dependency 'FlutterMacOS'
 

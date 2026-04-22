@@ -84,9 +84,21 @@ let endNew = CFAbsoluteTimeGetCurrent()
 print("New implementation time: \\(endNew - startNew) seconds")
 ```
 
+## Additional Optimization: Tight Loop Efficiency in `listContents`
+
+In the `listContents` method on both iOS and macOS, redundant work inside the
+directory-enumeration loop was removed:
+
+1. `Set(keys)` is created once before the loop instead of on every item.
+2. The parent-relative path for the listed directory is calculated once before
+   iterating children.
+3. Hidden-file filtering now happens before `resourceValues(forKeys:)`, so
+   hidden files do not pay the metadata lookup cost.
+
 ## Affected Methods
 - `relativePath(for:containerURL:)` -> `relativePath(for:containerPath:)`
 - `mapMetadataItem(_:containerURL:)` -> `mapMetadataItem(_:containerPath:)`
 - `mapResourceValues(fileURL:values:containerURL:)` -> `mapResourceValues(fileURL:values:containerPath:)`
 - `mapFileAttributesFromQuery(query:containerURL:)` (Implementation updated)
 - `getDocumentMetadata` (Implementation updated)
+- `listContents` (Loop optimized in both iOS and macOS plugins)

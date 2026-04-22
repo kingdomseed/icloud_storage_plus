@@ -66,6 +66,18 @@ void main() {
           };
         case 'getContainerPath':
           return '/container/path';
+        case 'listContents':
+          return [
+            {
+              'relativePath': 'file.txt',
+              'isDirectory': false,
+              'downloadStatus': 'NSURLUbiquitousItemDownloadingStatusCurrent',
+              'isDownloading': false,
+              'isUploaded': true,
+              'isUploading': false,
+              'hasUnresolvedConflicts': false,
+            }
+          ];
         case 'readInPlace':
           return 'contents';
         case 'readInPlaceBytes':
@@ -341,6 +353,34 @@ void main() {
           contents: '{"ok":true}',
         ),
         throwsA(isA<ICloudTimeoutException>()),
+      );
+    });
+
+    test('writeInPlace maps structured invalidArgument payloads', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (methodCall) async {
+        if (methodCall.method == 'writeInPlace') {
+          throw PlatformException(
+            code: PlatformExceptionCode.argumentError,
+            message: 'Destination is a directory',
+            details: {
+              'category': 'invalidArgument',
+              'operation': 'writeInPlace',
+              'retryable': false,
+              'relativePath': 'Documents/test.json',
+            },
+          );
+        }
+        return null;
+      });
+
+      await expectLater(
+        () => platform.writeInPlace(
+          containerId: containerId,
+          relativePath: 'Documents/test.json',
+          contents: '{"ok":true}',
+        ),
+        throwsA(isA<ICloudInvalidArgumentException>()),
       );
     });
   });
@@ -738,6 +778,16 @@ void main() {
   test('getContainerPath', () async {
     final path = await platform.getContainerPath(containerId: containerId);
     expect(path, '/container/path');
+  });
+
+  test('listContents maps results correctly', () async {
+    final results = await platform.listContents(containerId: containerId);
+    expect(results, hasLength(1));
+    final item = results.first;
+    expect(item.relativePath, 'file.txt');
+    expect(item.isDirectory, false);
+    expect(item.isDownloaded, true);
+    expect(item.isUploaded, true);
   });
 
   test('copy maps structured downloadInProgress payloads', () async {
