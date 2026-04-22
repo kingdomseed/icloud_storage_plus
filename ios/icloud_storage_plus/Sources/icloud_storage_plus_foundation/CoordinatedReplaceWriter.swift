@@ -5,11 +5,22 @@ struct CoordinatedReplaceWriter {
     typealias EnsureDownloaded = (URL) async throws -> Void
     typealias VerifyDestination = (URL) throws -> Void
     typealias CreateReplacementDirectory = (URL) throws -> URL
+    /// Outer is `async throws` so the live binding can bridge
+    /// `NSFileCoordinator.coordinate` (sync, blocking) into the
+    /// caller's async context. Inner accessor is sync to honor Apple's
+    /// documented contract that the coordinator's accessor closure
+    /// runs synchronously on the calling thread — and to avoid the
+    /// `DispatchSemaphore`-bridged async accessor that could deadlock
+    /// the Swift cooperative thread pool under load.
     typealias CoordinateReplace = (
         URL,
-        @escaping @Sendable (URL) async throws -> Void
+        @escaping @Sendable (URL) throws -> Void
     ) async throws -> Void
-    typealias ResolveConflicts = (URL) async throws -> Void
+    /// Sync because the live binding wraps three synchronous
+    /// `NSFileVersion` calls. The previous `async throws` decoration
+    /// added no real suspension and forced a deadlock-prone
+    /// `DispatchSemaphore` bridge inside the coordinator block.
+    typealias ResolveConflicts = (URL) throws -> Void
     typealias ReplaceItem = (URL, URL) throws -> Void
     typealias RemoveItem = (URL) throws -> Void
 
@@ -44,7 +55,7 @@ struct CoordinatedReplaceWriter {
             let replaceItem = self.replaceItem
             try await coordinateReplace(destinationURL) {
                 [replacementURL] coordinatedURL in
-                try await resolveConflicts(coordinatedURL)
+                try resolveConflicts(coordinatedURL)
                 // The resolver above calls `replaceItem(at:)` on the
                 // most-recent conflict version; the next line clobbers
                 // that content with the user's replacement. That's
@@ -139,15 +150,16 @@ extension CoordinatedReplaceWriter {
     static func autoResolveConflictError(
         underlying: Error
     ) -> NSError {
-        NSError(
+        let underlyingNSError = underlying as NSError
+        return NSError(
             domain: replaceStateErrorDomain,
             code: conflictReplaceStateCode,
             userInfo: [
                 NSLocalizedDescriptionKey:
                     "Cannot replace an iCloud item: "
                     + "\(autoResolveFailedDescriptionMarker) — "
-                    + (underlying as NSError).localizedDescription,
-                NSUnderlyingErrorKey: underlying,
+                    + underlyingNSError.localizedDescription,
+                NSUnderlyingErrorKey: underlyingNSError,
             ]
         )
     }
@@ -228,48 +240,49 @@ extension CoordinatedReplaceWriter {
         )
     }
 
-    /// Default `coordinateReplace` binding: bridges async accessor
-    /// work into `NSFileCoordinator.coordinate(writingItemAt:)` via a
-    /// short-lived DispatchSemaphore. Safe because the live accessor
-    /// (resolveConflicts + replaceItem) has no actual suspension
-    /// points — resolveUnresolvedConflicts calls synchronous
-    /// NSFileVersion APIs wrapped in `async`.
+    /// Default `coordinateReplace` binding: bridges
+    /// `NSFileCoordinator.coordinate(writingItemAt:)` (synchronous,
+    /// blocking) into the async caller via a single-resume
+    /// `withCheckedThrowingContinuation` running on
+    /// `DispatchQueue.global`. The accessor is sync per Apple's
+    /// contract; no `DispatchSemaphore`, no inner `Task`, no
+    /// cooperative-pool starvation surface.
+    ///
+    /// The DispatchQueue.global hop is what makes this deadlock-free:
+    /// the blocking `coordinate(...)` call waits on a dispatch thread,
+    /// not on a Swift cooperative-pool thread, so even fully-saturated
+    /// concurrent writes cannot starve the cooperative pool.
     static let liveCoordinateReplace: CoordinateReplace = {
         destinationURL, accessor in
         try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<Void, Error>) in
-            let coordinator = NSFileCoordinator(filePresenter: nil)
-            var coordinationError: NSError?
-            var accessError: Error?
+            DispatchQueue.global(qos: .userInitiated).async {
+                let coordinator = NSFileCoordinator(filePresenter: nil)
+                var coordinationError: NSError?
+                var accessError: Error?
 
-            coordinator.coordinate(
-                writingItemAt: destinationURL,
-                options: .forReplacing,
-                error: &coordinationError
-            ) { coordinatedURL in
-                let semaphore = DispatchSemaphore(value: 0)
-                let errorBox = CoordinatedReplaceErrorBox()
-                Task.detached {
+                coordinator.coordinate(
+                    writingItemAt: destinationURL,
+                    options: .forReplacing,
+                    error: &coordinationError
+                ) { coordinatedURL in
                     do {
-                        try await accessor(coordinatedURL)
+                        try accessor(coordinatedURL)
                     } catch {
-                        errorBox.error = error
+                        accessError = error
                     }
-                    semaphore.signal()
                 }
-                semaphore.wait()
-                accessError = errorBox.error
-            }
 
-            if let coordinationError {
-                continuation.resume(throwing: coordinationError)
-                return
+                if let coordinationError {
+                    continuation.resume(throwing: coordinationError)
+                    return
+                }
+                if let accessError {
+                    continuation.resume(throwing: accessError)
+                    return
+                }
+                continuation.resume()
             }
-            if let accessError {
-                continuation.resume(throwing: accessError)
-                return
-            }
-            continuation.resume()
         }
     }
 
@@ -290,7 +303,7 @@ extension CoordinatedReplaceWriter {
         coordinateReplace: liveCoordinateReplace,
         resolveConflicts: { url in
             do {
-                try await resolveUnresolvedConflicts(at: url)
+                try resolveUnresolvedConflictsSync(at: url)
             } catch {
                 throw autoResolveConflictError(underlying: error)
             }
@@ -307,11 +320,4 @@ extension CoordinatedReplaceWriter {
             }
         }
     )
-}
-
-/// Escape hatch for the sync-to-async bridge inside `liveCoordinateReplace`.
-/// Lives at file scope so the bridge closure can capture it without
-/// tying it to a specific test double.
-private final class CoordinatedReplaceErrorBox: @unchecked Sendable {
-    var error: Error?
 }

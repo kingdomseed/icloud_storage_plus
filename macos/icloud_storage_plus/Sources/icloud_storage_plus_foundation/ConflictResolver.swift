@@ -39,13 +39,14 @@ func resolveUnresolvedConflicts<Version>(
     try removeOtherVersions(url)
 }
 
-/// Async-throws wrapper using the real `NSFileVersion` APIs.
+/// Synchronous wrapper using the real `NSFileVersion` APIs.
 ///
-/// Declared `async` so it matches the seam signature in
-/// `CoordinatedReplaceWriter` and can be awaited inside future
-/// coordinator blocks. The underlying `NSFileVersion` calls are
-/// synchronous; there is no implicit suspension.
-func resolveUnresolvedConflicts(at url: URL) async throws {
+/// `NSFileVersion`'s entire surface is synchronous. The
+/// `CoordinatedReplaceWriter` `live` binding calls this from inside
+/// `NSFileCoordinator.coordinate`'s synchronous accessor closure —
+/// matching Apple's documented contract that the accessor must
+/// complete inline, not across `await` suspensions.
+func resolveUnresolvedConflictsSync(at url: URL) throws {
     try resolveUnresolvedConflicts(
         at: url,
         unresolvedVersions: {
@@ -60,4 +61,14 @@ func resolveUnresolvedConflicts(at url: URL) async throws {
             try NSFileVersion.removeOtherVersionsOfItem(at: $0)
         }
     )
+}
+
+/// Async-throws wrapper preserved for the iOS `ICloudDocument`
+/// observer (`documentStateChanged`) and the macOS observer
+/// (`presentedItemDidChange`), which dispatch resolution from a
+/// `Task { try await ... }` after a state-change notification. There
+/// is no actual suspension inside; the `async` decoration just lets
+/// the observer call sites stay shaped as Swift Concurrency.
+func resolveUnresolvedConflicts(at url: URL) async throws {
+    try resolveUnresolvedConflictsSync(at: url)
 }

@@ -2,6 +2,68 @@ import Foundation
 import XCTest
 @testable import icloud_storage_plus_foundation
 
+/// `NSLock`-guarded counter the sync seam closures can mutate.
+/// Replaces the previous `actor`-based bookkeeping that required
+/// `await` inside seam closures — those closures are now sync per
+/// the Slice B/C/D architectural correction.
+private final class LockedCallbacks: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _ensureDownloadCount = 0
+    private var _verifyDestinationCount = 0
+    private var _resolveConflictsCount = 0
+    private var _replaceItemCount = 0
+
+    var ensureDownloadCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _ensureDownloadCount
+    }
+    var verifyDestinationCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _verifyDestinationCount
+    }
+    var resolveConflictsCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _resolveConflictsCount
+    }
+    var replaceItemCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _replaceItemCount
+    }
+
+    func bumpEnsure() {
+        lock.lock(); defer { lock.unlock() }
+        _ensureDownloadCount += 1
+    }
+    func bumpVerify() {
+        lock.lock(); defer { lock.unlock() }
+        _verifyDestinationCount += 1
+    }
+    func bumpResolve() {
+        lock.lock(); defer { lock.unlock() }
+        _resolveConflictsCount += 1
+    }
+    func bumpReplace() {
+        lock.lock(); defer { lock.unlock() }
+        _replaceItemCount += 1
+    }
+}
+
+/// `NSLock`-guarded ordered event log for step-order assertions.
+private final class LockedCallLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _events: [String] = []
+
+    var events: [String] {
+        lock.lock(); defer { lock.unlock() }
+        return _events
+    }
+
+    func append(_ event: String) {
+        lock.lock(); defer { lock.unlock() }
+        _events.append(event)
+    }
+}
+
 final class CoordinatedReplaceWriterTests: XCTestCase {
     func testProductionSourceIsNotDuplicated() throws {
         let productionPath = #filePath
@@ -321,7 +383,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             ensureDownloaded: { _ in },
             verifyDestination: { _ in },
             createReplacementDirectory: { _ in replacementDirectory },
-            coordinateReplace: { url, accessor in try await accessor(url) },
+            coordinateReplace: { url, accessor in try accessor(url) },
             resolveConflicts: { _ in },
             replaceItem: { _, _ in throw expectedError },
             removeItem: { cleanedURL = $0 }
@@ -351,7 +413,7 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             XCTFail("verifyDestination should not fire in happy path")
         },
         coordinateReplace: @escaping CoordinatedReplaceWriter.CoordinateReplace = {
-            url, accessor in try await accessor(url)
+            url, accessor in try accessor(url)
         },
         resolveConflicts: @escaping CoordinatedReplaceWriter.ResolveConflicts = { _ in },
         replaceItem: @escaping CoordinatedReplaceWriter.ReplaceItem = { _, _ in },
@@ -372,30 +434,16 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
     }
 
     func testHappyPathDoesNotReinvokePreFlight() async throws {
-        actor Callbacks {
-            var ensureDownloadCount = 0
-            var resolveConflictsCount = 0
-            var replaceItemCount = 0
-            var verifyDestinationCount = 0
-            func bumpEnsure() { ensureDownloadCount += 1 }
-            func bumpResolve() { resolveConflictsCount += 1 }
-            func bumpReplace() { replaceItemCount += 1 }
-            func bumpVerify() { verifyDestinationCount += 1 }
-        }
-        let callbacks = Callbacks()
+        let callbacks = LockedCallbacks()
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
-            ensureDownloaded: { _ in await callbacks.bumpEnsure() },
-            verifyDestination: { _ in
-                Task { await callbacks.bumpVerify() }
-            },
+            ensureDownloaded: { _ in callbacks.bumpEnsure() },
+            verifyDestination: { _ in callbacks.bumpVerify() },
             createReplacementDirectory: { _ in URL(fileURLWithPath: "/tmp/r") },
-            coordinateReplace: { url, accessor in try await accessor(url) },
-            resolveConflicts: { _ in await callbacks.bumpResolve() },
-            replaceItem: { _, _ in
-                Task { await callbacks.bumpReplace() }
-            },
+            coordinateReplace: { url, accessor in try accessor(url) },
+            resolveConflicts: { _ in callbacks.bumpResolve() },
+            replaceItem: { _, _ in callbacks.bumpReplace() },
             removeItem: { _ in }
         )
 
@@ -404,44 +452,30 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
         ) { _ in }
 
         XCTAssertTrue(handled)
-        let ensureCount = await callbacks.ensureDownloadCount
-        let resolveCount = await callbacks.resolveConflictsCount
-        XCTAssertEqual(ensureCount, 1, "ensureDownloaded must run exactly once")
-        XCTAssertEqual(resolveCount, 1, "resolveConflicts must run exactly once")
+        XCTAssertEqual(
+            callbacks.ensureDownloadCount, 1,
+            "ensureDownloaded must run exactly once"
+        )
+        XCTAssertEqual(
+            callbacks.resolveConflictsCount, 1,
+            "resolveConflicts must run exactly once"
+        )
     }
 
     func testEnsureDownloadedRunsBeforeVerifyDestination() async throws {
-        actor CallLog {
-            var events: [String] = []
-            func append(_ event: String) { events.append(event) }
-        }
-        let log = CallLog()
+        let log = LockedCallLog()
 
         let writer = CoordinatedReplaceWriter(
             fileExists: { _ in true },
-            ensureDownloaded: { _ in await log.append("ensureDownloaded") },
-            verifyDestination: { _ in
-                let sema = DispatchSemaphore(value: 0)
-                Task {
-                    await log.append("verifyDestination")
-                    sema.signal()
-                }
-                sema.wait()
-            },
+            ensureDownloaded: { _ in log.append("ensureDownloaded") },
+            verifyDestination: { _ in log.append("verifyDestination") },
             createReplacementDirectory: { _ in URL(fileURLWithPath: "/tmp/r") },
             coordinateReplace: { url, accessor in
-                await log.append("coordinateReplace")
-                try await accessor(url)
+                log.append("coordinateReplace")
+                try accessor(url)
             },
-            resolveConflicts: { _ in await log.append("resolveConflicts") },
-            replaceItem: { _, _ in
-                let sema = DispatchSemaphore(value: 0)
-                Task {
-                    await log.append("replaceItem")
-                    sema.signal()
-                }
-                sema.wait()
-            },
+            resolveConflicts: { _ in log.append("resolveConflicts") },
+            replaceItem: { _, _ in log.append("replaceItem") },
             removeItem: { _ in }
         )
 
@@ -449,9 +483,8 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
             at: URL(fileURLWithPath: "/tmp/file.json")
         ) { _ in }
 
-        let events = await log.events
         XCTAssertEqual(
-            events,
+            log.events,
             [
                 "ensureDownloaded",
                 "verifyDestination",
@@ -657,10 +690,76 @@ final class CoordinatedReplaceWriterTests: XCTestCase {
                 CoordinatedReplaceWriter.autoResolveFailedDescriptionMarker
             )
         )
+        // Slice D: explicit `as NSError` cast guarantees the value
+        // round-trips as NSError for downstream consumers (Dart-side
+        // `details["underlying"]`, Sentry breadcrumbs, os_log).
+        XCTAssertTrue(
+            wrapped.userInfo[NSUnderlyingErrorKey] is NSError,
+            "NSUnderlyingErrorKey value must be an NSError, not a "
+                + "Swift Error wrapper, so userInfo bridges cleanly."
+        )
+        XCTAssertEqual(
+            (wrapped.userInfo[NSUnderlyingErrorKey] as? NSError)?.code,
+            NSFileWriteOutOfSpaceError,
+            "Underlying NSError code must be reachable via userInfo "
+                + "lookup without re-bridging."
+        )
         XCTAssertEqual(
             wrapped.userInfo[NSUnderlyingErrorKey] as? NSError,
             underlying
         )
+    }
+
+    // MARK: - Slice C: deadlock-free coord bridge contract
+
+    func testLiveCoordinateReplaceDoesNotStarveCooperativePool() async throws {
+        let temporaryDirectory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+        let concurrency = max(
+            ProcessInfo.processInfo.activeProcessorCount * 2,
+            8
+        )
+
+        // Pre-populate destination files so NSFileCoordinator has
+        // something concrete to coordinate against.
+        let destinations: [URL] = (0..<concurrency).map { index in
+            let url = temporaryDirectory.appendingPathComponent("file-\(index).bin")
+            try? Data("seed-\(index)".utf8).write(to: url)
+            return url
+        }
+
+        let started = Date()
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for url in destinations {
+                group.addTask {
+                    try await CoordinatedReplaceWriter.liveCoordinateReplace(url) {
+                        coordinatedURL in
+                        // Synthetic accessor: write 1 KB inline, sync.
+                        // No NSFileVersion, no async hops — exactly
+                        // matches the production accessor's shape.
+                        try Data(repeating: 0xAB, count: 1024)
+                            .write(to: coordinatedURL)
+                    }
+                }
+            }
+            try await group.waitForAll()
+        }
+        let elapsed = Date().timeIntervalSince(started)
+
+        XCTAssertLessThan(
+            elapsed, 5.0,
+            "liveCoordinateReplace must not starve the Swift cooperative "
+                + "pool. \(concurrency) concurrent coords completed in "
+                + "\(String(format: "%.2f", elapsed))s; a DispatchSemaphore-based "
+                + "bridge would deadlock here under load."
+        )
+
+        // Sanity: every destination got the new content.
+        for url in destinations {
+            let data = try Data(contentsOf: url)
+            XCTAssertEqual(data.count, 1024)
+        }
     }
 
     private func makeTemporaryDirectory() throws -> URL {
