@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-04-22
+
+### Fixed
+- Added `WriteEntrypointPreflight.swift` to the explicit iOS plugin
+  `Package.swift` source list so consumer builds that rely on the Swift package
+  manifest can compile the `2.1.x` write-path preflight helper correctly.
+
 ## [2.1.0] - 2026-04-17
 
 Non-breaking behavior upgrade: `writeInPlace` becomes symmetric with
