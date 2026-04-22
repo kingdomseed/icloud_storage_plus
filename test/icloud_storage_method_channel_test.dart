@@ -65,6 +65,18 @@ void main() {
           return null;
         case 'writeInPlaceBytes':
           return null;
+        case 'listContents':
+          return [
+            {
+              'relativePath': 'file.txt',
+              'isDirectory': false,
+              'downloadStatus': 'current',
+              'isDownloading': false,
+              'isUploaded': true,
+              'isUploading': false,
+              'hasUnresolvedConflicts': false,
+            }
+          ];
         default:
           return null;
       }
@@ -436,5 +448,15 @@ void main() {
   test('getContainerPath', () async {
     final path = await platform.getContainerPath(containerId: containerId);
     expect(path, '/container/path');
+  });
+
+  test('listContents maps results correctly', () async {
+    final results = await platform.listContents(containerId: containerId);
+    expect(results, hasLength(1));
+    final item = results.first;
+    expect(item.relativePath, 'file.txt');
+    expect(item.isDirectory, false);
+    expect(item.isDownloaded, true);
+    expect(item.isUploaded, true);
   });
 }
