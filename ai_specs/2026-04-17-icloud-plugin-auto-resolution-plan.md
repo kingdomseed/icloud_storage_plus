@@ -134,6 +134,21 @@ Plugin 2.0.0 → 2.1.0. Step 0 (no-op refactor): unify duplicates + extract asyn
 - [x] `flutter pub publish --dry-run` clean (only the expected uncommitted-files warning). Actual publish is user's call.
 - [x] Verify: foundation `swift test` 36/36 (macOS) and 34/34 (iOS) passing, plugin `flutter test` 115/115 passing, `flutter analyze` clean, dry-run clean.
 
+#### Post-merge correction
+
+- The shipped bridge deviates from the earlier `ResolveConflicts = (URL) async throws -> Void`
+  sketch. `ResolveConflicts` is now synchronous and the live binding calls
+  `resolveUnresolvedConflictsSync(at:)` inside
+  `NSFileCoordinator.coordinate(...)`'s synchronous accessor closure.
+- `liveCoordinateReplace` moved from the speculative semaphore bridge to a
+  deadlock-free `withCheckedThrowingContinuation` wrapper on
+  `DispatchQueue.global(qos: .userInitiated)`, keeping blocking coordinator
+  work off the Swift cooperative pool.
+- The 2.1.0 release prep also widened both podspec `source_files` lists to the
+  shared foundation sources and added overwrite-path timeout mapping tests so
+  `uploadFile`, `writeInPlace`, and `writeInPlaceBytes` preserve
+  `ICloudTimeoutException`.
+
 ## Risks / Out of scope
 
 **Risks**:
