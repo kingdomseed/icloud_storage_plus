@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-04-23
+
+### Fixed
+- iOS `readInPlace` and `readInPlaceBytes` now marshal the post-download
+  continuation back onto the main actor before invoking
+  `readInPlaceDocument` / `readInPlaceBinaryDocument`. The `2.1.0` async
+  rewrite of `waitForDownloadCompletion` inadvertently removed the
+  `DispatchQueue.main` hop that the callback-based waiter guaranteed,
+  letting `UIDocument.open(completionHandler:)` be called from the Swift
+  cooperative pool. This restores the `1.2.2` invariant that `UIDocument`
+  work runs under the main queue per Apple's completion-handler contract
+  and avoids the `_os_object_retain` "Resurrection of an object" crash
+  that motivated that fix.
+- macOS `uploadFile`, `readInPlace`, `readInPlaceBytes`, `writeInPlace`,
+  and `writeInPlaceBytes` now run their `Task` bodies on the main actor.
+  Because the macOS `FlutterMethodChannel` is registered without a
+  background task queue, `FlutterResult` must be invoked on the main
+  thread; the previous `Task { [self] in ... }` blocks resumed on the
+  cooperative pool after `await`, causing `result(...)` to be called
+  off-main in preflight error paths.
+
 ## [2.1.1] - 2026-04-22
 
 ### Fixed
