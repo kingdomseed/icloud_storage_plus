@@ -303,7 +303,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
     }
     let localFileURL = URL(fileURLWithPath: localFilePath)
 
-    Task { [self] in
+    Task { @MainActor [self] in
       let cloudFileURL: URL
       do {
         cloudFileURL = try await prepareWriteEntrypointURL(
@@ -629,7 +629,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    Task { [self] in
+    Task { @MainActor [self] in
       do {
         try await waitForDownloadCompletion(
           at: fileURL,
@@ -684,7 +684,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    Task { [self] in
+    Task { @MainActor [self] in
       let fileURL: URL
       do {
         fileURL = try await prepareWriteEntrypointURL(
@@ -765,7 +765,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    Task { [self] in
+    Task { @MainActor [self] in
       do {
         try await waitForDownloadCompletion(
           at: fileURL,
@@ -824,7 +824,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    Task { [self] in
+    Task { @MainActor [self] in
       let fileURL: URL
       do {
         fileURL = try await prepareWriteEntrypointURL(

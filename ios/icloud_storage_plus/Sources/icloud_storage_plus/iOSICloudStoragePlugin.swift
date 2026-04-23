@@ -662,7 +662,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    Task { [self] in
+    Task { @MainActor [self] in
       do {
         try await waitForDownloadCompletion(
           at: fileURL,
@@ -795,7 +795,7 @@ public class ICloudStoragePlugin: NSObject, FlutterPlugin {
       return
     }
 
-    Task { [self] in
+    Task { @MainActor [self] in
       do {
         try await waitForDownloadCompletion(
           at: fileURL,
